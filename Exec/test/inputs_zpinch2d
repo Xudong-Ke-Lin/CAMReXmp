@@ -1,0 +1,57 @@
+# ------------------  INPUTS TO MAIN PROGRAM  -------------------
+#stop_time = 0.0015625
+stop_time = 1.0
+Gamma = 1.666666667
+r_i = 10.0
+m = 25.0
+l_r = 1.0
+c = 10.0
+lambda_d = 1.0
+test = "zpinch2d"
+coor= "xz"
+
+# PROBLEM SIZE & GEOMETRY
+# NOTE - although this example is 2D, 3D data can be specified safely; the z-components are ignored
+#geometry.is_periodic =  0  1  1               # Boolean flag for periodic boundaries all round
+#geometry.coord_sys   =  1                     # 0 -> Cartesian geometry
+geometry.is_periodic =  1  0  1
+geometry.coord_sys   =  1
+geometry.prob_lo     =  0.0  0.0  0.0         # Physical minimum extents
+geometry.prob_hi     =  1.0  1.0  1.0         # Physical maximum extents
+amr.n_cell           =  512  512  256         # Number of cells in each dimension
+
+# TIME STEP CONTROL
+adv.cfl            = 0.5     # cfl number for hyperbolic system
+
+# VERBOSITY - controls the number of messages output to screen
+adv.v              = 1       # verbosity in Adv
+amr.v              = 1       # verbosity in Amr (recommended, else progres of code is not output)
+
+# REFINEMENT / REGRIDDING
+amr.max_level       = 0       # maximum level number allowed
+amr.ref_ratio       = 2 2 2 2 # refinement ratio
+amr.regrid_int      = 1       # how often to regrid (number of coarse timesteps between regrid)
+amr.blocking_factor = 8       # block factor in grid generation
+amr.max_grid_size   = 32
+
+# CHECKPOINT FILES
+amr.checkpoint_files_output = 0     # 0 will disable checkpoint files
+amr.check_file              = chk   # root name of checkpoint file
+amr.check_int               = 0    # number of timesteps between checkpoints
+
+# PLOTFILES
+# NOTE - VisIt (recommended), Paraview or amrvis are needed to visualise data.  AMReX outputs boxlib format
+#        data; see lab CAMReX wiki for instructions on plotting.  Using a base name of plt ensures
+#	 visualisation knows the current cycle (iteration) as well as time - see AMReX documentation for more.
+amr.plot_files_output = 1                # 0 will disable plot files
+amr.plot_file         = /local/data/public/xk215/MPHIL_thesis/TFMHD/plt_lr100_cfl0.8_    # root name of plot file
+amr.plot_int          = 0               # number of timesteps between plot files, plot_per allows fixed timesteps
+
+# PROBIN FILENAME - This file contains AMR refinement criteria
+amr.probin_file = probin
+
+# NUMERICAL METHODS
+num.Strang      = 1
+num.RK		= 1
+num.source 	= "ANEX"
+num.Maxwell	= "HYP"

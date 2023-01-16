@@ -1,0 +1,5 @@
+CEXE_sources += CAMReXmp.cpp LevelBldAdv.cpp initData.cpp utils.cpp main.cpp 
+CEXE_sources += StrangFunctions.cpp RKFunctions.cpp fluidFunctions.cpp MaxwellFunctions.cpp sourceFunctions.cpp
+CEXE_headers += CAMReXmp.H utils.H
+
+FEXE_headers += Adv_F.H
