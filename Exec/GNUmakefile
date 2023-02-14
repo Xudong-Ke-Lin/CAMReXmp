@@ -13,6 +13,8 @@ PROFILE    = FALSE
 #DEBUG      = TRUE
 DEBUG      = FALSE
 
+USE_PARTICLES = TRUE
+
 # Dimensionality is specified at compile time - this example has been written for 2D only
 DIM        = 2
 
