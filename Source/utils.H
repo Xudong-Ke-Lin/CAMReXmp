@@ -20,11 +20,11 @@ extern Real lambda_d;
 // functions to compute the magnitudes
 Real get_magnitude_squared(Real x, Real y, Real z);
 Real get_magnitude(Real x, Real y, Real z);
-// calculate magnitude velocity from converved variables                                                                      
+// calculate magnitude velocity from converved variables
 Real get_v(const Vector<Real>& u_i);
-// calculate squared magnitude magnetic field from converved variables                                               
+// calculate squared magnitude magnetic field from converved variables
 Real get_B_squared(const Vector<Real>& u_i);
-// calculate magnitude magnetic field from converved variables                                               
+// calculate magnitude magnetic field from converved variables
 Real get_B(const Vector<Real>& u_i);
 
 Real get_energy(const Vector<Real>& w_i);
@@ -33,8 +33,8 @@ Real get_pressure(const Vector<Real>& u_i);
 Real get_pressure_total(const Vector<Real>& u_i);
 Real get_speed(Vector<Real> u_i);
 Real get_speed_e(Vector<Real> u_i);
-// Note, B_i is the magnetic field in the i direction                                                                        
-// e.g. for flux update in x direction, use B_x                                                                              
+// Note, B_i is the magnetic field in the i direction
+// e.g. for flux update in x direction, use B_x
 Real get_speed_a(Real rho, Real B_i);
 Real get_speed_f(const Vector<Real>& u_i, int d);
 
@@ -124,3 +124,20 @@ Vector<Real> flux_SLIC(const Array4<Real>& arr, int i, int j, int k, int iOffset
 Real calc_mutime(const Vector<Real>& u_i, const Vector<Real>& u_iPlus1, int d, Real cfl);
 Real calc_mutime_elec(const Vector<Real>& u_i, const Vector<Real>& u_iPlus1, int d, Real cfl);
 Real calc_mutime_Maxwell(const Vector<Real>& u_i, const Vector<Real>& u_iPlus1, int d, Real cfl);
+
+Vector<Real> TVD2_reconstruction_L(Vector<Real> u_iMinus1, Vector<Real> u_i, Vector<Real> u_iPlus1,
+				   Vector<int> limiting_idx);
+Vector<Real> TVD2_reconstruction_R(Vector<Real> u_iMinus1, Vector<Real> u_i, Vector<Real> u_iPlus1,
+				   Vector<int> limiting_idx);
+Vector<Real> half_update_L(Vector<Real> u_iL, Vector<Real> u_iR, Real dx, Real dt, int d,
+			   std::function<Vector<Real> (const Vector<Real>&, int)> flux_function);
+Vector<Real> half_update_R(Vector<Real> u_iL, Vector<Real> u_iR, Real dx, Real dt, int d,
+			   std::function<Vector<Real> (const Vector<Real>&, int)> flux_function);
+Vector<Real> MUSCL_Hancock_HLLC_flux(const Array4<Real>& arr, int i, int j, int k, int iOffset, int jOffset, int kOffset,
+				     Real dx, Real dt, int d);
+Vector<Real> Maxwell_transverse_comp(const Array4<Real>& arr, int i, int j, int k, int iOffset, int jOffset, int kOffset);
+Vector<Real> Maxwell_corner(const Array4<Real>& arr, int i, int j, int k, int iOffset, int jOffset, int kOffset, Real dx, Real dt, int d);
+std::array<Vector<Real>, 2> MUSCL_Hancock_Godunov_Maxwell_and_transverse(const Array4<Real>& arr, int i, int j, int k, int iOffset, int jOffset, int kOffset, 
+									 Real dx, Real dt, int d);
+Vector<Real> MUSCL_Hancock_exact_flux(const Array4<Real>& arr, int i, int j, int k, int iOffset, int jOffset, int kOffset,
+				     Real dx, Real dt, int d);

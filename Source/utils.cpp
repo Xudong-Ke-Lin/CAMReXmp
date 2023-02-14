@@ -229,22 +229,33 @@ Real dot_product(Vector<Real> a, Vector<Real> b){
 // r is the slope ratio
 Real get_epsilon(Real r){
   // MIMBEE
-  if (r <= 0){
+  /* if (r <= 0){
     return 0.0;
   } else if (r>0 && r<=1.0){
     return r;
   } else{
     Real epsilon_R = 2.0/(1.0+r);
     return std::min(1.0, epsilon_R);
-    }
+    }*/
   // Van-Leer
-  /*if (r <= 0){
+  if (r <= 0){
     return 0.0;
   } else{
     Real epsilon_R = 2.0/(1.0+r);
     Real epsilon_L = 2.0*r/(1.0+r);
     return std::min(epsilon_L, epsilon_R);
-    }*/  
+  }
+  // Superbee
+  /*if (r <= 0){
+    return 0.0;
+  } else if (r>0 && r<=0.5){
+    return 2.0*r;
+  } else if (r>0.5 && r<=1.0){
+    return 1.0;
+  } else{
+    Real epsilon_R = 2.0/(1.0+r);
+    return std::min(std::min(r, epsilon_R),2.0);
+    }*/
 }
 // slope ratio for slope limiter defined in Toro's book
 Real get_r(const Real& q_iMinus1, const Real& q_i, const Real& q_iPlus1){
@@ -595,10 +606,10 @@ Vector<Real> fluid_flux_HLLC(const Array4<Real>& arr, int i, int j, int k, int i
 
   // Reiamnn problem left state for the electron variables
   Vector<Real> u_i_nPlusHalf_R_e = half_step_evolution_R(ue_iMinus1, ue_i, ue_iPlus1,
-						       limiting_idx, dx, dt, d, &fluidFlux); 
+							 limiting_idx, dx, dt, d, &fluidFlux); 
   // Reiamnn problem right state for the electron variables
   Vector<Real> u_iPlus1_nPlusHalf_L_e = half_step_evolution_L(ue_i, ue_iPlus1, ue_iPlus2,
-							    limiting_idx, dx, dt, d, &fluidFlux);
+							      limiting_idx, dx, dt, d, &fluidFlux);
   
   // speeds for approximate Riemann problem
   Real S_R_i = get_S_K(u_i_nPlusHalf_R_i, u_iPlus1_nPlusHalf_L_i, d);
@@ -700,16 +711,32 @@ Vector<Real> Maxwell_flux_Godunov(const Array4<Real>& arr, int i, int j, int k, 
       limiting_idx.push_back(n-NUM_STATE_FLUID);
     }
   
-  // Reiamnn problem left state
-  Vector<Real> u_i_nPlusHalf_R = half_step_evolution_R(u_iMinus1, u_i, u_iPlus1,
-						       limiting_idx, dx, dt, d, &MaxwellFlux); 
-  // Reiamnn problem right state
-  Vector<Real> u_iPlus1_nPlusHalf_L = half_step_evolution_L(u_i, u_iPlus1, u_iPlus2,
-							    limiting_idx, dx, dt, d, &MaxwellFlux);
   if (CAMReXmp::RKOrder==2)
     {
-      u_i = u_i_nPlusHalf_R;
-      u_iPlus1 = u_iPlus1_nPlusHalf_L;
+      /*// Reiamnn problem left state
+      Vector<Real> u_i_nPlusHalf_R = half_step_evolution_R(u_iMinus1, u_i, u_iPlus1,
+						       limiting_idx, dx, dt, d, &MaxwellFlux); 
+      // Reiamnn problem right state
+      Vector<Real> u_iPlus1_nPlusHalf_L = half_step_evolution_L(u_i, u_iPlus1, u_iPlus2,
+							    limiting_idx, dx, dt, d, &MaxwellFlux);
+      */
+      // Cell boundary extrapolated values at the left and the right for the ion
+      //Vector<Real> u_iL = TVD2_reconstruction_L(u_iMinus1, u_i, u_iPlus1, limiting_idx);
+      Vector<Real> u_iR = TVD2_reconstruction_R(u_iMinus1, u_i, u_iPlus1, limiting_idx);
+      Vector<Real> u_iPlus1L = TVD2_reconstruction_L(u_i, u_iPlus1, u_iPlus2, limiting_idx);
+      //Vector<Real> u_iPlus1R = TVD2_reconstruction_R(u_i, u_iPlus1, u_iPlus2, limiting_idx);
+
+      // Second order in space, not in time
+      u_i = u_iR;
+      u_iPlus1 = u_iPlus1L;
+      
+      // Reiamnn problem left state
+      //Vector<Real> u_i_nPlusHalf_R = half_update_R(u_iL, u_iR, dx, dt, d, &MaxwellFlux); 
+      // Reiamnn problem right state
+      //Vector<Real> u_iPlus1_nPlusHalf_L = half_update_L(u_iPlus1L, u_iPlus1R, dx, dt, d, &MaxwellFlux);
+
+      //u_i = u_i_nPlusHalf_R;
+      //u_iPlus1 = u_iPlus1_nPlusHalf_L;
     }
   //std::cout << u_i[2] << " " << u_i_nPlusHalf_R[2] << std::endl;
   // godunov flux
@@ -723,16 +750,7 @@ Vector<Real> Maxwell_flux_Godunov(const Array4<Real>& arr, int i, int j, int k, 
     -0.5*c*(u_iPlus1[BX_LOCAL+(2+d)%3]-u_i[BX_LOCAL+(2+d)%3]);
   Real E_z_star = 0.5*(u_iPlus1[EX_LOCAL+(2+d)%3]+u_i[EX_LOCAL+(2+d)%3])
     +0.5*c*(u_iPlus1[BX_LOCAL+(1+d)%3]-u_i[BX_LOCAL+(1+d)%3]);  
-  /*
-  Real B_y_star = 0.5*(u_iPlus1[BX+(1+d)%3-NUM_STATE_FLUID]+u_i[BX+(1+d)%3-NUM_STATE_FLUID])
-    +0.5*(u_iPlus1[EX+(2+d)%3-NUM_STATE_FLUID]-u_i[EX+(2+d)%3-NUM_STATE_FLUID]);
-  Real B_z_star = 0.5*(u_iPlus1[BX+(2+d)%3-NUM_STATE_FLUID]+u_i[BX+(2+d)%3-NUM_STATE_FLUID])
-    -0.5*(u_iPlus1[EX+(1+d)%3-NUM_STATE_FLUID]-u_i[EX+(1+d)%3-NUM_STATE_FLUID]);
-  Real E_y_star = 0.5*(u_iPlus1[EX+(1+d)%3-NUM_STATE_FLUID]+u_i[EX+(1+d)%3-NUM_STATE_FLUID])
-    -0.5*(u_iPlus1[BX+(2+d)%3-NUM_STATE_FLUID]-u_i[BX+(2+d)%3-NUM_STATE_FLUID]);
-  Real E_z_star = 0.5*(u_iPlus1[EX+(2+d)%3-NUM_STATE_FLUID]+u_i[EX+(2+d)%3-NUM_STATE_FLUID])
-    +0.5*(u_iPlus1[BX+(1+d)%3-NUM_STATE_FLUID]-u_i[BX+(1+d)%3-NUM_STATE_FLUID]);
-  */
+  
   // EM HLLC states
   flux[BX_LOCAL+d] = 0.0;
   flux[BX_LOCAL+(1+d)%3] = -E_z_star;
@@ -851,7 +869,7 @@ Vector<Real> currentUpdate(const Array4<const Real>& arr, int i, int j, int k, c
 	  u_iMinus1j[d][n] = arr(i-iOffset,j-jOffset,k-kOffset,n);
 	}
     }
-  // define conserved variables                                                                                               
+  // define conserved variables                                                                           
   Real rho_i = u_ij[0];
   Real momX_i = u_ij[1];
   Real momY_i = u_ij[2];
@@ -1201,10 +1219,10 @@ Vector<Real> half_step_evolution_R(Vector<Real> u_iMinus1, Vector<Real> u_i,
     // index ENER corresponds to energy (limiting on the energy)
     Real r_i = get_r(u_iMinus1[ENER_I], u_i[ENER_I], u_iPlus1[ENER_I]);
     Real r_e = get_r(u_iMinus1[ENER_E], u_i[ENER_E], u_iPlus1[ENER_E]);
-    // slope limiter                                                                                                          
+    // slope limiter                                                                      
     Real epsilon_i = get_epsilon(r_i);
     Real epsilon_e = get_epsilon(r_e);
-    // cell boundary extrapolated values in a linear reconstruction                                                           
+    // cell boundary extrapolated values in a linear reconstruction                         
     Vector<Real> u_iL;
     Vector<Real> u_iR;
     for (int i = 0; i<=ENER_I; i++)
@@ -1264,6 +1282,8 @@ Vector<Real> flux_HLLC(const Array4<Real>& arr, int i, int j, int k, int iOffset
   Vector<Real> u_iPlus1_nPlusHalf_L_e = {u_iPlus1_nPlusHalf_L[RHO_E],u_iPlus1_nPlusHalf_L[MOMX_E],
 					 u_iPlus1_nPlusHalf_L[MOMY_E],u_iPlus1_nPlusHalf_L[MOMZ_E],
 					 u_iPlus1_nPlusHalf_L[ENER_E]};
+
+  //amrex::Print() << u_i_nPlusHalf_R[0] << " " << u_iPlus1_nPlusHalf_L[0] << " " << u_i_nPlusHalf_R_e[0] << " " << u_iPlus1_nPlusHalf_L_e[0] << std::endl;
   
   // speeds for approximate Riemann problem
   Real S_R_i = get_S_K(u_i_nPlusHalf_R, u_iPlus1_nPlusHalf_L, d);
@@ -1362,4 +1382,428 @@ Vector<Real> flux_HLLC(const Array4<Real>& arr, int i, int j, int k, int iOffset
   flux[EX+(2+d)%3] =  -c*c*B_y_star;
   
   return flux;
+}
+// second order linear reconstruction on the left
+Vector<Real> TVD2_reconstruction_L(Vector<Real> u_iMinus1, Vector<Real> u_i, Vector<Real> u_iPlus1,
+				   Vector<int> limiting_idx){
+    // slope measure
+    Vector<Real> delta_i = get_delta_i(u_iMinus1, u_i, u_iPlus1);
+
+    // cell boundary extrapolated values in a linear reconstruction
+    Vector<Real> u_iL;
+    for (int i = 0; i<u_i.size() ; i++)    
+      {
+	// slope ratio 
+	Real ri = get_r(u_iMinus1[limiting_idx[i]], u_i[limiting_idx[i]], u_iPlus1[limiting_idx[i]]);
+	
+	// slope limiter
+	Real epsilon_i = get_epsilon(ri);
+
+        u_iL.push_back(u_i[i] - 0.5*epsilon_i*delta_i[i]);
+      }
+
+    return u_iL;
+}
+// second order linear reconstruction on the right
+Vector<Real> TVD2_reconstruction_R(Vector<Real> u_iMinus1, Vector<Real> u_i, Vector<Real> u_iPlus1,
+				   Vector<int> limiting_idx){
+  // slope measure
+    Vector<Real> delta_i = get_delta_i(u_iMinus1, u_i, u_iPlus1);
+
+    // cell boundary extrapolated values in a linear reconstruction
+    Vector<Real> u_iR;
+    for (int i = 0; i<u_i.size() ; i++)    
+      {
+	// slope ratio 
+	Real ri = get_r(u_iMinus1[limiting_idx[i]], u_i[limiting_idx[i]], u_iPlus1[limiting_idx[i]]);
+	
+	// slope limiter
+	Real epsilon_i = get_epsilon(ri);
+
+        u_iR.push_back(u_i[i] + 0.5*epsilon_i*delta_i[i]);
+      }
+
+    return u_iR;
+}
+// halft time step update evolution on the left
+Vector<Real> half_update_L(Vector<Real> u_iL, Vector<Real> u_iR, Real dx, Real dt, int d,
+			   std::function<Vector<Real> (const Vector<Real>&, int)> flux_function)
+{
+  Vector<Real> func_iR = flux_function(u_iR, d);
+  Vector<Real> func_iL = flux_function(u_iL, d);
+  Vector<Real> diff;
+  Vector<Real> half_step_evolution;
+  for (int i = 0; i<u_iL.size(); i++)
+      {
+	diff.push_back(func_iR[i]-func_iL[i]);
+	half_step_evolution.push_back(u_iL[i] - 0.5*(dt/dx)*diff[i]);
+      }
+  return half_step_evolution;
+}
+// halft time step update evolution on the right
+Vector<Real> half_update_R(Vector<Real> u_iL, Vector<Real> u_iR, Real dx, Real dt, int d,
+			   std::function<Vector<Real> (const Vector<Real>&, int)> flux_function)
+{
+  Vector<Real> func_iR = flux_function(u_iR, d);
+  Vector<Real> func_iL = flux_function(u_iL, d);
+  Vector<Real> diff;
+  Vector<Real> half_step_evolution;
+  for (int i = 0; i<u_iL.size(); i++)
+      {
+	diff.push_back(func_iR[i]-func_iL[i]);
+	half_step_evolution.push_back(u_iR[i] - 0.5*(dt/dx)*diff[i]);
+      }
+  return half_step_evolution;
+}
+
+Vector<Real> MUSCL_Hancock_HLLC_flux(const Array4<Real>& arr, int i, int j, int k, int iOffset, int jOffset, int kOffset,
+				     Real dx, Real dt, int d){
+  Vector<Real> ui_iMinus1, ue_iMinus1;
+  Vector<Real> ui_i, ue_i;
+  Vector<Real> ui_iPlus1, ue_iPlus1;
+  Vector<Real> ui_iPlus2, ue_iPlus2;
+
+  for (int n = 0; n<NUM_STATE_FLUID/2; n++)
+    {
+      ui_iMinus1.push_back(arr(i-2*iOffset,j-2*jOffset,k-2*kOffset,n));
+      ui_i.push_back(arr(i-iOffset,j-jOffset,k-kOffset,n));
+      ui_iPlus1.push_back(arr(i,j,k,n));
+      ui_iPlus2.push_back(arr(i+iOffset,j+jOffset,k+kOffset,n));
+      
+      ue_iMinus1.push_back(arr(i-2*iOffset,j-2*jOffset,k-2*kOffset,n+NUM_STATE_FLUID/2));
+      ue_i.push_back(arr(i-iOffset,j-jOffset,k-kOffset,n+NUM_STATE_FLUID/2));
+      ue_iPlus1.push_back(arr(i,j,k,n+NUM_STATE_FLUID/2));
+      ue_iPlus2.push_back(arr(i+iOffset,j+jOffset,k+kOffset,n+NUM_STATE_FLUID/2));
+    }
+
+  // Slope limiting variable index
+  Vector<int> limiting_idx(NUM_STATE_FLUID/2, NUM_STATE_FLUID/2-1);
+  
+  // Cell boundary extrapolated values at the left and the right for the ion
+  Vector<Real> u_iL_i = TVD2_reconstruction_L(ui_iMinus1, ui_i, ui_iPlus1, limiting_idx);
+  Vector<Real> u_iR_i = TVD2_reconstruction_R(ui_iMinus1, ui_i, ui_iPlus1, limiting_idx);
+  Vector<Real> u_iPlus1L_i = TVD2_reconstruction_L(ui_i, ui_iPlus1, ui_iPlus2, limiting_idx);
+  Vector<Real> u_iPlus1R_i = TVD2_reconstruction_R(ui_i, ui_iPlus1, ui_iPlus2, limiting_idx);
+
+  // Cell boundary extrapolated values at the left and the right for the electron
+  Vector<Real> u_iL_e = TVD2_reconstruction_L(ue_iMinus1, ue_i, ue_iPlus1, limiting_idx);
+  Vector<Real> u_iR_e = TVD2_reconstruction_R(ue_iMinus1, ue_i, ue_iPlus1, limiting_idx);
+  Vector<Real> u_iPlus1L_e = TVD2_reconstruction_L(ue_i, ue_iPlus1, ue_iPlus2, limiting_idx);
+  Vector<Real> u_iPlus1R_e = TVD2_reconstruction_R(ue_i, ue_iPlus1, ue_iPlus2, limiting_idx);
+  
+  // Reiamnn problem left state for the ion variables 
+  Vector<Real> u_i_nPlusHalf_R_i = half_update_R(u_iL_i, u_iR_i, dx, dt, d, &fluidFlux); 
+  // Reiamnn problem right state for the ion variables
+  Vector<Real> u_iPlus1_nPlusHalf_L_i = half_update_L(u_iPlus1L_i, u_iPlus1R_i, dx, dt, d, &fluidFlux);
+
+  // Reiamnn problem left state for the electron variables
+  Vector<Real> u_i_nPlusHalf_R_e = half_update_R(u_iL_e, u_iR_e, dx, dt, d, &fluidFlux); 
+  // Reiamnn problem right state for the electron variables
+  Vector<Real> u_iPlus1_nPlusHalf_L_e = half_update_L(u_iPlus1L_e, u_iPlus1R_e, dx, dt, d, &fluidFlux);
+  /*
+  if ((i==256) && (j>252)){
+    std::cout << "Reconstruction: " << i << " " << j << " ";
+    for(int n=0;n<5;n++)
+      std::cout << u_iL_i[n] << " " << u_iR_i[n] << " " << u_iPlus1L_i[n] << " " << u_iPlus1R_i[n] << " " << u_i_nPlusHalf_R_i[n] << " " << u_iPlus1_nPlusHalf_L_i[n] << " " << ui_iMinus1[n] << " " << ui_i[n] << " " <<  ui_iPlus1[n] << " " <<  ui_iPlus2[n] << std::endl;
+    Vector<Real> func_iR = fluidFlux(u_iL_i, d);
+    Vector<Real> func_iL = fluidFlux(u_iR_i, d);
+    Vector<Real> diff;
+    Vector<Real> half_step_evolution;
+    for (int n = 0; n<u_iR_i.size(); n++)
+      {
+	diff.push_back(func_iR[n]-func_iL[n]);
+	half_step_evolution.push_back(u_iR_i[n] - 0.5*(dt/dx)*diff[n]);
+	std::cout << "Half evolution " << u_iR_i[n] << " " << func_iR[n] << " " << func_iL[n] << " " << diff[n] << std::endl;
+      }
+    
+  }
+  */
+  // 1st order in space
+  /*
+  Vector<Real> u_i_nPlusHalf_R_i = ui_i;
+  Vector<Real> u_iPlus1_nPlusHalf_L_i = ui_iPlus1;
+  Vector<Real> u_i_nPlusHalf_R_e = ue_i;
+  Vector<Real> u_iPlus1_nPlusHalf_L_e = ue_iPlus1;
+  */
+  //amrex::Print() << u_i_nPlusHalf_R_i[0] << " " << u_iPlus1_nPlusHalf_L_i[0] << " " << u_i_nPlusHalf_R_e[0] << " " << u_iPlus1_nPlusHalf_L_e[0] << std::endl;
+  
+  // speeds for approximate Riemann problem
+  Real S_R_i = get_S_K(u_i_nPlusHalf_R_i, u_iPlus1_nPlusHalf_L_i, d);
+  Real S_L_i = -S_R_i;
+  Real S_star_i = get_S_star(u_i_nPlusHalf_R_i, u_iPlus1_nPlusHalf_L_i, S_L_i, S_R_i, d);  
+
+  Real S_R_e = get_S_K(u_i_nPlusHalf_R_e, u_iPlus1_nPlusHalf_L_e, d);
+  Real S_L_e = -S_R_e;
+  Real S_star_e = get_S_star(u_i_nPlusHalf_R_e, u_iPlus1_nPlusHalf_L_e, S_L_e, S_R_e, d);
+  
+  // flux depending on the speeds, defined in slides or Toro's book
+  Vector<Real> flux(NUM_STATE_FLUID,0.0);
+  // Ion HLLC
+  if (S_L_i>=0){
+    Vector<Real> function = fluidFlux(u_i_nPlusHalf_R_i, d);
+    for (int n = 0; n<=ENER_I; n++)
+      {       
+        flux[n] = function[n];
+	//if ((i==256) && (j>253))
+	//std::cout << "Fun1: " << i << " " << j << " " << flux[n] << " " << function[n] << " " << u_i_nPlusHalf_R_i[n] << std::endl;
+      }
+  } else if (S_L_i<=0 && S_star_i>=0){
+    Vector<Real> u_HLLC_L= get_u_HLLC(u_i_nPlusHalf_R_i, S_L_i, S_star_i, d);
+    Vector<Real> function = fluidFlux(u_i_nPlusHalf_R_i, d);
+    Vector<Real> diff;
+    for (int n = 0; n<=ENER_I; n++)
+      {
+        diff.push_back(S_L_i*(u_HLLC_L[n]-u_i_nPlusHalf_R_i[n]));
+	flux[n] = function[n]+diff[n];
+	//if ((i==256) && (j>252)){
+	//std::cout << "Fun2: " << i << " " << j << " " << flux[n] << " " << function[n] << " " << u_i_nPlusHalf_R_i[n] << " " << u_HLLC_L[n] << " " << diff[n] << std::endl;
+	  //std::cout << S_L_i << " " << S_star_i << " " << u_i_nPlusHalf_R_i[2]/u_i_nPlusHalf_R_i[0] << std::endl;
+	  //std::cout << get_pressure(u_i_nPlusHalf_R_i) << " " << get_pressure( u_iPlus1_nPlusHalf_L_i) << " " << S_R_i << " " << u_iPlus1_nPlusHalf_L_i[2]/u_iPlus1_nPlusHalf_L_i[0] << std::endl;
+	//}
+      }
+  } else if (S_star_i<=0 && S_R_i>=0){
+    Vector<Real> u_HLLC_R = get_u_HLLC(u_iPlus1_nPlusHalf_L_i, S_R_i, S_star_i, d);
+    Vector<Real> function = fluidFlux(u_iPlus1_nPlusHalf_L_i, d);
+    Vector<Real> diff;
+    for (int n = 0; n<=ENER_I; n++)
+      {
+        diff.push_back(S_R_i*(u_HLLC_R[n]-u_iPlus1_nPlusHalf_L_i[n]));
+	flux[n] = function[n]+diff[n];
+	//if ((i==32) && (j>28))
+	//std::cout << "Fun3: " << i << " " << j << " " << flux[n] << " " << function[n] << " " << u_iPlus1_nPlusHalf_L_i[n] << " " << u_HLLC_R[n] << std::endl;
+      }
+  } else {    
+    Vector<Real> function = fluidFlux(u_iPlus1_nPlusHalf_L_i, d);
+    for (int n = 0; n<=ENER_I; n++)
+      {
+        flux[n] = function[n];
+	//if ((i==256) && (j>253))
+	//std::cout << "Fun4: " << i << " " << j << " " << flux[n] << " " << function[n] << " " << u_iPlus1_nPlusHalf_L_i[n] << std::endl;
+
+      }
+  }
+  // Electron HLLC
+  if (S_L_e>=0){
+    Vector<Real> function = fluidFlux(u_i_nPlusHalf_R_e, d);
+    for (int n = RHO_E; n<=ENER_E; n++)
+      {       
+        flux[n] = function[n-5];
+      }
+  } else if (S_L_e<=0 && S_star_e>=0){
+    Vector<Real> u_HLLC_L= get_u_HLLC(u_i_nPlusHalf_R_e, S_L_e, S_star_e, d);
+    Vector<Real> function = fluidFlux(u_i_nPlusHalf_R_e, d);
+    Vector<Real> diff;
+    for (int n = RHO_E; n<=ENER_E; n++)
+      {
+        diff.push_back(S_L_e*(u_HLLC_L[n-5]-u_i_nPlusHalf_R_e[n-5]));
+	flux[n] = function[n-5]+diff[n-5];
+      }
+  } else if (S_star_e<=0 && S_R_e>=0){
+    Vector<Real> u_HLLC_R = get_u_HLLC(u_iPlus1_nPlusHalf_L_e, S_R_e, S_star_e, d);
+    Vector<Real> function = fluidFlux(u_iPlus1_nPlusHalf_L_e, d);
+    Vector<Real> diff;
+    for (int n = RHO_E; n<=ENER_E; n++)
+      {
+        diff.push_back(S_R_e*(u_HLLC_R[n-5]-u_iPlus1_nPlusHalf_L_e[n-5]));
+	flux[n] = function[n-5]+diff[n-5];
+      }
+  } else {    
+    Vector<Real> function = fluidFlux(u_iPlus1_nPlusHalf_L_e, d);
+    for (int n = RHO_E; n<=ENER_E; n++)
+      {
+        flux[n] = function[n-5];
+      }
+  }
+
+  return flux;
+}
+std::array<Vector<Real>, 2> MUSCL_Hancock_Godunov_Maxwell_and_transverse(const Array4<Real>& arr, int i, int j, int k, int iOffset, int jOffset, int kOffset, 
+							  Real dx, Real dt, int d){
+
+  Vector<Real> u_iMinus1;
+  Vector<Real> u_i;
+  Vector<Real> u_iPlus1;
+  Vector<Real> u_iPlus2;
+
+  // Slope limiting variable index
+  Vector<int> limiting_idx;
+
+  for (int n = NUM_STATE_FLUID; n<NUM_STATE; n++)
+    {
+      u_iMinus1.push_back(arr(i-2*iOffset,j-2*jOffset,k-2*kOffset,n));
+      u_i.push_back(arr(i-iOffset,j-jOffset,k-kOffset,n));
+      u_iPlus1.push_back(arr(i,j,k,n));
+      u_iPlus2.push_back(arr(i+iOffset,j+jOffset,k+kOffset,n));
+
+      // each variable limits itself
+      limiting_idx.push_back(n-NUM_STATE_FLUID);
+    }
+  
+  // Cell boundary extrapolated values at the left and the right for the ion
+  Vector<Real> u_iL = TVD2_reconstruction_L(u_iMinus1, u_i, u_iPlus1, limiting_idx);
+  Vector<Real> u_iR = TVD2_reconstruction_R(u_iMinus1, u_i, u_iPlus1, limiting_idx);
+  Vector<Real> u_iPlus1L = TVD2_reconstruction_L(u_i, u_iPlus1, u_iPlus2, limiting_idx);
+  Vector<Real> u_iPlus1R = TVD2_reconstruction_R(u_i, u_iPlus1, u_iPlus2, limiting_idx);
+
+  // Transverse components
+  Vector<Real> trans_comp(NUM_STATE_MAXWELL,0.0);
+
+  for (int n=0; n<NUM_STATE_MAXWELL; n++)
+    trans_comp[n] = 0.5*(u_iR[n]+u_iPlus1L[n]);
+
+  // Reiamnn problem left state
+  Vector<Real> u_i_nPlusHalf_R = half_update_R(u_iL, u_iR, dx, dt, d, &MaxwellFlux); 
+  // Reiamnn problem right state
+  Vector<Real> u_iPlus1_nPlusHalf_L = half_update_L(u_iPlus1L, u_iPlus1R, dx, dt, d, &MaxwellFlux);
+
+  // Second order in space, not in time
+  // Not fully MUSCL-Hancock
+  //u_i = u_iR;
+  //u_iPlus1 = u_iPlus1L;
+  
+  if (CAMReXmp::RKOrder==2)
+    {
+      u_i = u_i_nPlusHalf_R;
+      u_iPlus1 = u_iPlus1_nPlusHalf_L;
+    }
+
+  Vector<Real> flux(NUM_STATE_MAXWELL,0.0);
+  
+  Real B_y_star = 0.5*(u_iPlus1[BX_LOCAL+(1+d)%3]+u_i[BX_LOCAL+(1+d)%3])
+    +0.5/c*(u_iPlus1[EX_LOCAL+(2+d)%3]-u_i[EX_LOCAL+(2+d)%3]);
+  Real B_z_star = 0.5*(u_iPlus1[BX_LOCAL+(2+d)%3]+u_i[BX_LOCAL+(2+d)%3])
+    -0.5/c*(u_iPlus1[EX_LOCAL+(1+d)%3]-u_i[EX_LOCAL+(1+d)%3]);
+  Real E_y_star = 0.5*(u_iPlus1[EX_LOCAL+(1+d)%3]+u_i[EX_LOCAL+(1+d)%3])
+    -0.5*c*(u_iPlus1[BX_LOCAL+(2+d)%3]-u_i[BX_LOCAL+(2+d)%3]);
+  Real E_z_star = 0.5*(u_iPlus1[EX_LOCAL+(2+d)%3]+u_i[EX_LOCAL+(2+d)%3])
+    +0.5*c*(u_iPlus1[BX_LOCAL+(1+d)%3]-u_i[BX_LOCAL+(1+d)%3]);  
+  
+  // EM HLLC states
+  flux[BX_LOCAL+d] = 0.0;
+  flux[BX_LOCAL+(1+d)%3] = -E_z_star;
+  flux[BX_LOCAL+(2+d)%3] = E_y_star;
+  flux[EX_LOCAL+d] = 0.0;
+  flux[EX_LOCAL+(1+d)%3] = c*c*B_z_star;
+  flux[EX_LOCAL+(2+d)%3] =  -c*c*B_y_star;
+
+  std::array<Vector<Real>, 2> final = {flux, trans_comp};
+  
+  return final;
+}
+
+Vector<Real> Maxwell_transverse_comp(const Array4<Real>& arr, int i, int j, int k, int iOffset, int jOffset, int kOffset){
+
+  Vector<Real> u_iMinus1;
+  Vector<Real> u_i;
+  Vector<Real> u_iPlus1;
+  Vector<Real> u_iPlus2;
+
+  // Slope limiting variable index
+  Vector<int> limiting_idx;
+
+  int offset = (arr.nComp()==NUM_STATE_MAXWELL) ? 0 : NUM_STATE_FLUID;
+  
+  for (int n = offset; n<offset+NUM_STATE_MAXWELL; n++)
+    {
+      u_iMinus1.push_back(arr(i-2*iOffset,j-2*jOffset,k-2*kOffset,n));
+      u_i.push_back(arr(i-iOffset,j-jOffset,k-kOffset,n));
+      u_iPlus1.push_back(arr(i,j,k,n));
+      u_iPlus2.push_back(arr(i+iOffset,j+jOffset,k+kOffset,n));      
+
+      // each variable limits itself
+      limiting_idx.push_back(n-offset);
+    }
+  
+  // Cell boundary extrapolated values at the right on current cell i
+  Vector<Real> u_iR = TVD2_reconstruction_R(u_iMinus1, u_i, u_iPlus1, limiting_idx);
+  // Cell boundary extrapolated values at the left on next cell i+1
+  Vector<Real> u_iPlus1L = TVD2_reconstruction_L(u_i, u_iPlus1, u_iPlus2, limiting_idx);
+  
+  Vector<Real> trans_comp(NUM_STATE_MAXWELL,0.0);
+
+  for (int n=0; n<NUM_STATE_MAXWELL; n++)
+    trans_comp[n] = 0.5*(u_iR[n]+u_iPlus1L[n]);
+  
+  /* First order
+  Vector<Real> trans_comp(NUM_STATE_MAXWELL,0.0);
+  for (int n=0; n<NUM_STATE_MAXWELL; n++)
+    trans_comp[n] = 0.5*(u_i[n]+u_iPlus1[n]);
+  */
+  
+  return trans_comp;
+}
+Vector<Real> Maxwell_corner(const Array4<Real>& arr, int i, int j, int k, int iOffset, int jOffset, int kOffset, Real dx, Real dt, int d){
+
+  Vector<Real> u_iMinus1;
+  Vector<Real> u_i;
+  Vector<Real> u_iPlus1;
+  Vector<Real> u_iPlus2;
+
+  // Slope limiting variable index
+  Vector<int> limiting_idx;
+
+  int offset = (arr.nComp()==NUM_STATE_MAXWELL) ? 0 : NUM_STATE_FLUID;
+  
+  for (int n = offset; n<offset+NUM_STATE_MAXWELL; n++)
+    {
+      u_iMinus1.push_back(arr(i-2*iOffset,j-2*jOffset,k-2*kOffset,n));
+      u_i.push_back(arr(i-iOffset,j-jOffset,k-kOffset,n));
+      u_iPlus1.push_back(arr(i,j,k,n));
+      u_iPlus2.push_back(arr(i+iOffset,j+jOffset,k+kOffset,n));
+
+      // each variable limits itself
+      limiting_idx.push_back(n-offset);
+    }
+  
+  // Cell boundary extrapolated values at the right on current cell i
+  Vector<Real> u_iR = TVD2_reconstruction_R(u_iMinus1, u_i, u_iPlus1, limiting_idx);
+  // Cell boundary extrapolated values at the left on next cell i+1
+  Vector<Real> u_iPlus1L = TVD2_reconstruction_L(u_i, u_iPlus1, u_iPlus2, limiting_idx);
+  /*
+  // Second order in space and time
+  // Fully MUSCL-Hancock
+  Vector<Real> u_iL = TVD2_reconstruction_L(u_iMinus1, u_i, u_iPlus1, limiting_idx);
+  Vector<Real> u_iPlus1R = TVD2_reconstruction_R(u_i, u_iPlus1, u_iPlus2, limiting_idx);
+  // Reiamnn problem left state
+  Vector<Real> u_i_nPlusHalf_R = half_update_R(u_iL, u_iR, dx, dt, d, &MaxwellFlux); 
+  // Reiamnn problem right state
+  Vector<Real> u_iPlus1_nPlusHalf_L = half_update_L(u_iPlus1L, u_iPlus1R, dx, dt, d, &MaxwellFlux);  
+
+  u_iR = u_i_nPlusHalf_R;
+  u_iPlus1L = u_iPlus1_nPlusHalf_L;
+  */
+  Vector<Real> corner(NUM_STATE_MAXWELL,0.0);
+  corner[BX_LOCAL+(1+d)%3] = 0.5*(u_iR[BX_LOCAL+(1+d)%3]+u_iPlus1L[BX_LOCAL+(1+d)%3]);
+  corner[BX_LOCAL+(2+d)%3] = 0.5*(u_iR[BX_LOCAL+(2+d)%3]+u_iPlus1L[BX_LOCAL+(2+d)%3]);
+  corner[EX_LOCAL+(1+d)%3] = 0.5*(u_iR[EX_LOCAL+(1+d)%3]+u_iPlus1L[EX_LOCAL+(1+d)%3]);
+  corner[EX_LOCAL+(2+d)%3] = 0.5*(u_iR[EX_LOCAL+(2+d)%3]+u_iPlus1L[EX_LOCAL+(2+d)%3]);
+
+  // Assumes 2D code
+  corner[BZ_LOCAL] *= 0.5;
+  corner[EZ_LOCAL] *= 0.5;
+  
+  corner[BX_LOCAL+(1+d)%3] += 0.5/c*(u_iPlus1L[EX_LOCAL+(2+d)%3]-u_iR[EX_LOCAL+(2+d)%3]);
+  corner[BX_LOCAL+(2+d)%3] -= 0.5/c*(u_iPlus1L[EX_LOCAL+(1+d)%3]-u_iR[EX_LOCAL+(1+d)%3]);  
+  corner[EX_LOCAL+(1+d)%3] -= 0.5*c*(u_iPlus1L[BX_LOCAL+(2+d)%3]-u_iR[BX_LOCAL+(2+d)%3]);
+  corner[EX_LOCAL+(2+d)%3] += 0.5*c*(u_iPlus1L[BX_LOCAL+(1+d)%3]-u_iR[BX_LOCAL+(1+d)%3]);
+  
+  /*// First order
+  Vector<Real> corner(NUM_STATE_MAXWELL,0.0);
+  corner[BX_LOCAL+(1+d)%3] = 0.5*(u_i[BX_LOCAL+(1+d)%3]+u_iPlus1[BX_LOCAL+(1+d)%3]);
+  corner[BX_LOCAL+(2+d)%3] = 0.5*(u_i[BX_LOCAL+(2+d)%3]+u_iPlus1[BX_LOCAL+(2+d)%3]);
+  corner[EX_LOCAL+(1+d)%3] = 0.5*(u_i[EX_LOCAL+(1+d)%3]+u_iPlus1[EX_LOCAL+(1+d)%3]);
+  corner[EX_LOCAL+(2+d)%3] = 0.5*(u_i[EX_LOCAL+(2+d)%3]+u_iPlus1[EX_LOCAL+(2+d)%3]);
+
+  corner[BZ_LOCAL] *= 0.5;
+  corner[EZ_LOCAL] *= 0.5;
+  
+  //corner[BX_LOCAL+d] += 0.0;
+  corner[BX_LOCAL+(1+d)%3] += 0.5/c*(u_iPlus1[EX_LOCAL+(2+d)%3]-u_i[EX_LOCAL+(2+d)%3]);
+  corner[BX_LOCAL+(2+d)%3] -= 0.5/c*(u_iPlus1[EX_LOCAL+(1+d)%3]-u_i[EX_LOCAL+(1+d)%3]);
+  //corner[EX_LOCAL+d] += 0.0;
+  corner[EX_LOCAL+(1+d)%3] -= 0.5*c*(u_iPlus1[BX_LOCAL+(2+d)%3]-u_i[BX_LOCAL+(2+d)%3]);
+  corner[EX_LOCAL+(2+d)%3] += 0.5*c*(u_iPlus1[BX_LOCAL+(1+d)%3]-u_i[BX_LOCAL+(1+d)%3]);
+  */
+  
+  return corner;
 }

@@ -818,3 +818,1795 @@ void CAMReXmp::computeRhsZ(MultiFab& Rhs, MultiFab& current, MultiFab& state,
 	}
     }
 }
+void CAMReXmp::hyperbolicMaxwellSolverDivFree(Array<MultiFab,AMREX_SPACEDIM>& S_EM, MultiFab& fluxesEM, MultiFab& Sborder, MultiFab (&fluxes)[AMREX_SPACEDIM], const Real* dx, Real dt)
+{
+
+  // Update cell-centred z-components of EM fields
+  for (int d = 0; d < amrex::SpaceDim ; d++)   
+    {
+
+      const int iOffset = ( d == 0 ? 1 : 0);
+      const int jOffset = ( d == 1 ? 1 : 0);
+      const int kOffset = ( d == 2 ? 1 : 0);
+
+      // Loop over all the patches at this level
+      for (MFIter mfi(Sborder, true); mfi.isValid(); ++mfi)
+	{
+	  const Box& bx = mfi.tilebox();
+
+	  const Dim3 lo = lbound(bx);
+	  const Dim3 hi = ubound(bx);
+
+	  // Indexable arrays for the data, and the directional flux
+	  // Based on the vertex-centred definition of the flux array, the
+	  // data array runs from e.g. [0,N] and the flux array from [0,N+1]
+	  const auto& arr = Sborder.array(mfi);
+	  const auto& fluxArr = fluxes[d].array(mfi);
+	  //const auto& arrEM = S_EM[d].array(mfi);      
+      
+	  for(int k = lo.z; k <= hi.z+kOffset; k++)
+	    {
+	      for(int j = lo.y; j <= hi.y+jOffset; j++)
+		{
+		  for(int i = lo.x; i <= hi.x+iOffset; i++)
+		    {	    
+		      // Fluxes for the z-components of the EM fields because it is 2D code
+		      Vector<Real> fluxEM = Maxwell_flux_Godunov(arr, i, j, k, iOffset, jOffset, kOffset, dx[d], dt, d);
+		      fluxArr(i,j,k,BZ) = fluxEM[BZ_LOCAL];
+		      fluxArr(i,j,k,EZ) = fluxEM[EZ_LOCAL];
+	    
+		      /*
+		      // Calculate transverse facial components from cell-centred components
+		      // transverse values, e.g. By, Bz, Ey and Ez for the x-face
+		      Vector<Real> transverseEM = Maxwell_transverse_comp(arr, i, j, k, iOffset, jOffset, kOffset);	    
+		      arrEM(i,j,k,BX_LOCAL+(1+d)%3) = transverseEM[BX_LOCAL+(1+d)%3];
+		      arrEM(i,j,k,BX_LOCAL+(2+d)%3) = transverseEM[BX_LOCAL+(2+d)%3];
+		      arrEM(i,j,k,EX_LOCAL+(1+d)%3) = transverseEM[EX_LOCAL+(1+d)%3];
+		      arrEM(i,j,k,EX_LOCAL+(2+d)%3) = transverseEM[EX_LOCAL+(2+d)%3];	   
+		      */
+		      /*
+			std::array<Vector<Real>, 2> flux_and_transverse = MUSCL_Hancock_Godunov_Maxwell_and_transverse(arr, i, j, k, iOffset, jOffset, kOffset, dx[d], dt, d);
+			fluxArr(i,j,k,BZ) = flux_and_transverse[0][BZ_LOCAL];
+			fluxArr(i,j,k,EZ) = flux_and_transverse[0][EZ_LOCAL];
+
+			arrEM(i,j,k,BX_LOCAL+(1+d)%3) = flux_and_transverse[1][BX_LOCAL+(1+d)%3];
+			arrEM(i,j,k,BX_LOCAL+(2+d)%3) = flux_and_transverse[1][BX_LOCAL+(2+d)%3];
+			arrEM(i,j,k,EX_LOCAL+(1+d)%3) = flux_and_transverse[1][EX_LOCAL+(1+d)%3];
+			arrEM(i,j,k,EX_LOCAL+(2+d)%3) = flux_and_transverse[1][EX_LOCAL+(2+d)%3];
+		      */	
+		    }
+		}
+	    }
+      
+	  for(int k = lo.z; k <= hi.z; k++)
+	    {
+	      for(int j = lo.y; j <= hi.y; j++)
+		{
+		  for(int i = lo.x; i <= hi.x; i++)
+		    {
+		      // Update cell-centred z-components becuause it is 2D code
+		      arr(i,j,k,BZ) = arr(i,j,k,BZ) - (dt / dx[d]) * (fluxArr(i+iOffset, j+jOffset, k+kOffset, BZ) - fluxArr(i,j,k,BZ));
+		      arr(i,j,k,EZ) = arr(i,j,k,EZ) - (dt / dx[d]) * (fluxArr(i+iOffset, j+jOffset, k+kOffset, EZ) - fluxArr(i,j,k,EZ));
+	   
+		    }
+		}
+	    }
+	}
+      
+      // We need to compute boundary conditions again after each update
+      Sborder.FillBoundary(geom.periodicity());
+      //S_EM[0].FillBoundary(geom.periodicity());
+      //S_EM[1].FillBoundary(geom.periodicity());
+     
+      // added by 2020D 
+      // Fill non-periodic physical boundaries
+      FillDomainBoundary(Sborder, geom, bc);
+      //FillDomainBoundary(S_EM[0], geom, bc_EM);
+      //FillDomainBoundary(S_EM[1], geom, bc_EM);
+    
+    }
+  
+  // Compute cell-centred Ez source terms
+  for (MFIter mfi(Sborder, true); mfi.isValid(); ++mfi)
+    {
+      const Box& bx = mfi.tilebox();
+      
+      const Dim3 lo = lbound(bx);
+      const Dim3 hi = ubound(bx);
+
+      const Dim3 hiDomain = ubound(geom.Domain());
+
+      Array4<Real> arr = Sborder.array(mfi);
+      Array4<Real> arrEMX = S_EM[0].array(mfi);
+      Array4<Real> arrEMY = S_EM[1].array(mfi);
+
+      for(int k = lo.z; k <= hi.z; k++)
+	{
+	  for(int j = lo.y; j <= hi.y; j++)
+	    {
+	      for(int i = lo.x; i <= hi.x; i++)
+		{
+		  arr(i,j,k,EZ) = arr(i,j,k,EZ) - dt*1.0/(lambda_d*lambda_d*l_r)*(r_i*arr(i,j,k,MOMZ_I) + r_e*arr(i,j,k,MOMZ_E));
+		}
+	    }
+	}      
+    }
+
+  // We need to compute boundary conditions again after each update
+  Sborder.FillBoundary(geom.periodicity());
+     
+  // added by 2020D 
+  // Fill non-periodic physical boundaries
+  FillDomainBoundary(Sborder, geom, bc);
+  
+    
+  // Compute edge components of the EM fields    
+  for (MFIter mfi(fluxesEM, true); mfi.isValid(); ++mfi)
+    {
+      const Box& bx = mfi.tilebox();
+      
+      const Dim3 lo = lbound(bx);
+      const Dim3 hi = ubound(bx);
+      
+      // Indexable arrays for the data, and the directional flux
+      // Based on the corner-centred definition of the flux array, the
+      // data array runs from e.g. [0,N+1] and the flux array from [-1,N+1]
+      const auto& arrEM_X = S_EM[0].array(mfi);
+      const auto& arrEM_Y = S_EM[1].array(mfi); 
+      const auto& fluxArrEM = fluxesEM.array(mfi);
+      //const auto& fluxArrX = fluxes[0].array(mfi);
+      //const auto& fluxArrY = fluxes[1].array(mfi);
+      
+      for(int k = lo.z; k <= hi.z; k++)
+	{
+	  for(int j = lo.y; j <= hi.y; j++)
+	    {
+	      for(int i = lo.x; i <= hi.x; i++)
+		{		 
+		  // intermediate values using y-face in the x-direction
+		  Vector<Real> cornerEM_Y = Maxwell_corner(arrEM_Y, i, j, k, 1, 0, 0, dx[0], dt, 0);
+
+		  // intermediate values using x-face in the y-direction
+		  Vector<Real> cornerEM_X = Maxwell_corner(arrEM_X, i, j, k, 0, 1, 0, dx[1], dt, 1);	       
+		  
+		  fluxArrEM(i,j,k,BX_LOCAL) = cornerEM_X[BX_LOCAL];
+		  fluxArrEM(i,j,k,BY_LOCAL) = cornerEM_Y[BY_LOCAL];
+		  fluxArrEM(i,j,k,BZ_LOCAL) = cornerEM_X[BZ_LOCAL] + cornerEM_Y[BZ_LOCAL];
+		  fluxArrEM(i,j,k,EX_LOCAL) = cornerEM_X[EX_LOCAL];
+		  fluxArrEM(i,j,k,EY_LOCAL) = cornerEM_Y[EY_LOCAL];
+		  fluxArrEM(i,j,k,EZ_LOCAL) = cornerEM_X[EZ_LOCAL] + cornerEM_Y[EZ_LOCAL];
+		  
+		}
+	    }
+	}       
+    }
+
+  // Could be useful in a 3D code
+  // // Compute edge components of the EM fields
+  // for (int d = 0; d < amrex::SpaceDim ; d++)   
+  // {
+
+  //   const int iOffset = ( d == 0 ? 1 : 0);
+  //   const int jOffset = ( d == 1 ? 1 : 0);
+  //   const int kOffset = ( d == 2 ? 1 : 0);
+
+  //   int d_EM = (d==0) ? 1 : 0;
+    
+  //   // Loop over all the patches at this level
+  //   for (MFIter mfi(S_EM[d_EM], true); mfi.isValid(); ++mfi)
+  //   {
+  //     const Box& bx = mfi.tilebox();
+
+  //     const Dim3 lo = lbound(bx);
+  //     const Dim3 hi = ubound(bx);
+
+  //     // Indexable arrays for the data, and the directional flux
+  //     // Based on the corner-centred definition of the flux array, the
+  //     // data array runs from e.g. [0,N+1] and the flux array from [-1,N+1]
+  //     const auto& arrEM = S_EM[d_EM].array(mfi);
+  //     const auto& fluxArrEM = fluxesEM.array(mfi);
+  //     const auto& fluxArr = fluxes[d_EM].array(mfi);
+      
+  //     //std::cout << fluxArrEM << " " << arrEM << " " << lo.x << " " << hi.x+iOffset << " " << lo.y << " " << hi.y+jOffset << std::endl;      
+  //     //amrex::Abort();
+      
+  //     for(int k = lo.z; k <= hi.z+kOffset; k++)
+  //     {
+  // 	for(int j = lo.y; j <= hi.y+jOffset; j++)
+  // 	{
+  // 	  for(int i = lo.x; i <= hi.x+iOffset; i++)
+  // 	  {
+  // 	    // electromagnetic field values reconstructed at the corners
+  // 	    Vector<Real> cornerEM = Maxwell_corner(arrEM, i, j, k, iOffset, jOffset, kOffset, d);
+	    
+  // 	    fluxArrEM(i,j,k,BX_LOCAL+(1+d)%3) += cornerEM[BX_LOCAL+(1+d)%3];
+  // 	    fluxArrEM(i,j,k,BX_LOCAL+(2+d)%3) += cornerEM[BX_LOCAL+(2+d)%3];
+  // 	    fluxArrEM(i,j,k,EX_LOCAL+(1+d)%3) += cornerEM[EX_LOCAL+(1+d)%3];
+  // 	    fluxArrEM(i,j,k,EX_LOCAL+(2+d)%3) += cornerEM[EX_LOCAL+(2+d)%3];
+
+  // 	    /*
+  // 	    if ((i==256 && j>252))
+  // 	    std::cout << d << " " << j << " " << arrEM(i,j,k,EX_LOCAL+d_EM) << " " << -std::pow(-1,d)*c*c*(dt / dx[d]) * (fluxArrEM(i+iOffset, j+jOffset, k+kOffset, BZ_LOCAL) - fluxArrEM(i,j,k,BZ_LOCAL)) << " " << fluxArrEM(i+iOffset, j+jOffset, k+kOffset, BZ_LOCAL) << " " << fluxArrEM(i,j,k,BZ_LOCAL) << " " << -dt*1.0/(lambda_d*lambda_d*l_r)*currentFace << " " << fluxArr(i,j,k,0) << " " << fluxArr(i,j,k,5) << std::endl;*/
+  // 	  }
+  // 	}
+  //     }
+  //   }
+      
+  //   // We need to compute boundary conditions again after each update
+  //   //S_EM[0].FillBoundary(geom.periodicity());
+  //   //S_EM[1].FillBoundary(geom.periodicity());
+     
+  //   // added by 2020D 
+  //   // Fill non-periodic physical boundaries                          
+  //   //FillDomainBoundary(S_EM[0], geom, bc_EM);
+  //   //FillDomainBoundary(S_EM[1], geom, bc_EM);
+    
+  // }
+
+
+  // Update face-centred EM fields
+  for (int d = 0; d < amrex::SpaceDim ; d++)   
+    {
+
+      const int iOffset = ( d == 0 ? 1 : 0);
+      const int jOffset = ( d == 1 ? 1 : 0);
+      const int kOffset = ( d == 2 ? 1 : 0);
+
+      int d_EM = (d==0) ? 1 : 0;
+    
+      // Loop over all the patches at this level
+      for (MFIter mfi(S_EM[d_EM], true); mfi.isValid(); ++mfi)
+	{
+	  const Box& bx = mfi.tilebox();
+
+	  const Dim3 lo = lbound(bx);
+	  const Dim3 hi = ubound(bx);
+
+	  // Indexable arrays for the data, and the directional flux
+	  // Based on the corner-centred definition of the flux array, the
+	  // data array runs from e.g. [0,N+1] and the flux array from [-1,N+1]
+	  //const auto& arr = Sborder.array(mfi);
+	  const auto& arrEM = S_EM[d_EM].array(mfi);
+	  //const auto& arrEMother = S_EM[d].array(mfi);
+	  const auto& fluxArrEM = fluxesEM.array(mfi);
+	  const auto& fluxArr = fluxes[d_EM].array(mfi);
+
+	  const Dim3 hiDomain = ubound(geom.Domain());
+      
+	  for(int k = lo.z; k <= hi.z; k++)
+	    {
+	      for(int j = lo.y; j <= hi.y; j++)
+		{
+		  for(int i = lo.x; i <= hi.x; i++)
+		    {
+		      // 2D code; z-component updated using cell-centred scheme
+		      arrEM(i,j,k,BX_LOCAL+d_EM) += std::pow(-1,d)*(dt / dx[d]) * (fluxArrEM(i+iOffset, j+jOffset, k+kOffset, EZ_LOCAL) - fluxArrEM(i,j,k,EZ_LOCAL));
+		      arrEM(i,j,k,EX_LOCAL+d_EM) -= std::pow(-1,d)*c*c*(dt / dx[d]) * (fluxArrEM(i+iOffset, j+jOffset, k+kOffset, BZ_LOCAL) - fluxArrEM(i,j,k,BZ_LOCAL));
+
+		      // 3D code
+		      /*arrEM(i,j,k,BX_LOCAL+(1+d)%3) += (dt / dx[d]) * (fluxArrEM(i+iOffset, j+jOffset, k+kOffset, EX_LOCAL+(2+d)%3) - fluxArrEM(i,j,k,EX_LOCAL+(2+d)%3));
+			arrEM(i,j,k,BX_LOCAL+(2+d)%3) -= (dt / dx[d]) * (fluxArrEM(i+iOffset, j+jOffset, k+kOffset, EX_LOCAL+(1+d)%3) - fluxArrEM(i,j,k,EX_LOCAL+(1+d)%3));
+			arrEM(i,j,k,EX_LOCAL+(1+d)%3) -= c*c*(dt / dx[d]) * (fluxArrEM(i+iOffset, j+jOffset, k+kOffset, BX_LOCAL+(2+d)%3) - fluxArrEM(i,j,k,BX_LOCAL+(2+d)%3));
+			arrEM(i,j,k,EX_LOCAL+(2+d)%3) += c*c*(dt / dx[d]) * (fluxArrEM(i+iOffset, j+jOffset, k+kOffset, BX_LOCAL+(1+d)%3) - fluxArrEM(i,j,k,BX_LOCAL+(1+d)%3));
+		      */
+	    
+		      // source terms
+		      Real currentFace = r_i*fluxArr(i,j,k,RHO_I) + r_e*fluxArr(i,j,k,RHO_E);
+		      arrEM(i,j,k,EX_LOCAL+d_EM) -= dt*1.0/(lambda_d*lambda_d*l_r)*currentFace;
+
+		      if (d_EM==1 && i==256 && (j>252))
+			std::cout << arrEM(i,j,k,EX_LOCAL+d_EM) << " " << currentFace << std::endl;
+		      // 3D code
+		      //arrEM(i,j,k,EX_LOCAL+(1+d)%3) -= dt*1.0/(lambda_d*lambda_d*l_r)*currentFace;
+		      //arrEM(i,j,k,EX_LOCAL+(2+d)%3) -= dt*1.0/(lambda_d*lambda_d*l_r)*currentFace;
+
+		      // NOTE
+		      // In future, when debugging, check that the flux (current) is zero at the boundaries
+		      // i==1 and not i==0 because we need value at i==1 to be updated first
+		      /*
+			if (i==1 && bc[MOMX_I+d_EM].lo(0) == BCType::reflect_odd)
+			arrEM(0,j,k,EX_LOCAL+d_EM) = arrEM(1,j,k,EX_LOCAL+d_EM);	      
+			if (i==hiDomain.x+1 && bc[MOMX_I+d_EM].hi(0) == BCType::reflect_odd)
+			arrEM(hiDomain.x+1,j,k,EX_LOCAL+d_EM) = arrEM(hiDomain.x,j,k,EX_LOCAL+d_EM);	    
+			if (j==1 && bc[MOMX_I+d_EM].lo(1) == BCType::reflect_odd)
+			arrEM(i,0,k,EX_LOCAL+d_EM) = arrEM(i,1,k,EX_LOCAL+d_EM);
+			if (j==hiDomain.y+1 && bc[MOMX_I+d_EM].hi(1) == BCType::reflect_odd)
+			arrEM(i,hiDomain.y+1,k,EX_LOCAL+d_EM) = arrEM(i,hiDomain.y,k,EX_LOCAL+d_EM);
+		      */
+		    }
+		}
+	    }      
+	}
+    
+      // We need to compute boundary conditions again after each update
+      S_EM[0].FillBoundary(geom.periodicity());
+      S_EM[1].FillBoundary(geom.periodicity());
+     
+      // added by 2020D 
+      // Fill non-periodic physical boundaries                          
+      FillDomainBoundary(S_EM[0], geom, bc_EM);    
+      FillDomainBoundary(S_EM[1], geom, bc_EM);  
+      
+    }
+  /*
+  // check if the current is zero at the domain boundaries
+  if (bc[MOMX_I].lo(0) == BCType::reflect_odd)
+    {
+      for (MFIter mfi(S_EM[0], true); mfi.isValid(); ++mfi)
+	{
+	  const Box& bx = mfi.tilebox();
+      
+	  const Dim3 lo = lbound(bx);
+	  const Dim3 hi = ubound(bx);
+
+	  const Dim3 hiDomain = ubound(geom.Domain());
+
+	  Array4<Real> arr = Sborder.array(mfi);
+	  Array4<Real> arrEMX = S_EM[0].array(mfi);
+	  Array4<Real> arrEMY = S_EM[1].array(mfi);
+
+	  for(int k = lo.z; k <= hi.z; k++)
+	    {
+	      for(int j = lo.y; j <= hi.y; j++)
+		{
+		  for(int i = lo.x; i <= hi.x; i++)
+		    {
+		      if (i==0)
+			//arrEMX(0,j,k,EX_LOCAL) = arrEMX(1,j,k,EX_LOCAL) -
+			//dx[0]*(arr(i,j,k,DIVE)-(arrEMY(i,j+1,k,EY_LOCAL)-arrEMY(i,j,k,EY_LOCAL))/dx[1]);
+			//arrEMX(0,j,k,EX_LOCAL) = arrEMX(1,j,k,EX_LOCAL);
+			arrEMX(0,j,k,EX_LOCAL) = 0.0;
+		    }
+		}
+	    }      
+	}      
+    }
+  if (bc[MOMX_I].hi(0) == BCType::reflect_odd)
+    {
+      for (MFIter mfi(S_EM[0], true); mfi.isValid(); ++mfi)
+	{
+	  const Box& bx = mfi.tilebox();
+      
+	  const Dim3 lo = lbound(bx);
+	  const Dim3 hi = ubound(bx);
+
+	  const Dim3 hiDomain = ubound(geom.Domain());
+
+	  Array4<Real> arr = Sborder.array(mfi);
+	  Array4<Real> arrEMX = S_EM[0].array(mfi);
+	  Array4<Real> arrEMY = S_EM[1].array(mfi);
+
+	  for(int k = lo.z; k <= hi.z; k++)
+	    {
+	      for(int j = lo.y; j <= hi.y; j++)
+		{
+		  for(int i = lo.x; i <= hi.x; i++)
+		    {
+		      if (i==hiDomain.x)
+			//arrEMX(hiDomain.x+1,j,k,EX_LOCAL) = arrEMX(hiDomain.x,j,k,EX_LOCAL) +
+			//dx[0]*(arr(i,j,k,DIVE)-(arrEMY(i,j+1,k,EY_LOCAL)-arrEMY(i,j,k,EY_LOCAL))/dx[1]);
+			//arrEMX(hiDomain.x+1,j,k,EX_LOCAL) = arrEMX(hiDomain.x,j,k,EX_LOCAL);
+			arrEMX(hiDomain.x+1,j,k,EX_LOCAL) = 0.0;
+		    }
+		}
+	    }      
+	}      
+    }
+  if (bc[MOMY_I].lo(1) == BCType::reflect_odd)
+    {
+      for (MFIter mfi(S_EM[1], true); mfi.isValid(); ++mfi)
+	{
+	  const Box& bx = mfi.tilebox();
+      
+	  const Dim3 lo = lbound(bx);
+	  const Dim3 hi = ubound(bx);
+
+	  const Dim3 hiDomain = ubound(geom.Domain());
+
+	  Array4<Real> arr = Sborder.array(mfi);
+	  Array4<Real> arrEMX = S_EM[0].array(mfi);
+	  Array4<Real> arrEMY = S_EM[1].array(mfi);
+
+	  for(int k = lo.z; k <= hi.z; k++)
+	    {
+	      for(int j = lo.y; j <= hi.y; j++)
+		{
+		  for(int i = lo.x; i <= hi.x; i++)
+		    {
+		      if (j==0)
+			//arrEMY(i,0,k,EY_LOCAL) = arrEMY(i,1,k,EY_LOCAL) -
+			//dx[1]*(arr(i,j,k,DIVE)-(arrEMX(i+1,j,k,EX_LOCAL)-arrEMX(i,j,k,EX_LOCAL))/dx[0]);
+			//arrEMY(i,0,k,EY_LOCAL) = arrEMY(i,1,k,EY_LOCAL);
+			arrEMY(i,0,k,EY_LOCAL) = 0.0;
+		    }
+		}
+	    }      
+	}      
+    }
+  if (bc[MOMY_I].hi(1) == BCType::reflect_odd)
+    {
+      for (MFIter mfi(S_EM[1], true); mfi.isValid(); ++mfi)
+	{
+	  const Box& bx = mfi.tilebox();
+      
+	  const Dim3 lo = lbound(bx);
+	  const Dim3 hi = ubound(bx);
+
+	  const Dim3 hiDomain = ubound(geom.Domain());
+
+	  Array4<Real> arr = Sborder.array(mfi);
+	  Array4<Real> arrEMX = S_EM[0].array(mfi);
+	  Array4<Real> arrEMY = S_EM[1].array(mfi);
+
+	  for(int k = lo.z; k <= hi.z; k++)
+	    {
+	      for(int j = lo.y; j <= hi.y; j++)
+		{
+		  for(int i = lo.x; i <= hi.x; i++)
+		    {		      		      
+		      if (j==hiDomain.y)
+			//arrEMY(i,hiDomain.y+1,k,EY_LOCAL) = arrEMY(i,hiDomain.y,k,EY_LOCAL) +
+			//dx[1]*(arr(i,j,k,DIVE)-(arrEMX(i+1,j,k,EX_LOCAL)-arrEMX(i,j,k,EX_LOCAL))/dx[0]);
+			//arrEMY(i,hiDomain.y+1,k,EY_LOCAL) = arrEMY(i,hiDomain.y,k,EY_LOCAL);
+			arrEMY(i,hiDomain.y+1,k,EY_LOCAL) = 0.0;
+		    }
+		}
+	    }      
+	}      
+    }
+  */
+  // We need to compute boundary conditions again after each update
+  S_EM[0].FillBoundary(geom.periodicity());
+  S_EM[1].FillBoundary(geom.periodicity());
+     
+  // added by 2020D 
+  // Fill non-periodic physical boundaries                          
+  FillDomainBoundary(S_EM[0], geom, bc_EM);    
+  FillDomainBoundary(S_EM[1], geom, bc_EM);  
+
+}
+void CAMReXmp::hyperbolicMaxwellSolverDivFreeSubCycle(Array<MultiFab,AMREX_SPACEDIM>& S_EM, MultiFab& fluxesEM, MultiFab& Sborder, MultiFab (&fluxes)[AMREX_SPACEDIM], const Real* dx, Real dt)
+{
+
+  Real dt_final = dt;
+  Real dt_finalSource = dt;
+  // assumes a constant cfl=0.2 for the Magnetic reconnection test
+  dt = 0.2*std::min(dx[0],dx[1])/c;
+  //dt = cfl*std::min(dx[0],dx[1])/c; 
+  Real dt_current = dt;
+  Real dt_currentSource = dt;
+
+  // supports subcycling
+  do{
+    amrex::Print() << "Updating hyperbolic part, dt=" << dt << ", current dt=" << dt_current << " and final dt=" << dt_final << std::endl;
+
+    // Compute transverse face-centred EM values from cell-centred  
+    for (int d = 0; d < amrex::SpaceDim ; d++)   
+      {
+
+	const int iOffset = ( d == 0 ? 1 : 0);
+	const int jOffset = ( d == 1 ? 1 : 0);
+	const int kOffset = ( d == 2 ? 1 : 0);
+
+	// Loop over all the patches at this level
+	for (MFIter mfi(S_EM[d], true); mfi.isValid(); ++mfi)
+	  {
+	    const Box& bx = mfi.tilebox();
+
+	    const Dim3 lo = lbound(bx);
+	    const Dim3 hi = ubound(bx);
+
+	    // Indexable arrays for the data, and the directional flux
+	    // Based on the vertex-centred definition of the flux array, the
+	    // data array runs from e.g. [0,N] and the flux array from [0,N+1]
+	    const auto& arr = Sborder.array(mfi);
+	    const auto& arrEM = S_EM[d].array(mfi);
+
+	    for(int k = lo.z; k <= hi.z; k++)
+	      {
+		for(int j = lo.y; j <= hi.y; j++)
+		  {
+		    for(int i = lo.x; i <= hi.x; i++)
+		      {
+	    
+			// Calculate transverse facial components from cell-centred components
+			// transverse values, e.g. By, Bz, Ey and Ez for the x-face
+			Vector<Real> transverseEM = Maxwell_transverse_comp(arr, i, j, k, iOffset, jOffset, kOffset);	    
+			arrEM(i,j,k,BX_LOCAL+(1+d)%3) = transverseEM[BX_LOCAL+(1+d)%3];
+			arrEM(i,j,k,BX_LOCAL+(2+d)%3) = transverseEM[BX_LOCAL+(2+d)%3];
+			arrEM(i,j,k,EX_LOCAL+(1+d)%3) = transverseEM[EX_LOCAL+(1+d)%3];
+			arrEM(i,j,k,EX_LOCAL+(2+d)%3) = transverseEM[EX_LOCAL+(2+d)%3];	   
+
+		      }
+		  }
+	      }      
+	  }
+	// We need to compute boundary conditions again after each update
+	S_EM[0].FillBoundary(geom.periodicity());
+	S_EM[1].FillBoundary(geom.periodicity());
+     
+	// added by 2020D 
+	// Fill non-periodic physical boundaries                          
+	FillDomainBoundary(S_EM[0], geom, bc_EM);    
+	FillDomainBoundary(S_EM[1], geom, bc_EM);  
+    
+      }
+
+  // Update cell-centred z-components of EM fields
+    for (int d = 0; d < amrex::SpaceDim ; d++)   
+      {
+
+	const int iOffset = ( d == 0 ? 1 : 0);
+	const int jOffset = ( d == 1 ? 1 : 0);
+	const int kOffset = ( d == 2 ? 1 : 0);
+
+	// Loop over all the patches at this level
+	for (MFIter mfi(Sborder, true); mfi.isValid(); ++mfi)
+	  {
+	    const Box& bx = mfi.tilebox();
+
+	    const Dim3 lo = lbound(bx);
+	    const Dim3 hi = ubound(bx);
+
+	    // Indexable arrays for the data, and the directional flux
+	    // Based on the vertex-centred definition of the flux array, the
+	    // data array runs from e.g. [0,N] and the flux array from [0,N+1]
+	    const auto& arr = Sborder.array(mfi);
+	    const auto& fluxArr = fluxes[d].array(mfi);
+	    //const auto& arrEM = S_EM[d].array(mfi);      
+      
+	    for(int k = lo.z; k <= hi.z+kOffset; k++)
+	      {
+		for(int j = lo.y; j <= hi.y+jOffset; j++)
+		  {
+		    for(int i = lo.x; i <= hi.x+iOffset; i++)
+		      {	    
+			// Fluxes for the z-components of the EM fields because it is 2D code
+			Vector<Real> fluxEM = Maxwell_flux_Godunov(arr, i, j, k, iOffset, jOffset, kOffset, dx[d], dt, d);
+			fluxArr(i,j,k,BZ) = fluxEM[BZ_LOCAL];
+			fluxArr(i,j,k,EZ) = fluxEM[EZ_LOCAL];
+	    
+			/*
+			// Calculate transverse facial components from cell-centred components
+			// transverse values, e.g. By, Bz, Ey and Ez for the x-face
+			Vector<Real> transverseEM = Maxwell_transverse_comp(arr, i, j, k, iOffset, jOffset, kOffset);	    
+			arrEM(i,j,k,BX_LOCAL+(1+d)%3) = transverseEM[BX_LOCAL+(1+d)%3];
+			arrEM(i,j,k,BX_LOCAL+(2+d)%3) = transverseEM[BX_LOCAL+(2+d)%3];
+			arrEM(i,j,k,EX_LOCAL+(1+d)%3) = transverseEM[EX_LOCAL+(1+d)%3];
+			arrEM(i,j,k,EX_LOCAL+(2+d)%3) = transverseEM[EX_LOCAL+(2+d)%3];	   
+			*/
+			/*
+			  std::array<Vector<Real>, 2> flux_and_transverse = MUSCL_Hancock_Godunov_Maxwell_and_transverse(arr, i, j, k, iOffset, jOffset, kOffset, dx[d], dt, d);
+			  fluxArr(i,j,k,BZ) = flux_and_transverse[0][BZ_LOCAL];
+			  fluxArr(i,j,k,EZ) = flux_and_transverse[0][EZ_LOCAL];
+
+			  arrEM(i,j,k,BX_LOCAL+(1+d)%3) = flux_and_transverse[1][BX_LOCAL+(1+d)%3];
+			  arrEM(i,j,k,BX_LOCAL+(2+d)%3) = flux_and_transverse[1][BX_LOCAL+(2+d)%3];
+			  arrEM(i,j,k,EX_LOCAL+(1+d)%3) = flux_and_transverse[1][EX_LOCAL+(1+d)%3];
+			  arrEM(i,j,k,EX_LOCAL+(2+d)%3) = flux_and_transverse[1][EX_LOCAL+(2+d)%3];
+			*/	
+		      }
+		  }
+	      }
+      
+	    for(int k = lo.z; k <= hi.z; k++)
+	      {
+		for(int j = lo.y; j <= hi.y; j++)
+		  {
+		    for(int i = lo.x; i <= hi.x; i++)
+		      {
+			// Update cell-centred z-components becuause it is 2D code
+			arr(i,j,k,BZ) = arr(i,j,k,BZ) - (dt / dx[d]) * (fluxArr(i+iOffset, j+jOffset, k+kOffset, BZ) - fluxArr(i,j,k,BZ));
+			arr(i,j,k,EZ) = arr(i,j,k,EZ) - (dt / dx[d]) * (fluxArr(i+iOffset, j+jOffset, k+kOffset, EZ) - fluxArr(i,j,k,EZ));
+	   
+		      }
+		  }
+	      }
+	  }
+      
+	// We need to compute boundary conditions again after each update
+	Sborder.FillBoundary(geom.periodicity());
+	//S_EM[0].FillBoundary(geom.periodicity());
+	//S_EM[1].FillBoundary(geom.periodicity());
+     
+	// added by 2020D 
+	// Fill non-periodic physical boundaries
+	FillDomainBoundary(Sborder, geom, bc);
+	//FillDomainBoundary(S_EM[0], geom, bc_EM);
+	//FillDomainBoundary(S_EM[1], geom, bc_EM);
+    
+	// The fluxes now need scaling for the reflux command.
+	// This scaling is by the size of the boundary through which the flux passes, e.g. the x-flux needs scaling by the dy, dz and dt
+	/*if(do_reflux)
+	  {
+	  Real scaleFactor = dt;
+	  for(int scaledir = 0; scaledir < amrex::SpaceDim; ++scaledir)
+	  {
+	  // Fluxes don't need scaling by dx[d]
+	  if(scaledir == d)
+	  {
+	  continue;
+	  }
+	  scaleFactor *= dx[scaledir];
+	  }
+	  // The mult function automatically multiplies entries in a multifab by a scalar
+	  // scaleFactor: The scalar to multiply by
+	  // 0: The first data index in the multifab to multiply
+	  // NUM_STATE:  The total number of data indices that will be multiplied
+	  fluxes[d].mult(scaleFactor, 0, NUM_STATE);
+	  }*/
+      }
+        
+    // Compute cell-centred Ez source terms
+    for (MFIter mfi(Sborder, true); mfi.isValid(); ++mfi)
+      {
+	const Box& bx = mfi.tilebox();
+      
+	const Dim3 lo = lbound(bx);
+	const Dim3 hi = ubound(bx);
+
+	const Dim3 hiDomain = ubound(geom.Domain());
+
+	Array4<Real> arr = Sborder.array(mfi);
+	Array4<Real> arrEMX = S_EM[0].array(mfi);
+	Array4<Real> arrEMY = S_EM[1].array(mfi);
+
+	for(int k = lo.z; k <= hi.z; k++)
+	  {
+	    for(int j = lo.y; j <= hi.y; j++)
+	      {
+		for(int i = lo.x; i <= hi.x; i++)
+		  {
+		    arr(i,j,k,EZ) = arr(i,j,k,EZ) - dt*1.0/(lambda_d*lambda_d*l_r)*(r_i*arr(i,j,k,MOMZ_I) + r_e*arr(i,j,k,MOMZ_E));
+		  }
+	      }
+	  }      
+      }
+
+    // We need to compute boundary conditions again after each update
+    Sborder.FillBoundary(geom.periodicity());
+     
+    // added by 2020D 
+    // Fill non-periodic physical boundaries
+    FillDomainBoundary(Sborder, geom, bc);
+    
+    
+    // Compute edge components of the EM fields    
+    for (MFIter mfi(fluxesEM, true); mfi.isValid(); ++mfi)
+      {
+	const Box& bx = mfi.tilebox();
+      
+	const Dim3 lo = lbound(bx);
+	const Dim3 hi = ubound(bx);
+      
+	// Indexable arrays for the data, and the directional flux
+	// Based on the corner-centred definition of the flux array, the
+	// data array runs from e.g. [0,N+1] and the flux array from [-1,N+1]
+	const auto& arrEM_X = S_EM[0].array(mfi);
+	const auto& arrEM_Y = S_EM[1].array(mfi); 
+	const auto& fluxArrEM = fluxesEM.array(mfi);
+	//const auto& fluxArrX = fluxes[0].array(mfi);
+	//const auto& fluxArrY = fluxes[1].array(mfi);
+      
+	for(int k = lo.z; k <= hi.z; k++)
+	  {
+	    for(int j = lo.y; j <= hi.y; j++)
+	      {
+		for(int i = lo.x; i <= hi.x; i++)
+		  {		 
+		    // intermediate values using y-face in the x-direction
+		    Vector<Real> cornerEM_Y = Maxwell_corner(arrEM_Y, i, j, k, 1, 0, 0, dx[0], dt, 0);
+
+		    // intermediate values using x-face in the y-direction
+		    Vector<Real> cornerEM_X = Maxwell_corner(arrEM_X, i, j, k, 0, 1, 0, dx[1], dt, 1);	       
+		  
+		    fluxArrEM(i,j,k,BX_LOCAL) = cornerEM_X[BX_LOCAL];
+		    fluxArrEM(i,j,k,BY_LOCAL) = cornerEM_Y[BY_LOCAL];
+		    fluxArrEM(i,j,k,BZ_LOCAL) = cornerEM_X[BZ_LOCAL] + cornerEM_Y[BZ_LOCAL];
+		    fluxArrEM(i,j,k,EX_LOCAL) = cornerEM_X[EX_LOCAL];
+		    fluxArrEM(i,j,k,EY_LOCAL) = cornerEM_Y[EY_LOCAL];
+		    fluxArrEM(i,j,k,EZ_LOCAL) = cornerEM_X[EZ_LOCAL] + cornerEM_Y[EZ_LOCAL];
+		  
+		  }
+	      }
+	  }       
+      }
+
+    // Could be useful in a 3D code
+    // // Compute edge components of the EM fields
+    // for (int d = 0; d < amrex::SpaceDim ; d++)   
+    // {
+
+    //   const int iOffset = ( d == 0 ? 1 : 0);
+    //   const int jOffset = ( d == 1 ? 1 : 0);
+    //   const int kOffset = ( d == 2 ? 1 : 0);
+
+    //   int d_EM = (d==0) ? 1 : 0;
+    
+    //   // Loop over all the patches at this level
+    //   for (MFIter mfi(S_EM[d_EM], true); mfi.isValid(); ++mfi)
+    //   {
+    //     const Box& bx = mfi.tilebox();
+
+    //     const Dim3 lo = lbound(bx);
+    //     const Dim3 hi = ubound(bx);
+
+    //     // Indexable arrays for the data, and the directional flux
+    //     // Based on the corner-centred definition of the flux array, the
+    //     // data array runs from e.g. [0,N+1] and the flux array from [-1,N+1]
+    //     const auto& arrEM = S_EM[d_EM].array(mfi);
+    //     const auto& fluxArrEM = fluxesEM.array(mfi);
+    //     const auto& fluxArr = fluxes[d_EM].array(mfi);
+      
+    //     //std::cout << fluxArrEM << " " << arrEM << " " << lo.x << " " << hi.x+iOffset << " " << lo.y << " " << hi.y+jOffset << std::endl;      
+    //     //amrex::Abort();
+      
+    //     for(int k = lo.z; k <= hi.z+kOffset; k++)
+    //     {
+    // 	for(int j = lo.y; j <= hi.y+jOffset; j++)
+    // 	{
+    // 	  for(int i = lo.x; i <= hi.x+iOffset; i++)
+    // 	  {
+    // 	    // electromagnetic field values reconstructed at the corners
+    // 	    Vector<Real> cornerEM = Maxwell_corner(arrEM, i, j, k, iOffset, jOffset, kOffset, d);
+	    
+    // 	    fluxArrEM(i,j,k,BX_LOCAL+(1+d)%3) += cornerEM[BX_LOCAL+(1+d)%3];
+    // 	    fluxArrEM(i,j,k,BX_LOCAL+(2+d)%3) += cornerEM[BX_LOCAL+(2+d)%3];
+    // 	    fluxArrEM(i,j,k,EX_LOCAL+(1+d)%3) += cornerEM[EX_LOCAL+(1+d)%3];
+    // 	    fluxArrEM(i,j,k,EX_LOCAL+(2+d)%3) += cornerEM[EX_LOCAL+(2+d)%3];
+
+    // 	    /*
+    // 	    if ((i==256 && j>252))
+    // 	    std::cout << d << " " << j << " " << arrEM(i,j,k,EX_LOCAL+d_EM) << " " << -std::pow(-1,d)*c*c*(dt / dx[d]) * (fluxArrEM(i+iOffset, j+jOffset, k+kOffset, BZ_LOCAL) - fluxArrEM(i,j,k,BZ_LOCAL)) << " " << fluxArrEM(i+iOffset, j+jOffset, k+kOffset, BZ_LOCAL) << " " << fluxArrEM(i,j,k,BZ_LOCAL) << " " << -dt*1.0/(lambda_d*lambda_d*l_r)*currentFace << " " << fluxArr(i,j,k,0) << " " << fluxArr(i,j,k,5) << std::endl;*/
+    // 	  }
+    // 	}
+    //     }
+    //   }
+      
+    //   // We need to compute boundary conditions again after each update
+    //   //S_EM[0].FillBoundary(geom.periodicity());
+    //   //S_EM[1].FillBoundary(geom.periodicity());
+     
+    //   // added by 2020D 
+    //   // Fill non-periodic physical boundaries                          
+    //   //FillDomainBoundary(S_EM[0], geom, bc_EM);
+    //   //FillDomainBoundary(S_EM[1], geom, bc_EM);
+    
+    // }
+
+
+    // Update face-centred EM fields
+    for (int d = 0; d < amrex::SpaceDim ; d++)   
+      {
+
+	const int iOffset = ( d == 0 ? 1 : 0);
+	const int jOffset = ( d == 1 ? 1 : 0);
+	const int kOffset = ( d == 2 ? 1 : 0);
+
+	int d_EM = (d==0) ? 1 : 0;
+    
+	// Loop over all the patches at this level
+	for (MFIter mfi(S_EM[d_EM], true); mfi.isValid(); ++mfi)
+	  {
+	    const Box& bx = mfi.tilebox();
+
+	    const Dim3 lo = lbound(bx);
+	    const Dim3 hi = ubound(bx);
+
+	    // Indexable arrays for the data, and the directional flux
+	    // Based on the corner-centred definition of the flux array, the
+	    // data array runs from e.g. [0,N+1] and the flux array from [-1,N+1]
+	    //const auto& arr = Sborder.array(mfi);
+	    const auto& arrEM = S_EM[d_EM].array(mfi);
+	    //const auto& arrEMother = S_EM[d].array(mfi);
+	    const auto& fluxArrEM = fluxesEM.array(mfi);
+	    const auto& fluxArr = fluxes[d_EM].array(mfi);
+
+	    const Dim3 hiDomain = ubound(geom.Domain());
+      
+	    for(int k = lo.z; k <= hi.z; k++)
+	      {
+		for(int j = lo.y; j <= hi.y; j++)
+		  {
+		    for(int i = lo.x; i <= hi.x; i++)
+		      {
+			// 2D code; z-component updated using cell-centred scheme
+			arrEM(i,j,k,BX_LOCAL+d_EM) += std::pow(-1,d)*(dt / dx[d]) * (fluxArrEM(i+iOffset, j+jOffset, k+kOffset, EZ_LOCAL) - fluxArrEM(i,j,k,EZ_LOCAL));
+			arrEM(i,j,k,EX_LOCAL+d_EM) -= std::pow(-1,d)*c*c*(dt / dx[d]) * (fluxArrEM(i+iOffset, j+jOffset, k+kOffset, BZ_LOCAL) - fluxArrEM(i,j,k,BZ_LOCAL));
+
+			// 3D code
+			/*arrEM(i,j,k,BX_LOCAL+(1+d)%3) += (dt / dx[d]) * (fluxArrEM(i+iOffset, j+jOffset, k+kOffset, EX_LOCAL+(2+d)%3) - fluxArrEM(i,j,k,EX_LOCAL+(2+d)%3));
+			  arrEM(i,j,k,BX_LOCAL+(2+d)%3) -= (dt / dx[d]) * (fluxArrEM(i+iOffset, j+jOffset, k+kOffset, EX_LOCAL+(1+d)%3) - fluxArrEM(i,j,k,EX_LOCAL+(1+d)%3));
+			  arrEM(i,j,k,EX_LOCAL+(1+d)%3) -= c*c*(dt / dx[d]) * (fluxArrEM(i+iOffset, j+jOffset, k+kOffset, BX_LOCAL+(2+d)%3) - fluxArrEM(i,j,k,BX_LOCAL+(2+d)%3));
+			  arrEM(i,j,k,EX_LOCAL+(2+d)%3) += c*c*(dt / dx[d]) * (fluxArrEM(i+iOffset, j+jOffset, k+kOffset, BX_LOCAL+(1+d)%3) - fluxArrEM(i,j,k,BX_LOCAL+(1+d)%3));
+			*/
+	    
+			// source terms
+			Real currentFace = r_i*fluxArr(i,j,k,RHO_I) + r_e*fluxArr(i,j,k,RHO_E);
+			arrEM(i,j,k,EX_LOCAL+d_EM) -= dt*1.0/(lambda_d*lambda_d*l_r)*currentFace;
+			//if (d_EM==1 && (i==253 && j==253))
+			//std::cout << currentFace << std::endl;
+
+
+			// 3D code
+			//arrEM(i,j,k,EX_LOCAL+(1+d)%3) -= dt*1.0/(lambda_d*lambda_d*l_r)*currentFace;
+			//arrEM(i,j,k,EX_LOCAL+(2+d)%3) -= dt*1.0/(lambda_d*lambda_d*l_r)*currentFace;
+
+			// NOTE
+			// In future, when debugging, check that the flux (current) is zero at the boundaries
+			// i==1 and not i==0 because we need value at i==1 to be updated first
+			/*
+			  if (i==1 && bc[MOMX_I+d_EM].lo(0) == BCType::reflect_odd)
+			  arrEM(0,j,k,EX_LOCAL+d_EM) = arrEM(1,j,k,EX_LOCAL+d_EM);	      
+			  if (i==hiDomain.x+1 && bc[MOMX_I+d_EM].hi(0) == BCType::reflect_odd)
+			  arrEM(hiDomain.x+1,j,k,EX_LOCAL+d_EM) = arrEM(hiDomain.x,j,k,EX_LOCAL+d_EM);	    
+			  if (j==1 && bc[MOMX_I+d_EM].lo(1) == BCType::reflect_odd)
+			  arrEM(i,0,k,EX_LOCAL+d_EM) = arrEM(i,1,k,EX_LOCAL+d_EM);
+			  if (j==hiDomain.y+1 && bc[MOMX_I+d_EM].hi(1) == BCType::reflect_odd)
+			  arrEM(i,hiDomain.y+1,k,EX_LOCAL+d_EM) = arrEM(i,hiDomain.y,k,EX_LOCAL+d_EM);
+			*/
+		      }
+		  }
+	      }      
+	  }
+    
+	// We need to compute boundary conditions again after each update
+	S_EM[0].FillBoundary(geom.periodicity());
+	S_EM[1].FillBoundary(geom.periodicity());
+     
+	// added by 2020D 
+	// Fill non-periodic physical boundaries                          
+	FillDomainBoundary(S_EM[0], geom, bc_EM);    
+	FillDomainBoundary(S_EM[1], geom, bc_EM);  
+      
+      }
+    /*
+    // check if the current is zero at the domain boundaries
+    if (bc[MOMX_I].lo(0) == BCType::reflect_odd)
+      {
+	for (MFIter mfi(S_EM[0], true); mfi.isValid(); ++mfi)
+	  {
+	    const Box& bx = mfi.tilebox();
+      
+	    const Dim3 lo = lbound(bx);
+	    const Dim3 hi = ubound(bx);
+
+	    const Dim3 hiDomain = ubound(geom.Domain());
+
+	    Array4<Real> arr = Sborder.array(mfi);
+	    Array4<Real> arrEMX = S_EM[0].array(mfi);
+	    Array4<Real> arrEMY = S_EM[1].array(mfi);
+
+	    for(int k = lo.z; k <= hi.z; k++)
+	      {
+		for(int j = lo.y; j <= hi.y; j++)
+		  {
+		    for(int i = lo.x; i <= hi.x; i++)
+		      {
+			if (i==0)
+			  //arrEMX(0,j,k,EX_LOCAL) = arrEMX(1,j,k,EX_LOCAL) -
+			  //dx[0]*(arr(i,j,k,DIVE)-(arrEMY(i,j+1,k,EY_LOCAL)-arrEMY(i,j,k,EY_LOCAL))/dx[1]);
+			  //arrEMX(0,j,k,EX_LOCAL) = arrEMX(1,j,k,EX_LOCAL);
+			  arrEMX(0,j,k,EX_LOCAL) = 0.0;
+		      }
+		  }
+	      }      
+	  }      
+      }
+    if (bc[MOMX_I].hi(0) == BCType::reflect_odd)
+      {
+	for (MFIter mfi(S_EM[0], true); mfi.isValid(); ++mfi)
+	  {
+	    const Box& bx = mfi.tilebox();
+      
+	    const Dim3 lo = lbound(bx);
+	    const Dim3 hi = ubound(bx);
+
+	    const Dim3 hiDomain = ubound(geom.Domain());
+
+	    Array4<Real> arr = Sborder.array(mfi);
+	    Array4<Real> arrEMX = S_EM[0].array(mfi);
+	    Array4<Real> arrEMY = S_EM[1].array(mfi);
+
+	    for(int k = lo.z; k <= hi.z; k++)
+	      {
+		for(int j = lo.y; j <= hi.y; j++)
+		  {
+		    for(int i = lo.x; i <= hi.x; i++)
+		      {
+			if (i==hiDomain.x)
+			  //arrEMX(hiDomain.x+1,j,k,EX_LOCAL) = arrEMX(hiDomain.x,j,k,EX_LOCAL) +
+			  //dx[0]*(arr(i,j,k,DIVE)-(arrEMY(i,j+1,k,EY_LOCAL)-arrEMY(i,j,k,EY_LOCAL))/dx[1]);
+			  //arrEMX(hiDomain.x+1,j,k,EX_LOCAL) = arrEMX(hiDomain.x,j,k,EX_LOCAL);
+			  arrEMX(hiDomain.x+1,j,k,EX_LOCAL) = 0.0;
+		      }
+		  }
+	      }      
+	  }      
+      }
+    if (bc[MOMY_I].lo(1) == BCType::reflect_odd)
+      {
+	for (MFIter mfi(S_EM[1], true); mfi.isValid(); ++mfi)
+	  {
+	    const Box& bx = mfi.tilebox();
+      
+	    const Dim3 lo = lbound(bx);
+	    const Dim3 hi = ubound(bx);
+
+	    const Dim3 hiDomain = ubound(geom.Domain());
+
+	    Array4<Real> arr = Sborder.array(mfi);
+	    Array4<Real> arrEMX = S_EM[0].array(mfi);
+	    Array4<Real> arrEMY = S_EM[1].array(mfi);
+
+	    for(int k = lo.z; k <= hi.z; k++)
+	      {
+		for(int j = lo.y; j <= hi.y; j++)
+		  {
+		    for(int i = lo.x; i <= hi.x; i++)
+		      {
+			if (j==0)
+			  //arrEMY(i,0,k,EY_LOCAL) = arrEMY(i,1,k,EY_LOCAL) -
+			  //dx[1]*(arr(i,j,k,DIVE)-(arrEMX(i+1,j,k,EX_LOCAL)-arrEMX(i,j,k,EX_LOCAL))/dx[0]);
+			  //arrEMY(i,0,k,EY_LOCAL) = arrEMY(i,1,k,EY_LOCAL);
+			  arrEMY(i,0,k,EY_LOCAL) = 0.0;
+		      }
+		  }
+	      }      
+	  }      
+      }
+    if (bc[MOMY_I].hi(1) == BCType::reflect_odd)
+      {
+	for (MFIter mfi(S_EM[1], true); mfi.isValid(); ++mfi)
+	  {
+	    const Box& bx = mfi.tilebox();
+      
+	    const Dim3 lo = lbound(bx);
+	    const Dim3 hi = ubound(bx);
+
+	    const Dim3 hiDomain = ubound(geom.Domain());
+
+	    Array4<Real> arr = Sborder.array(mfi);
+	    Array4<Real> arrEMX = S_EM[0].array(mfi);
+	    Array4<Real> arrEMY = S_EM[1].array(mfi);
+
+	    for(int k = lo.z; k <= hi.z; k++)
+	      {
+		for(int j = lo.y; j <= hi.y; j++)
+		  {
+		    for(int i = lo.x; i <= hi.x; i++)
+		      {		      		      
+			if (j==hiDomain.y)
+			  //arrEMY(i,hiDomain.y+1,k,EY_LOCAL) = arrEMY(i,hiDomain.y,k,EY_LOCAL) +
+			  //dx[1]*(arr(i,j,k,DIVE)-(arrEMX(i+1,j,k,EX_LOCAL)-arrEMX(i,j,k,EX_LOCAL))/dx[0]);
+			  //arrEMY(i,hiDomain.y+1,k,EY_LOCAL) = arrEMY(i,hiDomain.y,k,EY_LOCAL);
+			  arrEMY(i,hiDomain.y+1,k,EY_LOCAL) = 0.0;
+		      }
+		  }
+	      }      
+	  }      
+      }
+    */
+    // We need to compute boundary conditions again after each update
+    S_EM[0].FillBoundary(geom.periodicity());
+    S_EM[1].FillBoundary(geom.periodicity());
+     
+    // added by 2020D 
+    // Fill non-periodic physical boundaries                          
+    FillDomainBoundary(S_EM[0], geom, bc_EM);    
+    FillDomainBoundary(S_EM[1], geom, bc_EM);  
+
+    if (dt_current+dt > dt_final)
+      {
+	// if at final time step, stop
+	if (dt_current==dt_final)
+	  break;
+	// at the final time step, use the remaining dt
+	dt = std::abs(dt_final - dt_current);      
+      }
+    dt_current += dt;
+  }  while (dt_current <= dt_final);
+
+
+  return;
+
+  // if commented out, only one source term step
+  //dt = cfl*std::min(dx[0],dx[1])/c;
+  dt = dt_final;
+  dt_currentSource = dt_final;
+  
+  do{
+
+    amrex::Print() << "Updating source part, dt=" << dt << ", current dt=" << dt_currentSource << " and final dt=" << dt_finalSource << std::endl;
+
+    // Compute cell-centred Ez source terms
+    for (MFIter mfi(Sborder, true); mfi.isValid(); ++mfi)
+      {
+	const Box& bx = mfi.tilebox();
+      
+	const Dim3 lo = lbound(bx);
+	const Dim3 hi = ubound(bx);
+
+	const Dim3 hiDomain = ubound(geom.Domain());
+
+	Array4<Real> arr = Sborder.array(mfi);
+	Array4<Real> arrEMX = S_EM[0].array(mfi);
+	Array4<Real> arrEMY = S_EM[1].array(mfi);
+
+	for(int k = lo.z; k <= hi.z; k++)
+	  {
+	    for(int j = lo.y; j <= hi.y; j++)
+	      {
+		for(int i = lo.x; i <= hi.x; i++)
+		  {
+		    arr(i,j,k,EZ) = arr(i,j,k,EZ) - dt*1.0/(lambda_d*lambda_d*l_r)*(r_i*arr(i,j,k,MOMZ_I) + r_e*arr(i,j,k,MOMZ_E));
+		  }
+	      }
+	  }      
+      }
+
+    // We need to compute boundary conditions again after each update
+    Sborder.FillBoundary(geom.periodicity());
+     
+    // added by 2020D 
+    // Fill non-periodic physical boundaries
+    FillDomainBoundary(Sborder, geom, bc);
+
+    // Update face-centred EM fields
+    for (int d = 0; d < amrex::SpaceDim ; d++)   
+      {
+
+	const int iOffset = ( d == 0 ? 1 : 0);
+	const int jOffset = ( d == 1 ? 1 : 0);
+	const int kOffset = ( d == 2 ? 1 : 0);
+
+	int d_EM = (d==0) ? 1 : 0;
+    
+	// Loop over all the patches at this level
+	for (MFIter mfi(S_EM[d_EM], true); mfi.isValid(); ++mfi)
+	  {
+	    const Box& bx = mfi.tilebox();
+
+	    const Dim3 lo = lbound(bx);
+	    const Dim3 hi = ubound(bx);
+
+	    // Indexable arrays for the data, and the directional flux
+	    // Based on the corner-centred definition of the flux array, the
+	    // data array runs from e.g. [0,N+1] and the flux array from [-1,N+1]
+	    //const auto& arr = Sborder.array(mfi);
+	    const auto& arrEM = S_EM[d_EM].array(mfi);
+	    //const auto& arrEMother = S_EM[d].array(mfi);
+	    const auto& fluxArrEM = fluxesEM.array(mfi);
+	    const auto& fluxArr = fluxes[d_EM].array(mfi);
+
+	    const Dim3 hiDomain = ubound(geom.Domain());
+      
+	    for(int k = lo.z; k <= hi.z; k++)
+	      {
+		for(int j = lo.y; j <= hi.y; j++)
+		  {
+		    for(int i = lo.x; i <= hi.x; i++)
+		      {
+	    
+			// source terms
+			Real currentFace = r_i*fluxArr(i,j,k,RHO_I) + r_e*fluxArr(i,j,k,RHO_E);
+			arrEM(i,j,k,EX_LOCAL+d_EM) -= dt*1.0/(lambda_d*lambda_d*l_r)*currentFace;
+
+			// 3D code
+			//arrEM(i,j,k,EX_LOCAL+(1+d)%3) -= dt*1.0/(lambda_d*lambda_d*l_r)*currentFace;
+			//arrEM(i,j,k,EX_LOCAL+(2+d)%3) -= dt*1.0/(lambda_d*lambda_d*l_r)*currentFace;
+
+			// NOTE
+			// In future, when debugging, check that the flux (current) is zero at the boundaries
+			// i==1 and not i==0 because we need value at i==1 to be updated first
+			/*
+			  if (i==1 && bc[MOMX_I+d_EM].lo(0) == BCType::reflect_odd)
+			  arrEM(0,j,k,EX_LOCAL+d_EM) = arrEM(1,j,k,EX_LOCAL+d_EM);	      
+			  if (i==hiDomain.x+1 && bc[MOMX_I+d_EM].hi(0) == BCType::reflect_odd)
+			  arrEM(hiDomain.x+1,j,k,EX_LOCAL+d_EM) = arrEM(hiDomain.x,j,k,EX_LOCAL+d_EM);	    
+			  if (j==1 && bc[MOMX_I+d_EM].lo(1) == BCType::reflect_odd)
+			  arrEM(i,0,k,EX_LOCAL+d_EM) = arrEM(i,1,k,EX_LOCAL+d_EM);
+			  if (j==hiDomain.y+1 && bc[MOMX_I+d_EM].hi(1) == BCType::reflect_odd)
+			  arrEM(i,hiDomain.y+1,k,EX_LOCAL+d_EM) = arrEM(i,hiDomain.y,k,EX_LOCAL+d_EM);
+			*/
+		      }
+		  }
+	      }      
+	  }
+    
+	// We need to compute boundary conditions again after each update
+	S_EM[0].FillBoundary(geom.periodicity());
+	S_EM[1].FillBoundary(geom.periodicity());
+     
+	// added by 2020D 
+	// Fill non-periodic physical boundaries                          
+	FillDomainBoundary(S_EM[0], geom, bc_EM);    
+	FillDomainBoundary(S_EM[1], geom, bc_EM);  
+      
+      }
+    /*
+    // check if the current is zero at the domain boundaries
+    if (bc[MOMX_I].lo(0) == BCType::reflect_odd)
+      {
+	for (MFIter mfi(S_EM[0], true); mfi.isValid(); ++mfi)
+	  {
+	    const Box& bx = mfi.tilebox();
+      
+	    const Dim3 lo = lbound(bx);
+	    const Dim3 hi = ubound(bx);
+
+	    const Dim3 hiDomain = ubound(geom.Domain());
+
+	    Array4<Real> arr = Sborder.array(mfi);
+	    Array4<Real> arrEMX = S_EM[0].array(mfi);
+	    Array4<Real> arrEMY = S_EM[1].array(mfi);
+
+	    for(int k = lo.z; k <= hi.z; k++)
+	      {
+		for(int j = lo.y; j <= hi.y; j++)
+		  {
+		    for(int i = lo.x; i <= hi.x; i++)
+		      {
+			if (i==0)
+			  //arrEMX(0,j,k,EX_LOCAL) = arrEMX(1,j,k,EX_LOCAL) -
+			  //dx[0]*(arr(i,j,k,DIVE)-(arrEMY(i,j+1,k,EY_LOCAL)-arrEMY(i,j,k,EY_LOCAL))/dx[1]);
+			  //arrEMX(0,j,k,EX_LOCAL) = arrEMX(1,j,k,EX_LOCAL);
+			  arrEMX(0,j,k,EX_LOCAL) = 0.0;
+		      }
+		  }
+	      }      
+	  }      
+      }
+    if (bc[MOMX_I].hi(0) == BCType::reflect_odd)
+      {
+	for (MFIter mfi(S_EM[0], true); mfi.isValid(); ++mfi)
+	  {
+	    const Box& bx = mfi.tilebox();
+      
+	    const Dim3 lo = lbound(bx);
+	    const Dim3 hi = ubound(bx);
+
+	    const Dim3 hiDomain = ubound(geom.Domain());
+
+	    Array4<Real> arr = Sborder.array(mfi);
+	    Array4<Real> arrEMX = S_EM[0].array(mfi);
+	    Array4<Real> arrEMY = S_EM[1].array(mfi);
+
+	    for(int k = lo.z; k <= hi.z; k++)
+	      {
+		for(int j = lo.y; j <= hi.y; j++)
+		  {
+		    for(int i = lo.x; i <= hi.x; i++)
+		      {
+			if (i==hiDomain.x)
+			  //arrEMX(hiDomain.x+1,j,k,EX_LOCAL) = arrEMX(hiDomain.x,j,k,EX_LOCAL) +
+			  //dx[0]*(arr(i,j,k,DIVE)-(arrEMY(i,j+1,k,EY_LOCAL)-arrEMY(i,j,k,EY_LOCAL))/dx[1]);
+			  //arrEMX(hiDomain.x+1,j,k,EX_LOCAL) = arrEMX(hiDomain.x,j,k,EX_LOCAL);
+			  arrEMX(hiDomain.x+1,j,k,EX_LOCAL) = 0.0;
+		      }
+		  }
+	      }      
+	  }      
+      }
+    if (bc[MOMY_I].lo(1) == BCType::reflect_odd)
+      {
+	for (MFIter mfi(S_EM[1], true); mfi.isValid(); ++mfi)
+	  {
+	    const Box& bx = mfi.tilebox();
+      
+	    const Dim3 lo = lbound(bx);
+	    const Dim3 hi = ubound(bx);
+
+	    const Dim3 hiDomain = ubound(geom.Domain());
+
+	    Array4<Real> arr = Sborder.array(mfi);
+	    Array4<Real> arrEMX = S_EM[0].array(mfi);
+	    Array4<Real> arrEMY = S_EM[1].array(mfi);
+
+	    for(int k = lo.z; k <= hi.z; k++)
+	      {
+		for(int j = lo.y; j <= hi.y; j++)
+		  {
+		    for(int i = lo.x; i <= hi.x; i++)
+		      {
+			if (j==0)
+			  //arrEMY(i,0,k,EY_LOCAL) = arrEMY(i,1,k,EY_LOCAL) -
+			  //dx[1]*(arr(i,j,k,DIVE)-(arrEMX(i+1,j,k,EX_LOCAL)-arrEMX(i,j,k,EX_LOCAL))/dx[0]);
+			  //arrEMY(i,0,k,EY_LOCAL) = arrEMY(i,1,k,EY_LOCAL);
+			  arrEMY(i,0,k,EY_LOCAL) = 0.0;
+		      }
+		  }
+	      }      
+	  }      
+      }
+    if (bc[MOMY_I].hi(1) == BCType::reflect_odd)
+      {
+	for (MFIter mfi(S_EM[1], true); mfi.isValid(); ++mfi)
+	  {
+	    const Box& bx = mfi.tilebox();
+      
+	    const Dim3 lo = lbound(bx);
+	    const Dim3 hi = ubound(bx);
+
+	    const Dim3 hiDomain = ubound(geom.Domain());
+
+	    Array4<Real> arr = Sborder.array(mfi);
+	    Array4<Real> arrEMX = S_EM[0].array(mfi);
+	    Array4<Real> arrEMY = S_EM[1].array(mfi);
+
+	    for(int k = lo.z; k <= hi.z; k++)
+	      {
+		for(int j = lo.y; j <= hi.y; j++)
+		  {
+		    for(int i = lo.x; i <= hi.x; i++)
+		      {		      		      
+			if (j==hiDomain.y)
+			  //arrEMY(i,hiDomain.y+1,k,EY_LOCAL) = arrEMY(i,hiDomain.y,k,EY_LOCAL) +
+			  //dx[1]*(arr(i,j,k,DIVE)-(arrEMX(i+1,j,k,EX_LOCAL)-arrEMX(i,j,k,EX_LOCAL))/dx[0]);
+			  //arrEMY(i,hiDomain.y+1,k,EY_LOCAL) = arrEMY(i,hiDomain.y,k,EY_LOCAL);
+			  arrEMY(i,hiDomain.y+1,k,EY_LOCAL) = 0.0;
+		      }
+		  }
+	      }      
+	  }      
+      }
+    */
+    // We need to compute boundary conditions again after each update
+    S_EM[0].FillBoundary(geom.periodicity());
+    S_EM[1].FillBoundary(geom.periodicity());
+     
+    // added by 2020D 
+    // Fill non-periodic physical boundaries                          
+    FillDomainBoundary(S_EM[0], geom, bc_EM);    
+    FillDomainBoundary(S_EM[1], geom, bc_EM);  
+
+    if (dt_currentSource+dt > dt_finalSource)
+      {
+	// if at final time step, stop
+	if (dt_currentSource==dt_finalSource)
+	  break;
+	// at the final time step, use the remaining dt
+	dt = std::abs(dt_finalSource - dt_currentSource);      
+      }
+    dt_currentSource += dt;
+  }  while (dt_currentSource <= dt_finalSource);
+}
+void CAMReXmp::hyperbolicMaxwellSolverDivFreeSubCycleIneff(Array<MultiFab,AMREX_SPACEDIM>& S_EM, MultiFab& fluxesEM, MultiFab& S0, MultiFab (&fluxes0)[AMREX_SPACEDIM], MultiFab& Sborder, MultiFab (&fluxes)[AMREX_SPACEDIM], const Real* dx, Real dt)
+{
+
+  Real dt_final = dt;
+  dt = cfl*std::min(dx[0],dx[1])/c;
+  Real dt_current = dt;
+
+  // supports subcycling
+  do{
+
+    for (int d = 0; d < amrex::SpaceDim ; d++)   
+      {
+	
+	const int iOffset = ( d == 0 ? 1 : 0);
+	const int jOffset = ( d == 1 ? 1 : 0);
+	const int kOffset = ( d == 2 ? 1 : 0);
+
+	// Loop over all the patches at this level
+	for (MFIter mfi(S_EM[d], true); mfi.isValid(); ++mfi)
+	  {
+	    const Box& bx = mfi.tilebox();
+
+	    const Dim3 lo = lbound(bx);
+	    const Dim3 hi = ubound(bx);
+
+	    // Indexable arrays for the data, and the directional flux
+	    // Based on the vertex-centred definition of the flux array, the
+	    // data array runs from e.g. [0,N] and the flux array from [0,N+1]
+	    const auto& arr = Sborder.array(mfi);
+	    const auto& arrEM = S_EM[d].array(mfi);
+
+	    for(int k = lo.z; k <= hi.z; k++)
+	      {
+		for(int j = lo.y; j <= hi.y; j++)
+		  {
+		    for(int i = lo.x; i <= hi.x; i++)
+		      {
+	    
+			// Calculate transverse facial components from cell-centred components
+			// transverse values, e.g. By, Bz, Ey and Ez for the x-face
+			Vector<Real> transverseEM = Maxwell_transverse_comp(arr, i, j, k, iOffset, jOffset, kOffset);	    
+			arrEM(i,j,k,BX_LOCAL+(1+d)%3) = transverseEM[BX_LOCAL+(1+d)%3];
+			arrEM(i,j,k,BX_LOCAL+(2+d)%3) = transverseEM[BX_LOCAL+(2+d)%3];
+			arrEM(i,j,k,EX_LOCAL+(1+d)%3) = transverseEM[EX_LOCAL+(1+d)%3];
+			arrEM(i,j,k,EX_LOCAL+(2+d)%3) = transverseEM[EX_LOCAL+(2+d)%3];	   
+
+		      }
+		  }
+	      }      
+	  }
+	// We need to compute boundary conditions again after each update
+	S_EM[0].FillBoundary(geom.periodicity());
+	S_EM[1].FillBoundary(geom.periodicity());
+     
+	// added by 2020D 
+	// Fill non-periodic physical boundaries                          
+	FillDomainBoundary(S_EM[0], geom, bc_EM);    
+	FillDomainBoundary(S_EM[1], geom, bc_EM);  
+    
+      }
+
+    // Update cell-centred z-components of EM fields
+    for (int d = 0; d < amrex::SpaceDim ; d++)   
+      {
+
+	const int iOffset = ( d == 0 ? 1 : 0);
+	const int jOffset = ( d == 1 ? 1 : 0);
+	const int kOffset = ( d == 2 ? 1 : 0);
+
+	// Loop over all the patches at this level
+	for (MFIter mfi(Sborder, true); mfi.isValid(); ++mfi)
+	  {
+	    const Box& bx = mfi.tilebox();
+
+	    const Dim3 lo = lbound(bx);
+	    const Dim3 hi = ubound(bx);
+
+	    // Indexable arrays for the data, and the directional flux
+	    // Based on the vertex-centred definition of the flux array, the
+	    // data array runs from e.g. [0,N] and the flux array from [0,N+1]
+	    const auto& arr = Sborder.array(mfi);
+	    const auto& fluxArr = fluxes[d].array(mfi);
+	    //const auto& arrEM = S_EM[d].array(mfi);      
+      
+	    for(int k = lo.z; k <= hi.z+kOffset; k++)
+	      {
+		for(int j = lo.y; j <= hi.y+jOffset; j++)
+		  {
+		    for(int i = lo.x; i <= hi.x+iOffset; i++)
+		      {	    
+			Vector<Real> flux = MUSCL_Hancock_HLLC_flux(arr, i, j, k, iOffset, jOffset, kOffset, dx[d], dt, d);
+
+			for(int n=0; n<NUM_STATE_FLUID; n++)
+			  {		
+			    fluxArr(i,j,k,n) = flux[n];		
+			  }
+
+			// Fluxes for the z-components of the EM fields because it is 2D code
+			Vector<Real> fluxEM = Maxwell_flux_Godunov(arr, i, j, k, iOffset, jOffset, kOffset, dx[d], dt, d);
+			fluxArr(i,j,k,BZ) = fluxEM[BZ_LOCAL];
+			fluxArr(i,j,k,EZ) = fluxEM[EZ_LOCAL];
+
+		      }
+		  }
+	      }
+      
+	    for(int k = lo.z; k <= hi.z; k++)
+	      {
+		for(int j = lo.y; j <= hi.y; j++)
+		  {
+		    for(int i = lo.x; i <= hi.x; i++)
+		      {
+			// Update cell-centred z-components becuause it is 2D code
+			arr(i,j,k,BZ) = arr(i,j,k,BZ) - (dt / dx[d]) * (fluxArr(i+iOffset, j+jOffset, k+kOffset, BZ) - fluxArr(i,j,k,BZ));
+			arr(i,j,k,EZ) = arr(i,j,k,EZ) - (dt / dx[d]) * (fluxArr(i+iOffset, j+jOffset, k+kOffset, EZ) - fluxArr(i,j,k,EZ));
+			// Update fluid variables
+			for(int n=0; n<NUM_STATE_FLUID; n++)
+			  {
+			    // Conservative update formula
+			    arr(i,j,k,n) = arr(i,j,k,n) - (dt / dx[d]) * (fluxArr(i+iOffset, j+jOffset, k+kOffset, n) - fluxArr(i,j,k,n));
+			  }
+			// Initialise to zero
+			arr(i,j,k,DIVB) = 0.0;
+			arr(i,j,k,DIVE) = 1.0/(lambda_d*lambda_d*l_r)*(r_i*arr(i,j,k,RHO_I) + r_e*arr(i,j,k,RHO_E));
+	   
+		      }
+		  }
+	      }
+	  }
+      
+	// We need to compute boundary conditions again after each update
+	Sborder.FillBoundary(geom.periodicity());
+	//S_EM[0].FillBoundary(geom.periodicity());
+	//S_EM[1].FillBoundary(geom.periodicity());
+     
+	// added by 2020D 
+	// Fill non-periodic physical boundaries
+	FillDomainBoundary(Sborder, geom, bc);
+	//FillDomainBoundary(S_EM[0], geom, bc_EM);
+	//FillDomainBoundary(S_EM[1], geom, bc_EM);
+    
+	// The fluxes now need scaling for the reflux command.
+	// This scaling is by the size of the boundary through which the flux passes, e.g. the x-flux needs scaling by the dy, dz and dt
+	/*if(do_reflux)
+	  {
+	  Real scaleFactor = dt;
+	  for(int scaledir = 0; scaledir < amrex::SpaceDim; ++scaledir)
+	  {
+	  // Fluxes don't need scaling by dx[d]
+	  if(scaledir == d)
+	  {
+	  continue;
+	  }
+	  scaleFactor *= dx[scaledir];
+	  }
+	  // The mult function automatically multiplies entries in a multifab by a scalar
+	  // scaleFactor: The scalar to multiply by
+	  // 0: The first data index in the multifab to multiply
+	  // NUM_STATE:  The total number of data indices that will be multiplied
+	  fluxes[d].mult(scaleFactor, 0, NUM_STATE);
+	  }*/
+      }
+    
+    // Compute cell-centred Ez source terms
+    for (MFIter mfi(Sborder, true); mfi.isValid(); ++mfi)
+      {
+	const Box& bx = mfi.tilebox();
+      
+	const Dim3 lo = lbound(bx);
+	const Dim3 hi = ubound(bx);
+
+	const Dim3 hiDomain = ubound(geom.Domain());
+
+	Array4<Real> arr = Sborder.array(mfi);
+	Array4<Real> arr0 = S0.array(mfi);
+	Array4<Real> arrEMX = S_EM[0].array(mfi);
+	Array4<Real> arrEMY = S_EM[1].array(mfi);
+
+	for(int k = lo.z; k <= hi.z; k++)
+	  {
+	    for(int j = lo.y; j <= hi.y; j++)
+	      {
+		for(int i = lo.x; i <= hi.x; i++)
+		  {		    
+		    if (dt_current!=dt_final)
+		      arr(i,j,k,EZ) = arr(i,j,k,EZ) - dt*1.0/(lambda_d*lambda_d*l_r)*(r_i*arr(i,j,k,MOMZ_I) + r_e*arr(i,j,k,MOMZ_E));
+		    else
+		      {
+			arr(i,j,k,EZ) = arr(i,j,k,EZ) - dt*1.0/(lambda_d*lambda_d*l_r)*(r_i*arr0(i,j,k,MOMZ_I) + r_e*arr0(i,j,k,MOMZ_E));
+		      }
+		    
+		  }
+	      }
+	  }      
+      }
+
+    // We need to compute boundary conditions again after each update
+    Sborder.FillBoundary(geom.periodicity());
+     
+    // added by 2020D 
+    // Fill non-periodic physical boundaries
+    FillDomainBoundary(Sborder, geom, bc);
+    
+    
+    // Compute edge components of the EM fields    
+    for (MFIter mfi(fluxesEM, true); mfi.isValid(); ++mfi)
+      {
+	const Box& bx = mfi.tilebox();
+      
+	const Dim3 lo = lbound(bx);
+	const Dim3 hi = ubound(bx);
+      
+	// Indexable arrays for the data, and the directional flux
+	// Based on the corner-centred definition of the flux array, the
+	// data array runs from e.g. [0,N+1] and the flux array from [-1,N+1]
+	const auto& arrEM_X = S_EM[0].array(mfi);
+	const auto& arrEM_Y = S_EM[1].array(mfi); 
+	const auto& fluxArrEM = fluxesEM.array(mfi);
+	//const auto& fluxArrX = fluxes[0].array(mfi);
+	//const auto& fluxArrY = fluxes[1].array(mfi);
+      
+	for(int k = lo.z; k <= hi.z; k++)
+	  {
+	    for(int j = lo.y; j <= hi.y; j++)
+	      {
+		for(int i = lo.x; i <= hi.x; i++)
+		  {		 
+		    // intermediate values using y-face in the x-direction
+		    Vector<Real> cornerEM_Y = Maxwell_corner(arrEM_Y, i, j, k, 1, 0, 0, dx[0], dt, 0);
+
+		    // intermediate values using x-face in the y-direction
+		    Vector<Real> cornerEM_X = Maxwell_corner(arrEM_X, i, j, k, 0, 1, 0, dx[1], dt, 1);	       
+		  
+		    fluxArrEM(i,j,k,BX_LOCAL) = cornerEM_X[BX_LOCAL];
+		    fluxArrEM(i,j,k,BY_LOCAL) = cornerEM_Y[BY_LOCAL];
+		    fluxArrEM(i,j,k,BZ_LOCAL) = cornerEM_X[BZ_LOCAL] + cornerEM_Y[BZ_LOCAL];
+		    fluxArrEM(i,j,k,EX_LOCAL) = cornerEM_X[EX_LOCAL];
+		    fluxArrEM(i,j,k,EY_LOCAL) = cornerEM_Y[EY_LOCAL];
+		    fluxArrEM(i,j,k,EZ_LOCAL) = cornerEM_X[EZ_LOCAL] + cornerEM_Y[EZ_LOCAL];
+		  
+		  }
+	      }
+	  }       
+      }
+
+
+    // Update face-centred EM fields
+    for (int d = 0; d < amrex::SpaceDim ; d++)   
+      {
+
+	const int iOffset = ( d == 0 ? 1 : 0);
+	const int jOffset = ( d == 1 ? 1 : 0);
+	const int kOffset = ( d == 2 ? 1 : 0);
+
+	int d_EM = (d==0) ? 1 : 0;
+    
+	// Loop over all the patches at this level
+	for (MFIter mfi(S_EM[d_EM], true); mfi.isValid(); ++mfi)
+	  {
+	    const Box& bx = mfi.tilebox();
+
+	    const Dim3 lo = lbound(bx);
+	    const Dim3 hi = ubound(bx);
+
+	    // Indexable arrays for the data, and the directional flux
+	    // Based on the corner-centred definition of the flux array, the
+	    // data array runs from e.g. [0,N+1] and the flux array from [-1,N+1]
+	    //const auto& arr = Sborder.array(mfi);
+	    const auto& arrEM = S_EM[d_EM].array(mfi);
+	    //const auto& arrEMother = S_EM[d].array(mfi);
+	    const auto& fluxArrEM = fluxesEM.array(mfi);
+	    const auto& fluxArr = fluxes[d_EM].array(mfi);
+	    const auto& fluxArr0 = fluxes0[d_EM].array(mfi);
+
+	    const Dim3 hiDomain = ubound(geom.Domain());
+      
+	    for(int k = lo.z; k <= hi.z; k++)
+	      {
+		for(int j = lo.y; j <= hi.y; j++)
+		  {
+		    for(int i = lo.x; i <= hi.x; i++)
+		      {
+			// 2D code; z-component updated using cell-centred scheme
+			arrEM(i,j,k,BX_LOCAL+d_EM) += std::pow(-1,d)*(dt / dx[d]) * (fluxArrEM(i+iOffset, j+jOffset, k+kOffset, EZ_LOCAL) - fluxArrEM(i,j,k,EZ_LOCAL));
+			arrEM(i,j,k,EX_LOCAL+d_EM) -= std::pow(-1,d)*c*c*(dt / dx[d]) * (fluxArrEM(i+iOffset, j+jOffset, k+kOffset, BZ_LOCAL) - fluxArrEM(i,j,k,BZ_LOCAL));
+
+	    
+			// source terms
+			Real currentFace = r_i*fluxArr(i,j,k,RHO_I) + r_e*fluxArr(i,j,k,RHO_E);
+			if (dt_current!=dt_final)
+			  arrEM(i,j,k,EX_LOCAL+d_EM) -= dt*1.0/(lambda_d*lambda_d*l_r)*currentFace;
+			else
+			  {
+			    amrex::Print() << currentFace << " " << r_i*fluxArr0(i,j,k,RHO_I) + r_e*fluxArr0(i,j,k,RHO_E) << std::endl;
+			     currentFace = r_i*fluxArr0(i,j,k,RHO_I) + r_e*fluxArr0(i,j,k,RHO_E);
+			     arrEM(i,j,k,EX_LOCAL+d_EM) -= dt*1.0/(lambda_d*lambda_d*l_r)*currentFace;
+			  }
+		      }
+		  }
+	      }      
+	  }
+    
+	// We need to compute boundary conditions again after each update
+	S_EM[0].FillBoundary(geom.periodicity());
+	S_EM[1].FillBoundary(geom.periodicity());
+     
+	// added by 2020D 
+	// Fill non-periodic physical boundaries                          
+	FillDomainBoundary(S_EM[0], geom, bc_EM);    
+	FillDomainBoundary(S_EM[1], geom, bc_EM);  
+      
+      }
+    
+    // check if the current is zero at the domain boundaries
+    if (bc[MOMX_I].lo(0) == BCType::reflect_odd)
+      {
+	for (MFIter mfi(S_EM[0], true); mfi.isValid(); ++mfi)
+	  {
+	    const Box& bx = mfi.tilebox();
+      
+	    const Dim3 lo = lbound(bx);
+	    const Dim3 hi = ubound(bx);
+
+	    const Dim3 hiDomain = ubound(geom.Domain());
+
+	    Array4<Real> arr = Sborder.array(mfi);
+	    Array4<Real> arrEMX = S_EM[0].array(mfi);
+	    Array4<Real> arrEMY = S_EM[1].array(mfi);
+
+	    for(int k = lo.z; k <= hi.z; k++)
+	      {
+		for(int j = lo.y; j <= hi.y; j++)
+		  {
+		    for(int i = lo.x; i <= hi.x; i++)
+		      {
+			if (i==0)
+			  //arrEMX(0,j,k,EX_LOCAL) = arrEMX(1,j,k,EX_LOCAL) -
+			  //dx[0]*(arr(i,j,k,DIVE)-(arrEMY(i,j+1,k,EY_LOCAL)-arrEMY(i,j,k,EY_LOCAL))/dx[1]);
+			  //arrEMX(0,j,k,EX_LOCAL) = arrEMX(1,j,k,EX_LOCAL);
+			  arrEMX(0,j,k,EX_LOCAL) = 0.0;
+		      }
+		  }
+	      }      
+	  }      
+      }
+    if (bc[MOMX_I].hi(0) == BCType::reflect_odd)
+      {
+	for (MFIter mfi(S_EM[0], true); mfi.isValid(); ++mfi)
+	  {
+	    const Box& bx = mfi.tilebox();
+      
+	    const Dim3 lo = lbound(bx);
+	    const Dim3 hi = ubound(bx);
+
+	    const Dim3 hiDomain = ubound(geom.Domain());
+
+	    Array4<Real> arr = Sborder.array(mfi);
+	    Array4<Real> arrEMX = S_EM[0].array(mfi);
+	    Array4<Real> arrEMY = S_EM[1].array(mfi);
+
+	    for(int k = lo.z; k <= hi.z; k++)
+	      {
+		for(int j = lo.y; j <= hi.y; j++)
+		  {
+		    for(int i = lo.x; i <= hi.x; i++)
+		      {
+			if (i==hiDomain.x)
+			  //arrEMX(hiDomain.x+1,j,k,EX_LOCAL) = arrEMX(hiDomain.x,j,k,EX_LOCAL) +
+			  //dx[0]*(arr(i,j,k,DIVE)-(arrEMY(i,j+1,k,EY_LOCAL)-arrEMY(i,j,k,EY_LOCAL))/dx[1]);
+			  //arrEMX(hiDomain.x+1,j,k,EX_LOCAL) = arrEMX(hiDomain.x,j,k,EX_LOCAL);
+			  arrEMX(hiDomain.x+1,j,k,EX_LOCAL) = 0.0;
+		      }
+		  }
+	      }      
+	  }      
+      }
+    if (bc[MOMY_I].lo(1) == BCType::reflect_odd)
+      {
+	for (MFIter mfi(S_EM[1], true); mfi.isValid(); ++mfi)
+	  {
+	    const Box& bx = mfi.tilebox();
+      
+	    const Dim3 lo = lbound(bx);
+	    const Dim3 hi = ubound(bx);
+
+	    const Dim3 hiDomain = ubound(geom.Domain());
+
+	    Array4<Real> arr = Sborder.array(mfi);
+	    Array4<Real> arrEMX = S_EM[0].array(mfi);
+	    Array4<Real> arrEMY = S_EM[1].array(mfi);
+
+	    for(int k = lo.z; k <= hi.z; k++)
+	      {
+		for(int j = lo.y; j <= hi.y; j++)
+		  {
+		    for(int i = lo.x; i <= hi.x; i++)
+		      {
+			if (j==0)
+			  //arrEMY(i,0,k,EY_LOCAL) = arrEMY(i,1,k,EY_LOCAL) -
+			  //dx[1]*(arr(i,j,k,DIVE)-(arrEMX(i+1,j,k,EX_LOCAL)-arrEMX(i,j,k,EX_LOCAL))/dx[0]);
+			  //arrEMY(i,0,k,EY_LOCAL) = arrEMY(i,1,k,EY_LOCAL);
+			  arrEMY(i,0,k,EY_LOCAL) = 0.0;
+		      }
+		  }
+	      }      
+	  }      
+      }
+    if (bc[MOMY_I].hi(1) == BCType::reflect_odd)
+      {
+	for (MFIter mfi(S_EM[1], true); mfi.isValid(); ++mfi)
+	  {
+	    const Box& bx = mfi.tilebox();
+      
+	    const Dim3 lo = lbound(bx);
+	    const Dim3 hi = ubound(bx);
+
+	    const Dim3 hiDomain = ubound(geom.Domain());
+
+	    Array4<Real> arr = Sborder.array(mfi);
+	    Array4<Real> arrEMX = S_EM[0].array(mfi);
+	    Array4<Real> arrEMY = S_EM[1].array(mfi);
+
+	    for(int k = lo.z; k <= hi.z; k++)
+	      {
+		for(int j = lo.y; j <= hi.y; j++)
+		  {
+		    for(int i = lo.x; i <= hi.x; i++)
+		      {		      		      
+			if (j==hiDomain.y)
+			  //arrEMY(i,hiDomain.y+1,k,EY_LOCAL) = arrEMY(i,hiDomain.y,k,EY_LOCAL) +
+			  //dx[1]*(arr(i,j,k,DIVE)-(arrEMX(i+1,j,k,EX_LOCAL)-arrEMX(i,j,k,EX_LOCAL))/dx[0]);
+			  //arrEMY(i,hiDomain.y+1,k,EY_LOCAL) = arrEMY(i,hiDomain.y,k,EY_LOCAL);
+			  arrEMY(i,hiDomain.y+1,k,EY_LOCAL) = 0.0;
+		      }
+		  }
+	      }      
+	  }      
+      }
+    
+    // We need to compute boundary conditions again after each update
+    S_EM[0].FillBoundary(geom.periodicity());
+    S_EM[1].FillBoundary(geom.periodicity());
+     
+    // added by 2020D 
+    // Fill non-periodic physical boundaries                          
+    FillDomainBoundary(S_EM[0], geom, bc_EM);    
+    FillDomainBoundary(S_EM[1], geom, bc_EM);  
+
+    // Compute cell-centred EM fields from face-centred
+    for (MFIter mfi(Sborder, true); mfi.isValid(); ++mfi)
+      {
+	const Box& bx = mfi.tilebox();
+      
+	const Dim3 lo = lbound(bx);
+	const Dim3 hi = ubound(bx);
+
+	const Dim3 hiDomain = ubound(geom.Domain());
+
+	Array4<Real> arr = Sborder.array(mfi);
+	Array4<Real> arrEMX = S_EM[0].array(mfi);
+	Array4<Real> arrEMY = S_EM[1].array(mfi);
+
+	for(int k = lo.z; k <= hi.z; k++)
+	  {
+	    for(int j = lo.y; j <= hi.y; j++)
+	      {
+		for(int i = lo.x; i <= hi.x; i++)
+		  {
+		    arr(i,j,k,BX) = 0.5*(arrEMX(i,j,k,BX_LOCAL)+arrEMX(i+1,j,k,BX_LOCAL));
+		    arr(i,j,k,BY) = 0.5*(arrEMY(i,j,k,BY_LOCAL)+arrEMY(i,j+1,k,BY_LOCAL));
+		    arr(i,j,k,EX) = 0.5*(arrEMX(i,j,k,EX_LOCAL)+arrEMX(i+1,j,k,EX_LOCAL));
+		    arr(i,j,k,EY) = 0.5*(arrEMY(i,j,k,EY_LOCAL)+arrEMY(i,j+1,k,EY_LOCAL));
+	    
+		    /*
+		    if (i==1 && bc[MOMX_I].lo(0) == BCType::reflect_odd)
+		      arr(0,j,k,EX_LOCAL) = arr(1,j,k,EX_LOCAL);
+		    if (i==hiDomain.x && bc[MOMX_I].hi(0) == BCType::reflect_odd)
+		      arr(hiDomain.x,j,k,EX_LOCAL) = arr(hiDomain.x-1,j,k,EX_LOCAL);
+		    if (j==1 && bc[MOMY_I].lo(1) == BCType::reflect_odd)
+		      arr(i,0,k,EY_LOCAL) = arr(i,1,k,EY_LOCAL);
+		    if (j==hiDomain.y && bc[MOMY_I].hi(1) == BCType::reflect_odd)
+		      arr(i,hiDomain.y,k,EY_LOCAL) = arr(i,hiDomain.y-1,k,EY_LOCAL);
+		    */
+		    // Ez source terms
+		    //arr(i,j,k,EZ) = arr(i,j,k,EZ) - dt*1.0/(lambda_d*lambda_d*l_r)*(r_i*arr(i,j,k,MOMZ_I) + r_e*arr(i,j,k,MOMZ_E));
+		  }
+	      }
+	  }      
+      }
+    // We need to compute boundary conditions again after each update       
+    Sborder.FillBoundary(geom.periodicity());
+	    
+    // Fill non-periodic physical boundaries          
+    FillDomainBoundary(Sborder, geom, bc);
+  
+    // Source term update
+    // Loop over all the patches at this level         
+    for (MFIter mfi(Sborder, true); mfi.isValid(); ++mfi)
+      {
+	const Box& bx = mfi.tilebox();
+      
+	const Dim3 lo = lbound(bx);
+	const Dim3 hi = ubound(bx);
+
+	Array4<Real> arr = Sborder.array(mfi);
+
+	for(int k = lo.z; k <= hi.z; k++)
+	  {
+	    for(int j = lo.y; j <= hi.y; j++)
+	      {
+		for(int i = lo.x; i <= hi.x; i++)
+		  {
+		    sourceUpdateANEX(arr, i, j, k, dt);
+		  }
+	      }
+	  }      
+      }
+    // We need to compute boundary conditions again after each update       
+    Sborder.FillBoundary(geom.periodicity());
+	    
+    // Fill non-periodic physical boundaries
+    FillDomainBoundary(Sborder, geom, bc);
+
+    
+    if (dt_current+dt > dt_final)
+      {
+	// if at final time step, stop
+	if (dt_current==dt_final)
+	  break;
+	// at the final time step, use the remaining dt
+	dt = std::abs(dt_final - dt_current);      
+      }
+    dt_current += dt;
+  }  while (dt_current <= dt_final);
+
+  MultiFab::Copy(S0, Sborder, BX, BX, 6, NUM_GROW);
+  //MultiFab::Copy(S0, Sborder, EZ, EZ, 1, NUM_GROW);
+  
+}

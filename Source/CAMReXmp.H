@@ -28,7 +28,8 @@ enum StateType { Phi_Type = 0, EM_X_Type = 1, EM_Y_Type = 2,
 enum StateVariable {
 		    RHO_I = 0, MOMX_I = 1, MOMY_I = 2, MOMZ_I = 3, ENER_I = 4,
 		    RHO_E = 5, MOMX_E = 6, MOMY_E = 7, MOMZ_E = 8, ENER_E = 9,
-		    BX = 10, BY = 11, BZ = 12, EX = 13, EY = 14, EZ = 15
+		    BX = 10, BY = 11, BZ = 12, EX = 13, EY = 14, EZ = 15,
+		    DIVB = 16, DIVE = 17
 };
 enum StateVariableMaxwell {
 			   BX_LOCAL = 0, BY_LOCAL = 1, BZ_LOCAL = 2, EX_LOCAL = 3, EY_LOCAL = 4, EZ_LOCAL = 5
@@ -209,8 +210,8 @@ protected:
     void avgDown (int state_indx);
 
   void setDomainBC (std::array<amrex::LinOpBCType,AMREX_SPACEDIM>& mlmg_lobc,
-		    std::array<amrex::LinOpBCType,AMREX_SPACEDIM>& mlmg_hibc, int index);
-  
+		    std::array<amrex::LinOpBCType,AMREX_SPACEDIM>& mlmg_hibc, int index);  
+
     //
     // The data.
     //
@@ -223,6 +224,7 @@ protected:
     static int          do_reflux;
 
     static Vector<BCRec> bc;
+    static Vector<BCRec> bc_EM;
   
   static advanceFunctionPointer advanceWithChosenUpdateOrder;
   static RKFunctionPointer RKWithChosenUpdateOrder;
@@ -266,6 +268,9 @@ private:
   void implicitMaxwellSolverSetUp();  
   void implicitMaxwellSolver(amrex::MultiFab&, const amrex::Real*, amrex::Real);
   void implicitMaxwellSolverElecFieldUpdate(amrex::MultiFab&, const amrex::MultiFab&, const amrex::MultiFab&, const amrex::Real*, amrex::Real);
+  void hyperbolicMaxwellSolverDivFree(Array<MultiFab,AMREX_SPACEDIM>&, MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], const Real*, Real);
+  void hyperbolicMaxwellSolverDivFreeSubCycle(Array<MultiFab,AMREX_SPACEDIM>&, MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], const Real*, Real);
+  void hyperbolicMaxwellSolverDivFreeSubCycleIneff(Array<MultiFab,AMREX_SPACEDIM>&, MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], MultiFab&, MultiFab (&)[AMREX_SPACEDIM], const Real*, Real);
   void computeCurrentUpdate(amrex::MultiFab&, const amrex::MultiFab&, const amrex::Real*, amrex::Real);
   void computeAlpha(amrex::MultiFab&);
   void computeBeta(std::array<amrex::MultiFab,AMREX_SPACEDIM>&);
@@ -281,6 +286,18 @@ private:
 
 
 };    
+
+/**
+ * Boundary condition function that does nothing.
+ * See bc_nullfill.cpp for implementation.
+ */
+void nullfill (amrex::Box const& bx, amrex::FArrayBox& data,
+               const int dcomp, const int numcomp,
+               amrex::Geometry const& geom, const amrex::Real time,
+               const amrex::Vector<amrex::BCRec>& bcr, const int bcomp,
+               const int scomp);
+
+
 
 //
 // Inlines.

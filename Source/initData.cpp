@@ -21,23 +21,17 @@ CAMReXmp::initData ()
   // Create a multifab which can store the initial data
   MultiFab& S_new = get_new_data(Phi_Type);
   Real cur_time   = state[Phi_Type].curTime();
-
+     
   // Set up a multifab that will contain the electromagnetic fields
   MultiFab& S_EM_X = get_new_data(EM_X_Type);
   MultiFab& S_EM_Y = get_new_data(EM_Y_Type);
 
   BoxArray ba = S_new.boxArray();
-  S_EM_X.define(convert(ba,IntVect{AMREX_D_DECL(1,0,0)}), AMRLevel->DistributionMap(), 2, 2);
-  S_EM_Y.define(convert(ba,IntVect{AMREX_D_DECL(0,1,0)}), AMRLevel->DistributionMap(), 2, 2);
-  /*
-  // Define the appropriate size for the electromagnetic MultiFab.
-  for (int j = 0; j < amrex::SpaceDim; j++)
-  {
-    BoxArray ba = S_new.boxArray();
-    ba.surroundingNodes(j);
-    S_EM[j].define(ba, dmap, 1, 0);
-  }
-  */
+  const DistributionMapping& dm = S_new.DistributionMap();
+  
+  S_EM_X.define(convert(ba,IntVect{AMREX_D_DECL(1,0,0)}), dm, 6, 2);
+  S_EM_Y.define(convert(ba,IntVect{AMREX_D_DECL(0,1,0)}), dm, 6, 2);
+
   // amrex::Print works like std::cout, but in parallel only prints from the root processor
   if (verbose) {
     amrex::Print() << "Initializing the data at level " << level << std::endl;
@@ -69,12 +63,162 @@ CAMReXmp::initData ()
     // set up boundary conditions and coefficients for the implicit solver
     implicitMaxwellSolverSetUp();
   }
-
   
   Real rho, v_x, v_y, v_z, p, B_x, B_y, B_z;
   Real c_a = 0.0;
+
+  // Set values for the x-components of the EM fields at the x-faces
+  for (MFIter mfi(S_EM_X); mfi.isValid(); ++mfi)
+  {
+    Box bx = mfi.tilebox();
+    const Dim3 lo = lbound(bx);
+    const Dim3 hi = ubound(bx);
+
+    const auto& arr = S_EM_X.array(mfi);
+    
+    for(int k = lo.z; k <= hi.z; k++)
+    {
+      const Real z = probLoZ + (double(k)+0.5) * dZ;
+      for(int j = lo.y; j <= hi.y; j++)
+      {
+	const Real y = probLoY + (double(j)+0.5) * dY;
+	for(int i = lo.x; i <= hi.x; i++)
+	{
+	  // only x-face has no 0.5 shift
+	  const Real x = probLoX + (double(i)) * dX;
+	
+	  if (test=="BrioWu"){
+	    Real B_x_L = 0.75, B_y_L = 1.0, B_z_L = 0.0;
+	    Real B_x_R = 0.75, B_y_R = -1.0, B_z_R = 0.0;
+
+	    if (x<=(geom.ProbLo()[0]+geom.ProbHi()[0])/2.0){
+	      B_x = B_x_L, B_y = B_y_L, B_z = B_z_L;
+	    } else{
+	      B_x = B_x_R, B_y = B_y_R, B_z = B_z_R;
+	    }
+	    /*if (y<=(geom.ProbLo()[1]+geom.ProbHi()[1])/2.0){
+	      B_x = B_y_L, B_y = B_x_L, B_z = B_z_L;
+	    } else{
+	      B_x = B_y_R, B_y = B_x_R, B_z = B_z_R;
+	      }*/
+	    
+	    arr(i,j,k,BX_LOCAL) = B_x;	    
+	    arr(i,j,k,BY_LOCAL) = 0.0;
+	    arr(i,j,k,BZ_LOCAL) = 0.0;
+	    arr(i,j,k,EX_LOCAL) = 0.0;
+	    arr(i,j,k,EY_LOCAL) = 0.0;
+	    arr(i,j,k,EZ_LOCAL) = 0.0;	    
+	    
+	  } else if (test=="OT"){
+	    v_x = -std::sin(y);
+	    v_y = std::sin(x);
+	    v_z = 0.0;	    
+	    B_x = -std::sin(y);
+	    B_y = std::sin(2.0*x);
+	    B_z = 0.0;
+	    Vector<Real> vcrossB = cross_product({v_x,v_y,v_z},{B_x,B_y,B_z});	    
+	    
+	    arr(i,j,k,BX_LOCAL) = B_x;
+	    arr(i,j,k,BY_LOCAL) = 0.0;
+	    arr(i,j,k,BZ_LOCAL) = 0.0;
+	    arr(i,j,k,EX_LOCAL) = -vcrossB[0];
+	    arr(i,j,k,EY_LOCAL) = 0.0;
+	    arr(i,j,k,EZ_LOCAL) = -vcrossB[2];
+
+	  } else if (test=="Harris_sheet"){
+	    Real Lx = geom.ProbHi()[0]-geom.ProbLo()[0], Ly = geom.ProbHi()[1]-geom.ProbLo()[1];
+	    Real lambda = 0.5, n0 = 1.0, nInf = 0.2, B0 = 1.0, B1 = 0.1;
+	    B_x = B0*std::tanh(y/lambda) - B1*(M_PI/Ly)*std::cos(2*M_PI*x/Lx)*std::sin(M_PI*y/Ly);
+
+	    arr(i,j,k,BX_LOCAL) = B_x;
+	    arr(i,j,k,BY_LOCAL) = 0.0;
+	    arr(i,j,k,BZ_LOCAL) = 0.0;
+	    arr(i,j,k,EX_LOCAL) = 0.0;
+	    arr(i,j,k,EY_LOCAL) = 0.0;
+	    arr(i,j,k,EZ_LOCAL) = 0.0;
+	  }
+	}
+      }
+    }
+  }
   
-  // Loop over all the patches at this level
+  // Set values for the y-components of the EM fields at the y-faces
+  for (MFIter mfi(S_EM_Y); mfi.isValid(); ++mfi)
+  {
+    Box bx = mfi.tilebox();
+    const Dim3 lo = lbound(bx);
+    const Dim3 hi = ubound(bx);
+
+    const auto& arr = S_EM_Y.array(mfi);
+    
+    for(int k = lo.z; k <= hi.z; k++)
+    {
+      const Real z = probLoZ + (double(k)+0.5) * dZ;
+      for(int j = lo.y; j <= hi.y; j++)
+      {
+  	// only y-face has no 0.5 shift
+  	const Real y = probLoY + (double(j)) * dY;
+  	for(int i = lo.x; i <= hi.x; i++)
+  	{
+  	  const Real x = probLoX + (double(i)+0.5) * dX;
+
+  	  if (test=="BrioWu"){
+  	    Real B_x_L = 0.75, B_y_L = 1.0, B_z_L = 0.0;
+  	    Real B_x_R = 0.75, B_y_R = -1.0, B_z_R = 0.0;
+
+  	    if (x<=(geom.ProbLo()[0]+geom.ProbHi()[0])/2.0){
+  	      B_x = B_x_L, B_y = B_y_L, B_z = B_z_L;
+  	    } else{
+  	      B_x = B_x_R, B_y = B_y_R, B_z = B_z_R;
+  	    }
+  	    /*if (y<=(geom.ProbLo()[1]+geom.ProbHi()[1])/2.0){
+  	      B_x = B_y_L, B_y = B_x_L, B_z = B_z_L;
+  	    } else{
+  	      B_x = B_y_R, B_y = B_x_R, B_z = B_z_R;
+  	      }*/
+	    
+  	    arr(i,j,k,BX_LOCAL) = 0.0;
+  	    arr(i,j,k,BY_LOCAL) = B_y;
+  	    arr(i,j,k,BZ_LOCAL) = 0.0;
+  	    arr(i,j,k,EX_LOCAL) = 0.0;
+  	    arr(i,j,k,EY_LOCAL) = 0.0;
+  	    arr(i,j,k,EZ_LOCAL) = 0.0;	    
+	    
+  	  } else if (test=="OT"){
+  	    v_x = -std::sin(y);
+  	    v_y = std::sin(x);
+  	    v_z = 0.0;	    
+  	    B_x = -std::sin(y);
+  	    B_y = std::sin(2.0*x);
+  	    B_z = 0.0;
+  	    Vector<Real> vcrossB = cross_product({v_x,v_y,v_z},{B_x,B_y,B_z});	    
+
+  	    arr(i,j,k,BX_LOCAL) = 0.0;
+  	    arr(i,j,k,BY_LOCAL) = B_y;
+  	    arr(i,j,k,BZ_LOCAL) = 0.0;
+  	    arr(i,j,k,EX_LOCAL) = 0.0;
+  	    arr(i,j,k,EY_LOCAL) = -vcrossB[1];
+  	    arr(i,j,k,EZ_LOCAL) = -vcrossB[2];
+	    
+  	  } else if (test=="Harris_sheet"){
+  	    Real Lx = geom.ProbHi()[0]-geom.ProbLo()[0], Ly = geom.ProbHi()[1]-geom.ProbLo()[1];
+  	    Real lambda = 0.5, n0 = 1.0, nInf = 0.2, B0 = 1.0, B1 = 0.1;
+  	    B_y = B1*(2*M_PI/Lx)*std::cos(M_PI*y/Ly)*std::sin(2*M_PI*x/Lx);	    
+
+  	    arr(i,j,k,BX_LOCAL) = 0.0;
+  	    arr(i,j,k,BY_LOCAL) = B_y;
+  	    arr(i,j,k,BZ_LOCAL) = 0.0;
+  	    arr(i,j,k,EX_LOCAL) = 0.0;
+  	    arr(i,j,k,EY_LOCAL) = 0.0;
+  	    arr(i,j,k,EZ_LOCAL) = 0.0;
+	    
+  	  }
+  	}
+      }
+    }
+  }
+  
+  // Set values for cell-centred fluid and EM fields
   for (MFIter mfi(S_new); mfi.isValid(); ++mfi)
   {
     Box bx = mfi.tilebox();
@@ -82,6 +226,8 @@ CAMReXmp::initData ()
     const Dim3 hi = ubound(bx);
 
     const auto& arr = S_new.array(mfi);
+    const auto& arrEMX = S_EM_X.array(mfi);
+    const auto& arrEMY = S_EM_Y.array(mfi);    
     
     for(int k = lo.z; k <= hi.z; k++)
     {
@@ -104,10 +250,10 @@ CAMReXmp::initData ()
 	    } else{
 	      rho = rho_R, v_x = v_x_R, v_y = v_y_R, v_z = v_z_R, p = p_R, B_x = B_x_R, B_y = B_y_R, B_z = B_z_R;
 	    }
-	    /*if (y<=(geom.ProbLo()[0]+geom.ProbHi()[0])/2.0){                                                                               
-              rho = rho_L, v_x = v_x_L, v_y = v_y_L, v_z = v_z_L, p = p_L, B_x = B_y_L, B_y = B_x_L, B_z = B_z_L;                           
+	    /*if (y<=(geom.ProbLo()[1]+geom.ProbHi()[1])/2.0){
+              rho = rho_L, v_x = v_y_L, v_y = v_x_L, v_z = v_z_L, p = p_L, B_x = B_y_L, B_y = B_x_L, B_z = B_z_L;                           
             } else{                                                                                                       
-              rho = rho_R, v_x = v_x_R, v_y = v_y_R, v_z = v_z_R, p = p_R, B_x = B_y_R, B_y = B_x_R, B_z = B_z_R;   
+              rho = rho_R, v_x = v_y_R, v_y = v_x_R, v_z = v_z_R, p = p_R, B_x = B_y_R, B_y = B_x_R, B_z = B_z_R;   
 	      }*/
 
 	    arr(i,j,k,0) = rho;
@@ -124,46 +270,51 @@ CAMReXmp::initData ()
 	    Vector<Real> w_e{arr(i,j,k,RHO_E), v_x, v_y, v_z, p};
 	    arr(i,j,k,ENER_E) = get_energy(w_e);
 
-	    arr(i,j,k,BX) = B_x;
-	    arr(i,j,k,BY) = B_y;
+	    arr(i,j,k,BX) = 0.5*(arrEMX(i,j,k,BX_LOCAL)+arrEMX(i+1,j,k,BX_LOCAL));
+	    arr(i,j,k,BY) = 0.5*(arrEMY(i,j,k,BY_LOCAL)+arrEMY(i,j+1,k,BY_LOCAL));
 	    arr(i,j,k,BZ) = B_z;
-	    arr(i,j,k,EX) = 0.0;
-	    arr(i,j,k,EY) = 0.0;
-	    arr(i,j,k,EZ) = 0.0;
-
+	    arr(i,j,k,EX) = 0.5*(arrEMX(i,j,k,EX_LOCAL)+arrEMX(i+1,j,k,EX_LOCAL));
+	    arr(i,j,k,EY) = 0.5*(arrEMY(i,j,k,EY_LOCAL)+arrEMY(i,j+1,k,EY_LOCAL));
+	    arr(i,j,k,EZ) = 0.0;	   
+	    arr(i,j,k,DIVB) = 0.0;
+	    arr(i,j,k,DIVE) = 0.0;	    
+	    
 	    // set speed of light
 	    c = 100.0;
 	    
 	  } else if (test=="OT"){
 	    rho = Gamma*Gamma;
-	    v_x = -std::sin(2.0*M_PI*y);
-	    v_y = std::sin(2.0*M_PI*x);
+	    v_x = -std::sin(y);
+	    v_y = std::sin(x);
 	    v_z = 0.0;
 	    p = Gamma;
-	    B_x = -std::sin(2.0*M_PI*y);
-	    B_y = std::sin(4.0*M_PI*x);
+	    B_x = -std::sin(y);
+	    B_y = std::sin(2.0*x);
 	    B_z = 0.0;
+	    Vector<Real> vcrossB = cross_product({v_x,v_y,v_z},{B_x,B_y,B_z});
 
-	    arr(i,j,k,0) = rho;
+	    arr(i,j,k,0) = rho;	    
 	    arr(i,j,k,1) = arr(i,j,k,0)*v_x;
 	    arr(i,j,k,2) = arr(i,j,k,0)*v_y;
 	    arr(i,j,k,3) = arr(i,j,k,0)*v_z;
 	    Vector<Real> w_i{arr(i,j,k,0), v_x, v_y, v_z, p};
 	    arr(i,j,k,ENER_I) = get_energy(w_i);
 	    
-	    arr(i,j,k,RHO_E) = rho;
+	    arr(i,j,k,RHO_E) = rho/m;
 	    arr(i,j,k,MOMX_E) = arr(i,j,k,RHO_E)*v_x;
 	    arr(i,j,k,MOMY_E) = arr(i,j,k,RHO_E)*v_y;
 	    arr(i,j,k,MOMZ_E) = arr(i,j,k,RHO_E)*v_z;
 	    Vector<Real> w_e{arr(i,j,k,RHO_E), v_x, v_y, v_z, p};
 	    arr(i,j,k,ENER_E) = get_energy(w_e);
 
-	    arr(i,j,k,BX) = B_x;
-	    arr(i,j,k,BY) = B_y;
+	    arr(i,j,k,BX) = 0.5*(arrEMX(i,j,k,BX_LOCAL)+arrEMX(i+1,j,k,BX_LOCAL));
+	    arr(i,j,k,BY) = 0.5*(arrEMY(i,j,k,BY_LOCAL)+arrEMY(i,j+1,k,BY_LOCAL));
 	    arr(i,j,k,BZ) = B_z;
-	    arr(i,j,k,EX) = 0.0;
-	    arr(i,j,k,EY) = 0.0;
-	    arr(i,j,k,EZ) = 0.0;
+	    arr(i,j,k,EX) = 0.5*(arrEMX(i,j,k,EX_LOCAL)+arrEMX(i+1,j,k,EX_LOCAL));
+	    arr(i,j,k,EY) = 0.5*(arrEMY(i,j,k,EY_LOCAL)+arrEMY(i,j+1,k,EY_LOCAL));
+	    arr(i,j,k,EZ) = -vcrossB[2];
+	    arr(i,j,k,DIVB) = 0.0;	    
+	    arr(i,j,k,DIVE) = 0.0;
 
 	    // set speed of light
 	    c = std::max(c, 3.0*std::max(std::abs(v_x)+get_speed(w_i),std::abs(v_y)+get_speed(w_i)));
@@ -193,11 +344,13 @@ CAMReXmp::initData ()
 	    Vector<Real> w_e{arr(i,j,k,RHO_E), v_x, v_y, v_z_e, p/6.0};
 	    arr(i,j,k,ENER_E) = get_energy(w_e);
 
+	    //arr(i,j,k,BX) = 0.5*(arrEMX(i,j,k,BX_LOCAL)+arrEMX(i+1,j,k,BX_LOCAL));
+	    //arr(i,j,k,BY) = 0.5*(arrEMY(i,j,k,BY_LOCAL)+arrEMY(i,j+1,k,BY_LOCAL));
 	    arr(i,j,k,BX) = B_x;
 	    arr(i,j,k,BY) = B_y;
 	    arr(i,j,k,BZ) = B_z;
-	    arr(i,j,k,EX) = 0.0;
-	    arr(i,j,k,EY) = 0.0;
+	    arr(i,j,k,EX) = 0.5*(arrEMX(i,j,k,EX_LOCAL)+arrEMX(i+1,j,k,EX_LOCAL));
+	    arr(i,j,k,EY) = 0.5*(arrEMY(i,j,k,EY_LOCAL)+arrEMY(i,j+1,k,EY_LOCAL));
 	    arr(i,j,k,EZ) = 0.0;
 
 	  } else if (test=="zpinch2d"){
@@ -309,6 +462,7 @@ CAMReXmp::initData ()
       }
     }
   }
+
   if (verbose) {
     amrex::Print() << "Done initializing the level " << level 
 		   << " data " << std::endl;
