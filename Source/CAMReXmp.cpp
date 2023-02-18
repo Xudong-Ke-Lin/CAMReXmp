@@ -651,21 +651,6 @@ CAMReXmp::advance (Real time,
   FillDomainBoundary(S_EM[0], geom, bc_EM);
   FillDomainBoundary(S_EM[1], geom, bc_EM);  
 
-  // State of y-face variable with ghost cells
-  MultiFab SY(convert(grids,IntVect{AMREX_D_DECL(0,1,0)}), dmap, 2, NUM_GROW);
-  // Boundary conditions
-  Vector<BCRec> bc3;
-  bc3.resize(2);
-  
-  // periodic boundaries in the x-direction
-  for (int n=0; n<2; n++){
-    bc3[n].setLo(0, BCType::int_dir);
-    bc3[n].setHi(0, BCType::int_dir);
-    // foextrap in the y-direction
-    bc3[n].setLo(1, BCType::reflect_odd);
-    bc3[n].setHi(1, BCType::reflect_odd);
-  }
-
   // We use FillPatcher to do fillpatch here if we can
   //FillPatcherFill(SY, 0, 2, NUM_GROW, time, 3, 0);
   //FillPatch(*this, SY, NUM_GROW, time, 3, 0, 2);
@@ -679,60 +664,70 @@ CAMReXmp::advance (Real time,
   //FillPatcherFill(Sborder, 0, NUM_STATE, NUM_GROW, time, Phi_Type, 0);
   //MFIter::allowMultipleMFIters(true);
 
+  MultiFab S0(grids, dmap, NUM_STATE+2, NUM_GROW);
+  // See init function for details about the FillPatch function
+  FillPatch(*this, S0, NUM_GROW, time, Phi_Type, 0, NUM_STATE+2);
+  S0.FillBoundary(geom.periodicity());
+  // Fill non-periodic physical boundaries
+  FillDomainBoundary(S0, geom, bc);
+
+
   //(this->*advanceWithChosenUpdateOrder)(Sborder,fluxes,dx,dt);
-
-  // Compute transverse face-centred EM values from cell-centred  
-  for (int d = 0; d < amrex::SpaceDim ; d++)   
-  {
-
-    const int iOffset = ( d == 0 ? 1 : 0);
-    const int jOffset = ( d == 1 ? 1 : 0);
-    const int kOffset = ( d == 2 ? 1 : 0);
-
-    // Loop over all the patches at this level
-    for (MFIter mfi(S_EM[d], TilingIfNotGPU()); mfi.isValid(); ++mfi)
-    {
-      const Box& bx = mfi.tilebox();
-
-      const Dim3 lo = lbound(bx);
-      const Dim3 hi = ubound(bx);
-
-      // Indexable arrays for the data, and the directional flux
-      // Based on the vertex-centred definition of the flux array, the
-      // data array runs from e.g. [0,N] and the flux array from [0,N+1]
-      const auto& arr = Sborder.array(mfi);
-      const auto& arrEM = S_EM[d].array(mfi);
-
-      for(int k = lo.z; k <= hi.z; k++)
-      {
-	for(int j = lo.y; j <= hi.y; j++)
-	{
-	  for(int i = lo.x; i <= hi.x; i++)
-	  {
-	    
-	    // Calculate transverse facial components from cell-centred components
-	    // transverse values, e.g. By, Bz, Ey and Ez for the x-face
-	    Vector<Real> transverseEM = Maxwell_transverse_comp(arr, i, j, k, iOffset, jOffset, kOffset);	    
-	    arrEM(i,j,k,BX_LOCAL+(1+d)%3) = transverseEM[BX_LOCAL+(1+d)%3];
-	    arrEM(i,j,k,BX_LOCAL+(2+d)%3) = transverseEM[BX_LOCAL+(2+d)%3];
-	    arrEM(i,j,k,EX_LOCAL+(1+d)%3) = transverseEM[EX_LOCAL+(1+d)%3];
-	    arrEM(i,j,k,EX_LOCAL+(2+d)%3) = transverseEM[EX_LOCAL+(2+d)%3];	   
-	    	    
-	  }
-	}
-      }      
-    }
-    // We need to compute boundary conditions again after each update
-    S_EM[0].FillBoundary(geom.periodicity());
-    S_EM[1].FillBoundary(geom.periodicity());
-     
-    // added by 2020D 
-    // Fill non-periodic physical boundaries                          
-    FillDomainBoundary(S_EM[0], geom, bc_EM);    
-    FillDomainBoundary(S_EM[1], geom, bc_EM);  
-    
-  }
   
+  // // Compute transverse face-centred EM values from cell-centred  
+  // for (int d = 0; d < amrex::SpaceDim ; d++)   
+  // {
+
+  //   const int iOffset = ( d == 0 ? 1 : 0);
+  //   const int jOffset = ( d == 1 ? 1 : 0);
+  //   const int kOffset = ( d == 2 ? 1 : 0);
+
+  //   // Loop over all the patches at this level
+  //   for (MFIter mfi(S_EM[d], TilingIfNotGPU()); mfi.isValid(); ++mfi)
+  //   {
+  //     const Box& bx = mfi.tilebox();
+
+  //     const Dim3 lo = lbound(bx);
+  //     const Dim3 hi = ubound(bx);
+
+  //     // Indexable arrays for the data, and the directional flux
+  //     // Based on the vertex-centred definition of the flux array, the
+  //     // data array runs from e.g. [0,N] and the flux array from [0,N+1]
+  //     const auto& arr = Sborder.array(mfi);
+  //     const auto& arrEM = S_EM[d].array(mfi);
+
+  //     for(int k = lo.z; k <= hi.z; k++)
+  //     {
+  // 	for(int j = lo.y; j <= hi.y; j++)
+  // 	{
+  // 	  for(int i = lo.x; i <= hi.x; i++)
+  // 	  {
+	    
+  // 	    // Calculate transverse facial components from cell-centred components
+  // 	    // transverse values, e.g. By, Bz, Ey and Ez for the x-face
+  // 	    Vector<Real> transverseEM = Maxwell_transverse_comp(arr, i, j, k, iOffset, jOffset, kOffset);	    
+  // 	    arrEM(i,j,k,BX_LOCAL+(1+d)%3) = transverseEM[BX_LOCAL+(1+d)%3];
+  // 	    arrEM(i,j,k,BX_LOCAL+(2+d)%3) = transverseEM[BX_LOCAL+(2+d)%3];
+  // 	    arrEM(i,j,k,EX_LOCAL+(1+d)%3) = transverseEM[EX_LOCAL+(1+d)%3];
+  // 	    arrEM(i,j,k,EX_LOCAL+(2+d)%3) = transverseEM[EX_LOCAL+(2+d)%3];	   
+	    	    
+  // 	  }
+  // 	}
+  //     }      
+  //   }
+  //   // We need to compute boundary conditions again after each update
+  //   S_EM[0].FillBoundary(geom.periodicity());
+  //   S_EM[1].FillBoundary(geom.periodicity());
+     
+  //   // added by 2020D 
+  //   // Fill non-periodic physical boundaries                          
+  //   FillDomainBoundary(S_EM[0], geom, bc_EM);    
+  //   FillDomainBoundary(S_EM[1], geom, bc_EM);  
+    
+  // }
+  
+  
+
   // Update cell-centred fluid variables and z-components of EM fields
   for (int d = 0; d < amrex::SpaceDim ; d++)   
   {
@@ -925,7 +920,7 @@ CAMReXmp::advance (Real time,
   // Sborder has updated fluid variables and has cell-centred EM variables
   // S_EM has primary facial variables already defined at t=t_old and reconstructed transverse components
   // divergence free update including the source terms for the electric field
-  hyperbolicMaxwellSolverDivFree(S_EM,fluxesEM,Sborder,fluxes,dx,dt);
+  //hyperbolicMaxwellSolverDivFree(S_EM,fluxesEM,Sborder,fluxes,dx,dt);
   
   /*// Set up a dimensional multifab that will contain the fluxes
   MultiFab fluxes0[amrex::SpaceDim];
@@ -945,54 +940,69 @@ CAMReXmp::advance (Real time,
   FillDomainBoundary(S0, geom, bc);
   hyperbolicMaxwellSolverDivFreeIneff(S_EM,fluxesEM,Sborder,fluxes,S0,fluxes0,dx,dt);
   */
-  
+
   // Compute cell-centred EM fields from face-centred
-  for (MFIter mfi(Sborder, true); mfi.isValid(); ++mfi)
-    {
-      const Box& bx = mfi.tilebox();
+  // for (MFIter mfi(Sborder, true); mfi.isValid(); ++mfi)
+  //   {
+  //     const Box& bx = mfi.tilebox();
       
-      const Dim3 lo = lbound(bx);
-      const Dim3 hi = ubound(bx);
+  //     const Dim3 lo = lbound(bx);
+  //     const Dim3 hi = ubound(bx);
 
-      const Dim3 hiDomain = ubound(geom.Domain());
+  //     const Dim3 hiDomain = ubound(geom.Domain());
 
-      Array4<Real> arr = Sborder.array(mfi);
-      Array4<Real> arrEMX = S_EM[0].array(mfi);
-      Array4<Real> arrEMY = S_EM[1].array(mfi);
+  //     Array4<Real> arr = Sborder.array(mfi);
+  //     Array4<Real> arrEMX = S_EM[0].array(mfi);
+  //     Array4<Real> arrEMY = S_EM[1].array(mfi);
 
-      for(int k = lo.z; k <= hi.z; k++)
-      {
-        for(int j = lo.y; j <= hi.y; j++)
-        {
-          for(int i = lo.x; i <= hi.x; i++)
-          {
-	    arr(i,j,k,BX) = 0.5*(arrEMX(i,j,k,BX_LOCAL)+arrEMX(i+1,j,k,BX_LOCAL));
-	    arr(i,j,k,BY) = 0.5*(arrEMY(i,j,k,BY_LOCAL)+arrEMY(i,j+1,k,BY_LOCAL));
-	    arr(i,j,k,EX) = 0.5*(arrEMX(i,j,k,EX_LOCAL)+arrEMX(i+1,j,k,EX_LOCAL));
-	    arr(i,j,k,EY) = 0.5*(arrEMY(i,j,k,EY_LOCAL)+arrEMY(i,j+1,k,EY_LOCAL));
+  //     for(int k = lo.z; k <= hi.z; k++)
+  //     {
+  //       for(int j = lo.y; j <= hi.y; j++)
+  //       {
+  //         for(int i = lo.x; i <= hi.x; i++)
+  //         {
+  // 	    arr(i,j,k,BX) = 0.5*(arrEMX(i,j,k,BX_LOCAL)+arrEMX(i+1,j,k,BX_LOCAL));
+  // 	    arr(i,j,k,BY) = 0.5*(arrEMY(i,j,k,BY_LOCAL)+arrEMY(i,j+1,k,BY_LOCAL));
+  // 	    arr(i,j,k,EX) = 0.5*(arrEMX(i,j,k,EX_LOCAL)+arrEMX(i+1,j,k,EX_LOCAL));
+  // 	    arr(i,j,k,EY) = 0.5*(arrEMY(i,j,k,EY_LOCAL)+arrEMY(i,j+1,k,EY_LOCAL));
+
+  // 	    Real ax = (arrEMX(i+1,j,k,EX_LOCAL)-arrEMX(i,j,k,EX_LOCAL))/dx[0];
+  // 	    Real by = (arrEMY(i,j+1,k,EY_LOCAL)-arrEMY(i,j,k,EY_LOCAL))/dx[1];
+  // 	    Real cz = 0.0;
+
+  // 	    //if (std::abs(ax+by+cz-1.0/(lambda_d*lambda_d*l_r)*(r_i*arr(i,j,k,RHO_I) + r_e*arr(i,j,k,RHO_E))) > 1e-13)
+  // 	    //std::cout << i << " " << j << " " << ax+by+cz << " " << 1.0/(lambda_d*lambda_d*l_r)*(r_i*arr(i,j,k,RHO_I) + r_e*arr(i,j,k,RHO_E)) << std::endl;
+  // 	    /*
+  // 	    if (i==1 && bc[MOMX_I].lo(0) == BCType::reflect_odd)
+  // 	      arr(0,j,k,EX_LOCAL) = arr(1,j,k,EX_LOCAL);
+  // 	    if (i==hiDomain.x && bc[MOMX_I].hi(0) == BCType::reflect_odd)
+  // 	      arr(hiDomain.x,j,k,EX_LOCAL) = arr(hiDomain.x-1,j,k,EX_LOCAL);
+  // 	    if (j==1 && bc[MOMY_I].lo(1) == BCType::reflect_odd)
+  // 	      arr(i,0,k,EY_LOCAL) = arr(i,1,k,EY_LOCAL);
+  // 	    if (j==hiDomain.y && bc[MOMY_I].hi(1) == BCType::reflect_odd)
+  // 	      arr(i,hiDomain.y,k,EY_LOCAL) = arr(i,hiDomain.y-1,k,EY_LOCAL);
+  // 	    */	    
+  // 	    // Ez source terms
+  // 	    //arr(i,j,k,EZ) = arr(i,j,k,EZ) - dt*1.0/(lambda_d*lambda_d*l_r)*(r_i*arr(i,j,k,MOMZ_I) + r_e*arr(i,j,k,MOMZ_E));
+  // 	  }
+  // 	}
+  //     }      
+  //   }
+  // // We need to compute boundary conditions again after each update       
+  // Sborder.FillBoundary(geom.periodicity());
 	    
-	    /*
-	    if (i==1 && bc[MOMX_I].lo(0) == BCType::reflect_odd)
-	      arr(0,j,k,EX_LOCAL) = arr(1,j,k,EX_LOCAL);
-	    if (i==hiDomain.x && bc[MOMX_I].hi(0) == BCType::reflect_odd)
-	      arr(hiDomain.x,j,k,EX_LOCAL) = arr(hiDomain.x-1,j,k,EX_LOCAL);
-	    if (j==1 && bc[MOMY_I].lo(1) == BCType::reflect_odd)
-	      arr(i,0,k,EY_LOCAL) = arr(i,1,k,EY_LOCAL);
-	    if (j==hiDomain.y && bc[MOMY_I].hi(1) == BCType::reflect_odd)
-	      arr(i,hiDomain.y,k,EY_LOCAL) = arr(i,hiDomain.y-1,k,EY_LOCAL);
-	    */	    
-	    // Ez source terms
-	    //arr(i,j,k,EZ) = arr(i,j,k,EZ) - dt*1.0/(lambda_d*lambda_d*l_r)*(r_i*arr(i,j,k,MOMZ_I) + r_e*arr(i,j,k,MOMZ_E));
-	  }
-	}
-      }      
-    }
-  // We need to compute boundary conditions again after each update       
-  Sborder.FillBoundary(geom.periodicity());
-	    
-  // Fill non-periodic physical boundaries          
-  FillDomainBoundary(Sborder, geom, bc);
+  // // Fill non-periodic physical boundaries          
+  // FillDomainBoundary(Sborder, geom, bc);
   
+  // At this point the current at the faces are updated in fluxes
+  // Sborder has updated fluid variables and has cell-centred EM variables
+  // S_EM has primary facial variables already defined at t=t_old and reconstructed transverse components
+  // S0 has non-updated fluid variables used for charge density reconstruction
+  // divergence free update and reconstruction including the source terms for the electric field
+  // also includes computation of cell-centred EM fields from face-centred by using coeff. that give higher order
+  //hyperbolicMaxwellSolverDivFreeBalsara(S_EM,fluxesEM,Sborder,fluxes,S0,dx,dt);
+  MaxwellSolverDivFree(S_EM,fluxesEM,Sborder,fluxes,S0,dx,dt);
+
   // Source term update
   // Loop over all the patches at this level         
   for (MFIter mfi(Sborder, true); mfi.isValid(); ++mfi)

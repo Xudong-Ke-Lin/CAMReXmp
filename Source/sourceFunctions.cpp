@@ -123,8 +123,8 @@ void CAMReXmp::sourceUpdateEX(Array4<Real>& arr, int i, int j, int k, Real dt)
   Real v_z_e = momZ_e/rho_e;
   Real p_e = get_pressure({rho_e,momX_e,momY_e,momZ_e,E_e});
 
-  arr(i,j,k,EZ) = E_z - dt*1.0/(lambda_d*lambda_d*l_r)*(r_i*rho_i*v_z_i + r_e*rho_e*v_z_e);
-  E_z = arr(i,j,k,EZ);
+  //arr(i,j,k,EZ) = E_z - dt*1.0/(lambda_d*lambda_d*l_r)*(r_i*rho_i*v_z_i + r_e*rho_e*v_z_e);
+  //E_z = arr(i,j,k,EZ);
 		  
   arr(i,j,k,0) = rho_i;
   arr(i,j,k,1) = momX_i + dt*r_i*rho_i/l_r*(E_x + B_z*v_y_i - B_y*v_z_i);
@@ -137,7 +137,7 @@ void CAMReXmp::sourceUpdateEX(Array4<Real>& arr, int i, int j, int k, Real dt)
   arr(i,j,k,MOMZ_E) = momZ_e + dt*r_e*rho_e/l_r*(E_z + B_y*v_x_e - B_x*v_y_e);
   arr(i,j,k,ENER_E) = E_e + dt*r_e*rho_e/l_r*(E_x*v_x_e + E_y*v_y_e + E_z*v_z_e);
   
-  if (MaxwellMethod=="HYP")
+  //if (MaxwellMethod=="HYP")
     {
       //arr(i,j,k,EX) = E_x - dt*1.0/(lambda_d*lambda_d*l_r)*(r_i*rho_i*v_x_i + r_e*rho_e*v_x_e);
       //arr(i,j,k,EY) = E_y - dt*1.0/(lambda_d*lambda_d*l_r)*(r_i*rho_i*v_y_i + r_e*rho_e*v_y_e);

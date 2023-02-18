@@ -1094,8 +1094,8 @@ void CAMReXmp::hyperbolicMaxwellSolverDivFree(Array<MultiFab,AMREX_SPACEDIM>& S_
 		      Real currentFace = r_i*fluxArr(i,j,k,RHO_I) + r_e*fluxArr(i,j,k,RHO_E);
 		      arrEM(i,j,k,EX_LOCAL+d_EM) -= dt*1.0/(lambda_d*lambda_d*l_r)*currentFace;
 
-		      if (d_EM==1 && i==256 && (j>252))
-			std::cout << arrEM(i,j,k,EX_LOCAL+d_EM) << " " << currentFace << std::endl;
+		      //if (d_EM==1 && i==256 && (j>252))
+		      //std::cout << arrEM(i,j,k,EX_LOCAL+d_EM) << " " << currentFace << std::endl;
 		      // 3D code
 		      //arrEM(i,j,k,EX_LOCAL+(1+d)%3) -= dt*1.0/(lambda_d*lambda_d*l_r)*currentFace;
 		      //arrEM(i,j,k,EX_LOCAL+(2+d)%3) -= dt*1.0/(lambda_d*lambda_d*l_r)*currentFace;
@@ -2609,4 +2609,1582 @@ void CAMReXmp::hyperbolicMaxwellSolverDivFreeSubCycleIneff(Array<MultiFab,AMREX_
   MultiFab::Copy(S0, Sborder, BX, BX, 6, NUM_GROW);
   //MultiFab::Copy(S0, Sborder, EZ, EZ, 1, NUM_GROW);
   
+}
+void CAMReXmp::hyperbolicMaxwellSolverDivFreeBalsara(Array<MultiFab,AMREX_SPACEDIM>& S_EM, MultiFab& fluxesEM, MultiFab& Sborder, MultiFab (&fluxes)[AMREX_SPACEDIM], MultiFab& S0, const Real* dx, Real dt)
+{
+  // Future slopes definition suggestion
+  // Useful when dealing with high-order reconstruction
+  // To get first-order slope in y-direction for Bx: slopes[BX_LOCALL].array(i,j,k,Y)
+  // Useful to define indices int X,Y,Z in second-order linear reconstruction
+  // For third-order quadratic reconstruction use int X,Y,Z,XX,YY,ZZ,XY,YZ,XZ
+  // Although for x-components fields, only exist Y,Z,YY,ZZ,YZ (see Balsara et al. 2017)
+  /*
+  Array<MultiFab,6> slopes;
+  // number of slopes
+  // 2 slopes for second-order linear reconstruction
+  // Ex = Ex^0 + Ex^y*(y/Delta_y) + Ex^z*(z/Delta_z), where Ex^y and Ex^z are the slopes
+  // For 2D code, only 1 slope for x- and y-compoenents
+  // For clarity, will use 3 slopes for second-order, first one represents slope in x-direction
+  // 9 slopes for third-order, and so on
+  int nSlopes = 3;
+  slopes[BX_LOCAL].define(convert(grids,IntVect{AMREX_D_DECL(1,0,0)}), dmap, nSlopes, 1);
+  slopes[BY_LOCAL].define(convert(grids,IntVect{AMREX_D_DECL(0,1,0)}), dmap, nSlopes, 1);
+  slopes[EX_LOCAL].define(convert(grids,IntVect{AMREX_D_DECL(1,0,0)}), dmap, nSlopes, 1);
+  slopes[EY_LOCAL].define(convert(grids,IntVect{AMREX_D_DECL(0,1,0)}), dmap, nSlopes, 1);
+
+  // For 2D code, 2 slopes for z-components, although it is cell-centred
+  slopes[BZ_LOCAL].define(grids, dmap, nSlopes, 1);
+  slopes[BZ_LOCAL].define(grids, dmap, nSlopes, 1);
+  */
+
+  Array<MultiFab,AMREX_SPACEDIM> slopesFC;
+  // six components, one for each field direction
+  slopesFC[0].define(convert(grids,IntVect{AMREX_D_DECL(1,0,0)}), dmap, 6, 1);
+  slopesFC[1].define(convert(grids,IntVect{AMREX_D_DECL(0,1,0)}), dmap, 6, 1);
+
+  // only for 2D
+  Array<MultiFab,AMREX_SPACEDIM> slopesCC;
+  slopesCC[0].define(grids, dmap, 6, 1);
+  slopesCC[1].define(grids, dmap, 6, 1);
+  
+  // Three components, one for each direction
+  MultiFab slopesCharge(grids, dmap, AMREX_SPACEDIM, 1);
+
+  // Compute cell-centred density slopes
+  for (MFIter mfi(slopesCharge, true); mfi.isValid(); ++mfi)
+    {
+      const Box& bx = mfi.tilebox();
+      
+      const Dim3 lo = lbound(bx);
+      const Dim3 hi = ubound(bx);
+
+      // uses old charge
+      const Array4<Real> arr = S0.array(mfi);
+      Array4<Real> slopes = slopesCharge.array(mfi);
+      
+      for(int k = lo.z; k <= hi.z; k++)
+	{
+	  for(int j = lo.y-1; j <= hi.y+1; j++)
+	    {
+	      for(int i = lo.x-1; i <= hi.x+1; i++)
+		{
+		  Real u_iMinus1 = (r_i*arr(i-1,j,k,RHO_I) + r_e*arr(i-1,j,k,RHO_E))/(lambda_d*lambda_d*l_r);
+		  Real u_i = (r_i*arr(i,j,k,RHO_I) + r_e*arr(i,j,k,RHO_E))/(lambda_d*lambda_d*l_r);
+		  Real u_iPlus1 = (r_i*arr(i+1,j,k,RHO_I) + r_e*arr(i+1,j,k,RHO_E))/(lambda_d*lambda_d*l_r);
+		  Real u_jMinus1 = (r_i*arr(i,j-1,k,RHO_I) + r_e*arr(i,j-1,k,RHO_E))/(lambda_d*lambda_d*l_r);
+		  Real u_jPlus1 = (r_i*arr(i,j+1,k,RHO_I) + r_e*arr(i,j+1,k,RHO_E))/(lambda_d*lambda_d*l_r);
+		  // slope measure
+		  Vector<Real> delta_i = get_delta_i({u_iMinus1,u_jMinus1},{u_i,u_i},{u_iPlus1,u_jPlus1});
+		  // slope ratio
+		  Real ri = get_r(u_iMinus1,u_i,u_iPlus1);
+		  Real rj = get_r(u_jMinus1,u_i,u_jPlus1);
+		  // slope limiter
+		  Real epsilon_i = get_epsilon(ri);
+		  Real epsilon_j = get_epsilon(rj);
+
+		  // slopes for the current
+		  slopes(i,j,k,0) = epsilon_i*delta_i[0];
+		  slopes(i,j,k,1) = epsilon_j*delta_i[1];
+
+		}
+	    }
+	}      
+    }
+  
+  // Compute cell-centred z-components slopes
+  for (MFIter mfi(slopesCC[0], true); mfi.isValid(); ++mfi)
+    {
+      const Box& bx = mfi.tilebox();
+      
+      const Dim3 lo = lbound(bx);
+      const Dim3 hi = ubound(bx);
+
+      const Array4<Real> arr = Sborder.array(mfi);
+      Array4<Real> slopesX = slopesCC[0].array(mfi);
+      Array4<Real> slopesY = slopesCC[1].array(mfi);
+      
+      for(int k = lo.z; k <= hi.z; k++)
+	{
+	  for(int j = lo.y-1; j <= hi.y+1; j++)
+	    {
+	      for(int i = lo.x-1; i <= hi.x+1; i++)
+		{
+		  for (int n : {BZ,EZ}){
+		    Real u_iMinus1 = arr(i-1,j,k,n);
+		    Real u_i = arr(i,j,k,n);
+		    Real u_iPlus1 = arr(i+1,j,k,n);
+		    Real u_jMinus1 = arr(i,j-1,k,n);
+		    Real u_jPlus1 = arr(i,j+1,k,n);
+		    // slope measure
+		    Vector<Real> delta_i = get_delta_i({u_iMinus1,u_jMinus1},{u_i,u_i},{u_iPlus1,u_jPlus1});
+		    // slope ratio
+		    Real ri = get_r(u_iMinus1,u_i,u_iPlus1);
+		    Real rj = get_r(u_jMinus1,u_i,u_jPlus1);
+		    // slope limiter
+		    Real epsilon_i = get_epsilon(ri);
+		    Real epsilon_j = get_epsilon(rj);
+
+		    // slopes for the z-components in x and y directions
+		    slopesX(i,j,k,n-NUM_STATE_FLUID) = epsilon_i*delta_i[0];
+		    slopesY(i,j,k,n-NUM_STATE_FLUID) = epsilon_j*delta_i[1];
+		    
+		  }
+		}
+	    }
+	}      
+    }
+
+  // Compute y-components slopes in x-direction
+  for (MFIter mfi(slopesFC[1], true); mfi.isValid(); ++mfi)
+    {
+      const Box& bx = mfi.tilebox();
+      
+      const Dim3 lo = lbound(bx);
+      const Dim3 hi = ubound(bx);
+
+      const Array4<Real> arr = S_EM[1].array(mfi);
+      Array4<Real> slopes = slopesFC[1].array(mfi);
+      
+      for(int k = lo.z; k <= hi.z; k++)
+	{
+	  for(int j = lo.y-1; j <= hi.y+1; j++)
+	    {
+	      for(int i = lo.x-1; i <= hi.x+1; i++)
+		{
+		  for (int n : {BY_LOCAL,EY_LOCAL}){
+		    Real u_iMinus1 = arr(i-1,j,k,n);
+		    Real u_i = arr(i,j,k,n);		    
+		    Real u_iPlus1 = arr(i+1,j,k,n);
+		    /*// slope measure
+		    Real delta_i = get_delta_i(u_iMinus1,u_i,u_iPlus1);
+		    // slope ratio
+		    Real ri = get_r(u_iMinus1,u_i,u_iPlus1);
+		    // slope limiter
+		    Real epsilon_i = get_epsilon(ri);
+		    */
+		    Real slope = TVD_slope(u_iMinus1,u_i,u_iPlus1);
+		    // slopes
+		    //slopes(i,j,k,n) = epsilon_i*delta_i;
+		    slopes(i,j,k,n) = TVD_slope(u_iMinus1,u_i,u_iPlus1); 
+		  }
+		}
+	    }
+	}      
+    }
+  // Compute x-components slopes in y-direction
+  for (MFIter mfi(slopesFC[0], true); mfi.isValid(); ++mfi)
+    {
+      const Box& bx = mfi.tilebox();
+      
+      const Dim3 lo = lbound(bx);
+      const Dim3 hi = ubound(bx);
+
+      const Array4<Real> arr = S_EM[0].array(mfi);
+      Array4<Real> slopes = slopesFC[0].array(mfi);
+      
+      for(int k = lo.z; k <= hi.z; k++)
+	{
+	  for(int j = lo.y-1; j <= hi.y+1; j++)
+	    {
+	      for(int i = lo.x-1; i <= hi.x+1; i++)
+		{
+		  for (int n : {BX_LOCAL,EX_LOCAL}){
+		    Real u_i = arr(i,j,k,n);
+		    Real u_jMinus1 = arr(i,j-1,k,n);
+		    Real u_jPlus1 = arr(i,j+1,k,n);
+		    // slope measure
+		    Real delta_i = get_delta_i(u_jMinus1,u_i,u_jPlus1);
+		    // slope ratio
+		    Real rj = get_r(u_jMinus1,u_i,u_jPlus1);
+		    // slope limiter
+		    Real epsilon_j = get_epsilon(rj);
+
+		    // slopes
+		    slopes(i,j,k,n) = epsilon_j*delta_i;
+		  }
+		}
+	    }
+	}      
+    }  
+
+  // Compute edge components of the EM fields    
+  for (MFIter mfi(fluxesEM, true); mfi.isValid(); ++mfi)
+    {
+      const Box& box = mfi.tilebox();
+      
+      const Dim3 lo = lbound(box);
+      const Dim3 hi = ubound(box);
+      // use old array, Sborder should also work
+      //const auto& arr = Sborder.array(mfi);
+      const auto& arr = S0.array(mfi);
+      const auto& arrEM_X = S_EM[0].array(mfi);
+      const auto& arrEM_Y = S_EM[1].array(mfi); 
+      const auto& fluxArrEM = fluxesEM.array(mfi);
+
+      const auto& slopesFC_X = slopesFC[0].array(mfi);
+      const auto& slopesFC_Y = slopesFC[1].array(mfi);
+
+      // only for 2D
+      const auto& slopesCC_X = slopesCC[0].array(mfi);
+      const auto& slopesCC_Y = slopesCC[1].array(mfi);
+  
+      const auto& slopesQ = slopesCharge.array(mfi);
+      
+      for(int k = lo.z; k <= hi.z; k++)
+	{
+	  for(int j = lo.y; j <= hi.y; j++)
+	    {
+	      for(int i = lo.x; i <= hi.x; i++)
+		{		 
+		  
+		  Real a0,ax,ay,az,axx,axy,axz,b0,bx,by,bz,bxy,byy,byz,c0,cx,cy,cz,cxz,cyz,czz;
+		  Real x,y;
+
+		  // Magnetic field
+		  // LD state
+		  x = dx[0]/2.0, y = dx[1]/2.0;
+		  ay = (slopesFC_X(i,j-1,k,BX_LOCAL)+slopesFC_X(i-1,j-1,k,BX_LOCAL))/2.0;
+		  axy = (slopesFC_X(i,j-1,k,BX_LOCAL)-slopesFC_X(i-1,j-1,k,BX_LOCAL));
+		  az = 0.0;
+		  axz = 0.0;
+		  bx = (slopesFC_Y(i-1,j,k,BY_LOCAL)+slopesFC_Y(i-1,j-1,k,BY_LOCAL))/2.0;
+		  bxy = (slopesFC_Y(i-1,j,k,BY_LOCAL)-slopesFC_Y(i-1,j-1,k,BY_LOCAL));
+		  bz = 0.0;
+		  byz = 0.0;
+		  cx = slopesCC_X(i-1,j-1,k,BZ_LOCAL);
+		  cxz = 0.0;
+		  cy = slopesCC_Y(i-1,j-1,k,BZ_LOCAL);
+		  cyz = 0.0;
+		  axx = -dx[0]/2.0*(bxy/dx[1]); // +cxz/dx[2]
+		  byy = -dx[1]/2.0*(axy/dx[0]); // ++cyz/dx[2]
+		  czz = 0.0;
+		  a0 = (arrEM_X(i,j-1,k,BX_LOCAL)+arrEM_X(i-1,j-1,k,BX_LOCAL))/2.0 - axx/6.0;
+		  ax = (arrEM_X(i,j-1,k,BX_LOCAL)-arrEM_X(i-1,j-1,k,BX_LOCAL));
+		  b0 = (arrEM_Y(i-1,j,k,BY_LOCAL)+arrEM_Y(i-1,j-1,k,BY_LOCAL))/2.0 - byy/6.0;
+		  by = (arrEM_Y(i-1,j,k,BY_LOCAL)-arrEM_Y(i-1,j-1,k,BY_LOCAL));
+		  c0 = arr(i-1,j-1,k,BZ) - czz/6.0; //czz*dx[2]*dx[2]/6.0
+		  cz = 0.0;
+		  Real BxLD = a0 + ax*(x/dx[0]) + ay*(y/dx[1]) // + az*
+		    + axx*((x/dx[0])*(x/dx[0]) - 1.0/12.0) + axy*(x/dx[0])*(y/dx[1]); // + axz*
+		  Real ByLD = b0 + bx*(x/dx[0]) + by*(y/dx[1]) // + bz*
+		    + byy*((y/dx[1])*(y/dx[1]) - 1.0/12.0) + bxy*(x/dx[0])*(y/dx[1]); // + bxz*
+		  Real BzLD = c0 + cx*(x/dx[0]) + cy*(y/dx[1]); // + cz* + cxz* + cyz* + czz		  
+		  
+		  // RD state
+		  x = -dx[0]/2.0, y = dx[1]/2.0;
+		  ay = (slopesFC_X(i+1,j-1,k,BX_LOCAL)+slopesFC_X(i,j-1,k,BX_LOCAL))/2.0;
+		  axy = (slopesFC_X(i+1,j-1,k,BX_LOCAL)-slopesFC_X(i,j-1,k,BX_LOCAL));
+		  az = 0.0;
+		  axz = 0.0;
+		  bx = (slopesFC_Y(i,j,k,BY_LOCAL)+slopesFC_Y(i,j-1,k,BY_LOCAL))/2.0;
+		  bxy = (slopesFC_Y(i,j,k,BY_LOCAL)-slopesFC_Y(i,j-1,k,BY_LOCAL));
+		  bz = 0.0;
+		  byz = 0.0;
+		  cx = slopesCC_X(i,j-1,k,BZ_LOCAL);
+		  cxz = 0.0;
+		  cy = slopesCC_Y(i,j-1,k,BZ_LOCAL);
+		  cyz = 0.0;
+		  axx = -dx[0]/2.0*(bxy/dx[1]); // +cxz/dx[2]
+		  byy = -dx[1]/2.0*(axy/dx[0]); // ++cyz/dx[2]
+		  czz = 0.0;
+		  a0 = (arrEM_X(i+1,j-1,k,BX_LOCAL)+arrEM_X(i,j-1,k,BX_LOCAL))/2.0 - axx/6.0;
+		  ax = (arrEM_X(i+1,j-1,k,BX_LOCAL)-arrEM_X(i,j-1,k,BX_LOCAL));
+		  b0 = (arrEM_Y(i,j,k,BY_LOCAL)+arrEM_Y(i,j-1,k,BY_LOCAL))/2.0 - byy/6.0;
+		  by = (arrEM_Y(i,j,k,BY_LOCAL)-arrEM_Y(i,j-1,k,BY_LOCAL));
+		  c0 = arr(i,j-1,k,BZ) - czz/6.0; //czz*dx[2]*dx[2]/6.0
+		  cz = 0.0;
+		  Real BxRD = a0 + ax*(x/dx[0]) + ay*(y/dx[1]) // + az*
+		    + axx*((x/dx[0])*(x/dx[0]) - 1.0/12.0) + axy*(x/dx[0])*(y/dx[1]); // + axz*
+		  Real ByRD = b0 + bx*(x/dx[0]) + by*(y/dx[1]) // + bz*
+		    + byy*((y/dx[1])*(y/dx[1]) - 1.0/12.0) + bxy*(x/dx[0])*(y/dx[1]); // + bxz*
+		  Real BzRD = c0 + cx*(x/dx[0]) + cy*(y/dx[1]); // + cz* + cxz* + cyz* + czz		  
+
+		  // LU state
+		  x = dx[0]/2.0, y = -dx[1]/2.0;
+		  ay = (slopesFC_X(i,j,k,BX_LOCAL)+slopesFC_X(i-1,j,k,BX_LOCAL))/2.0;
+		  axy = (slopesFC_X(i,j,k,BX_LOCAL)-slopesFC_X(i-1,j,k,BX_LOCAL));
+		  az = 0.0;
+		  axz = 0.0;
+		  bx = (slopesFC_Y(i-1,j+1,k,BY_LOCAL)+slopesFC_Y(i-1,j,k,BY_LOCAL))/2.0;
+		  bxy = (slopesFC_Y(i-1,j+1,k,BY_LOCAL)-slopesFC_Y(i-1,j,k,BY_LOCAL));
+		  bz = 0.0;
+		  byz = 0.0;
+		  cx = slopesCC_X(i-1,j,k,BZ_LOCAL);
+		  cxz = 0.0;
+		  cy = slopesCC_Y(i-1,j,k,BZ_LOCAL);
+		  cyz = 0.0;
+		  axx = -dx[0]/2.0*(bxy/dx[1]); // +cxz/dx[2]
+		  byy = -dx[1]/2.0*(axy/dx[0]); // ++cyz/dx[2]
+		  czz = 0.0;
+		  a0 = (arrEM_X(i,j,k,BX_LOCAL)+arrEM_X(i-1,j,k,BX_LOCAL))/2.0 - axx/6.0;
+		  ax = (arrEM_X(i,j,k,BX_LOCAL)-arrEM_X(i-1,j,k,BX_LOCAL));
+		  b0 = (arrEM_Y(i-1,j+1,k,BY_LOCAL)+arrEM_Y(i-1,j,k,BY_LOCAL))/2.0 - byy/6.0;
+		  by = (arrEM_Y(i-1,j+1,k,BY_LOCAL)-arrEM_Y(i-1,j,k,BY_LOCAL));
+		  c0 = arr(i-1,j,k,BZ) - czz/6.0; //czz*dx[2]*dx[2]/6.0
+		  cz = 0.0;
+		  Real BxLU = a0 + ax*(x/dx[0]) + ay*(y/dx[1]) // + az*
+		    + axx*((x/dx[0])*(x/dx[0]) - 1.0/12.0) + axy*(x/dx[0])*(y/dx[1]); // + axz*
+		  Real ByLU = b0 + bx*(x/dx[0]) + by*(y/dx[1]) // + bz*
+		    + byy*((y/dx[1])*(y/dx[1]) - 1.0/12.0) + bxy*(x/dx[0])*(y/dx[1]); // + bxz*
+		  Real BzLU = c0 + cx*(x/dx[0]) + cy*(y/dx[1]); // + cz* + cxz* + cyz* + czz		  
+
+		  // RU state
+		  x = -dx[0]/2.0, y = -dx[1]/2.0;
+		  ay = (slopesFC_X(i+1,j,k,BX_LOCAL)+slopesFC_X(i,j,k,BX_LOCAL))/2.0;
+		  axy = (slopesFC_X(i+1,j,k,BX_LOCAL)-slopesFC_X(i,j,k,BX_LOCAL));
+		  az = 0.0;
+		  axz = 0.0;
+		  bx = (slopesFC_Y(i,j+1,k,BY_LOCAL)+slopesFC_Y(i,j,k,BY_LOCAL))/2.0;
+		  bxy = (slopesFC_Y(i,j+1,k,BY_LOCAL)-slopesFC_Y(i,j,k,BY_LOCAL));
+		  bz = 0.0;
+		  byz = 0.0;
+		  cx = slopesCC_X(i,j,k,BZ_LOCAL);
+		  cxz = 0.0;
+		  cy = slopesCC_Y(i,j,k,BZ_LOCAL);
+		  cyz = 0.0;
+		  axx = -dx[0]/2.0*(bxy/dx[1]); // +cxz/dx[2]
+		  byy = -dx[1]/2.0*(axy/dx[0]); // ++cyz/dx[2]
+		  czz = 0.0;
+		  a0 = (arrEM_X(i+1,j,k,BX_LOCAL)+arrEM_X(i,j,k,BX_LOCAL))/2.0 - axx/6.0;
+		  ax = (arrEM_X(i+1,j,k,BX_LOCAL)-arrEM_X(i,j,k,BX_LOCAL));
+		  b0 = (arrEM_Y(i,j+1,k,BY_LOCAL)+arrEM_Y(i,j,k,BY_LOCAL))/2.0 - byy/6.0;
+		  by = (arrEM_Y(i,j+1,k,BY_LOCAL)-arrEM_Y(i,j,k,BY_LOCAL));
+		  c0 = arr(i,j,k,BZ) - czz/6.0; //czz*dx[2]*dx[2]/6.0
+		  cz = 0.0;
+		  Real BxRU = a0 + ax*(x/dx[0]) + ay*(y/dx[1]) // + az*
+		    + axx*((x/dx[0])*(x/dx[0]) - 1.0/12.0) + axy*(x/dx[0])*(y/dx[1]); // + axz*
+		  Real ByRU = b0 + bx*(x/dx[0]) + by*(y/dx[1]) // + bz*
+		    + byy*((y/dx[1])*(y/dx[1]) - 1.0/12.0) + bxy*(x/dx[0])*(y/dx[1]); // + bxz*
+		  Real BzRU = c0 + cx*(x/dx[0]) + cy*(y/dx[1]); // + cz* + cxz* + cyz* + czz		  
+
+		  // Electric field
+		  // LD state
+		  x = dx[0]/2.0, y = dx[1]/2.0;
+		  ay = (slopesFC_X(i,j-1,k,EX_LOCAL)+slopesFC_X(i-1,j-1,k,EX_LOCAL))/2.0;
+		  axy = (slopesFC_X(i,j-1,k,EX_LOCAL)-slopesFC_X(i-1,j-1,k,EX_LOCAL));
+		  az = 0.0;
+		  axz = 0.0;
+		  bx = (slopesFC_Y(i-1,j,k,EY_LOCAL)+slopesFC_Y(i-1,j-1,k,EY_LOCAL))/2.0;
+		  bxy = (slopesFC_Y(i-1,j,k,EY_LOCAL)-slopesFC_Y(i-1,j-1,k,EY_LOCAL));
+		  bz = 0.0;
+		  byz = 0.0;
+		  cx = slopesCC_X(i-1,j-1,k,EZ_LOCAL);
+		  cxz = 0.0;
+		  cy = slopesCC_Y(i-1,j-1,k,EZ_LOCAL);
+		  cyz = 0.0;
+		  axx = dx[0]/2.0*(slopesQ(i-1,j-1,k,0)-bxy/dx[1]); // +cxz/dx[2]
+		  byy = dx[1]/2.0*(slopesQ(i-1,j-1,k,1)-axy/dx[0]); // ++cyz/dx[2]
+		  czz = 0.0;
+		  a0 = (arrEM_X(i,j-1,k,EX_LOCAL)+arrEM_X(i-1,j-1,k,EX_LOCAL))/2.0 - axx/6.0;
+		  ax = (arrEM_X(i,j-1,k,EX_LOCAL)-arrEM_X(i-1,j-1,k,EX_LOCAL));
+		  b0 = (arrEM_Y(i-1,j,k,EY_LOCAL)+arrEM_Y(i-1,j-1,k,EY_LOCAL))/2.0 - byy/6.0;
+		  by = (arrEM_Y(i-1,j,k,EY_LOCAL)-arrEM_Y(i-1,j-1,k,EY_LOCAL));
+		  c0 = arr(i-1,j-1,k,EZ) - czz/6.0; //czz*dx[2]*dx[2]/6.0
+		  cz = 0.0;
+		  Real ExLD = a0 + ax*(x/dx[0]) + ay*(y/dx[1]) // + az*
+		    + axx*((x/dx[0])*(x/dx[0]) - 1.0/12.0) + axy*(x/dx[0])*(y/dx[1]); // + axz*
+		  Real EyLD = b0 + bx*(x/dx[0]) + by*(y/dx[1]) // + bz*
+		    + byy*((y/dx[1])*(y/dx[1]) - 1.0/12.0) + bxy*(x/dx[0])*(y/dx[1]); // + bxz*
+		  Real EzLD = c0 + cx*(x/dx[0]) + cy*(y/dx[1]); // + cz* + cxz* + cyz* + czz		  
+
+		  // RD state
+		  x = -dx[0]/2.0, y = dx[1]/2.0;
+		  ay = (slopesFC_X(i+1,j-1,k,EX_LOCAL)+slopesFC_X(i,j-1,k,EX_LOCAL))/2.0;
+		  axy = (slopesFC_X(i+1,j-1,k,EX_LOCAL)-slopesFC_X(i,j-1,k,EX_LOCAL));
+		  az = 0.0;
+		  axz = 0.0;
+		  bx = (slopesFC_Y(i,j,k,EY_LOCAL)+slopesFC_Y(i,j-1,k,EY_LOCAL))/2.0;
+		  bxy = (slopesFC_Y(i,j,k,EY_LOCAL)-slopesFC_Y(i,j-1,k,EY_LOCAL));
+		  bz = 0.0;
+		  byz = 0.0;
+		  cx = slopesCC_X(i,j-1,k,EZ_LOCAL);
+		  cxz = 0.0;
+		  cy = slopesCC_Y(i,j-1,k,EZ_LOCAL);
+		  cyz = 0.0;
+		  axx = dx[0]/2.0*(slopesQ(i,j-1,k,0)-bxy/dx[1]); // +cxz/dx[2]
+		  byy = dx[1]/2.0*(slopesQ(i,j-1,k,1)-axy/dx[0]); // ++cyz/dx[2]
+		  czz = 0.0;
+		  a0 = (arrEM_X(i+1,j-1,k,EX_LOCAL)+arrEM_X(i,j-1,k,EX_LOCAL))/2.0 - axx/6.0;
+		  ax = (arrEM_X(i+1,j-1,k,EX_LOCAL)-arrEM_X(i,j-1,k,EX_LOCAL));
+		  b0 = (arrEM_Y(i,j,k,EY_LOCAL)+arrEM_Y(i,j-1,k,EY_LOCAL))/2.0 - byy/6.0;
+		  by = (arrEM_Y(i,j,k,EY_LOCAL)-arrEM_Y(i,j-1,k,EY_LOCAL));
+		  c0 = arr(i,j-1,k,EZ) - czz/6.0;
+		  cz = 0.0;
+		  Real ExRD = a0 + ax*(x/dx[0]) + ay*(y/dx[1]) // + az*
+		    + axx*((x/dx[0])*(x/dx[0]) - 1.0/12.0) + axy*(x/dx[0])*(y/dx[1]); // + axz*
+		  Real EyRD = b0 + bx*(x/dx[0]) + by*(y/dx[1]) // + bz*
+		    + byy*((y/dx[1])*(y/dx[1]) - 1.0/12.0) + bxy*(x/dx[0])*(y/dx[1]); // + bxz*
+		  Real EzRD = c0 + cx*(x/dx[0]) + cy*(y/dx[1]); // + cz* + cxz* + cyz* + czz		  
+
+		  // LU state
+		  x = dx[0]/2.0, y = -dx[1]/2.0;
+		  ay = (slopesFC_X(i,j,k,EX_LOCAL)+slopesFC_X(i-1,j,k,EX_LOCAL))/2.0;
+		  axy = (slopesFC_X(i,j,k,EX_LOCAL)-slopesFC_X(i-1,j,k,EX_LOCAL));
+		  az = 0.0;
+		  axz = 0.0;
+		  bx = (slopesFC_Y(i-1,j+1,k,EY_LOCAL)+slopesFC_Y(i-1,j,k,EY_LOCAL))/2.0;
+		  bxy = (slopesFC_Y(i-1,j+1,k,EY_LOCAL)-slopesFC_Y(i-1,j,k,EY_LOCAL));
+		  bz = 0.0;
+		  byz = 0.0;
+		  cx = slopesCC_X(i-1,j,k,EZ_LOCAL);
+		  cxz = 0.0;
+		  cy = slopesCC_Y(i-1,j,k,EZ_LOCAL);
+		  cyz = 0.0;
+		  axx = dx[0]/2.0*(slopesQ(i-1,j,k,0)-bxy/dx[1]); // +cxz/dx[2]
+		  byy = dx[1]/2.0*(slopesQ(i-1,j,k,1)-axy/dx[0]); // ++cyz/dx[2]
+		  czz = 0.0;
+		  a0 = (arrEM_X(i,j,k,EX_LOCAL)+arrEM_X(i-1,j,k,EX_LOCAL))/2.0 - axx/6.0;
+		  ax = (arrEM_X(i,j,k,EX_LOCAL)-arrEM_X(i-1,j,k,EX_LOCAL));
+		  b0 = (arrEM_Y(i-1,j+1,k,EY_LOCAL)+arrEM_Y(i-1,j,k,EY_LOCAL))/2.0 - byy/6.0;
+		  by = (arrEM_Y(i-1,j+1,k,EY_LOCAL)-arrEM_Y(i-1,j,k,EY_LOCAL));
+		  c0 = arr(i-1,j,k,EZ) - czz/6.0; //czz*dx[2]*dx[2]/6.0
+		  cz = 0.0;
+		  Real ExLU = a0 + ax*(x/dx[0]) + ay*(y/dx[1]) // + az*
+		    + axx*((x/dx[0])*(x/dx[0]) - 1.0/12.0) + axy*(x/dx[0])*(y/dx[1]); // + axz*
+		  Real EyLU = b0 + bx*(x/dx[0]) + by*(y/dx[1]) // + bz*
+		    + byy*((y/dx[1])*(y/dx[1]) - 1.0/12.0) + bxy*(x/dx[0])*(y/dx[1]); // + bxz*
+		  Real EzLU = c0 + cx*(x/dx[0]) + cy*(y/dx[1]); // + cz* + cxz* + cyz* + czz		  
+
+		  // RU state
+		  x = -dx[0]/2.0, y = -dx[1]/2.0;
+		  ay = (slopesFC_X(i+1,j,k,EX_LOCAL)+slopesFC_X(i,j,k,EX_LOCAL))/2.0;
+		  axy = (slopesFC_X(i+1,j,k,EX_LOCAL)-slopesFC_X(i,j,k,EX_LOCAL));
+		  az = 0.0;
+		  axz = 0.0;
+		  bx = (slopesFC_Y(i,j+1,k,EY_LOCAL)+slopesFC_Y(i,j,k,EY_LOCAL))/2.0;
+		  bxy = (slopesFC_Y(i,j+1,k,EY_LOCAL)-slopesFC_Y(i,j,k,EY_LOCAL));
+		  bz = 0.0;
+		  byz = 0.0;
+		  cx = slopesCC_X(i,j,k,EZ_LOCAL);
+		  cxz = 0.0;
+		  cy = slopesCC_Y(i,j,k,EZ_LOCAL);
+		  cyz = 0.0;
+		  axx = dx[0]/2.0*(slopesQ(i,j,k,0)-bxy/dx[1]); // +cxz/dx[2]
+		  byy = dx[1]/2.0*(slopesQ(i,j,k,1)-axy/dx[0]); // ++cyz/dx[2]
+		  czz = 0.0;
+		  a0 = (arrEM_X(i+1,j,k,EX_LOCAL)+arrEM_X(i,j,k,EX_LOCAL))/2.0 - axx/6.0;	
+		  ax = (arrEM_X(i+1,j,k,EX_LOCAL)-arrEM_X(i,j,k,EX_LOCAL));
+		  b0 = (arrEM_Y(i,j+1,k,EY_LOCAL)+arrEM_Y(i,j,k,EY_LOCAL))/2.0 - byy/6.0;
+		  by = (arrEM_Y(i,j+1,k,EY_LOCAL)-arrEM_Y(i,j,k,EY_LOCAL));
+		  c0 = arr(i,j,k,EZ) - czz/6.0; //czz*dx[2]*dx[2]/6.0
+		  cz = 0.0;
+		  Real ExRU = a0 + ax*(x/dx[0]) + ay*(y/dx[1]) // + az*
+		    + axx*((x/dx[0])*(x/dx[0]) - 1.0/12.0) + axy*(x/dx[0])*(y/dx[1]); // + axz*
+		  Real EyRU = b0 + bx*(x/dx[0]) + by*(y/dx[1]) // + bz*
+		    + byy*((y/dx[1])*(y/dx[1]) - 1.0/12.0) + bxy*(x/dx[0])*(y/dx[1]); // + bxz*
+		  Real EzRU = c0 + cx*(x/dx[0]) + cy*(y/dx[1]); // + cz* + cxz* + cyz* + czz		  
+		  
+		  // If the reconstruction is consistent, then EyRU=EyRD
+		  Real EyR = (EyRU+EyRD)/2.0;
+		  Real EyL = (EyLU+EyLD)/2.0;
+		  Real ExU = (ExRU+ExLU)/2.0;
+		  Real ExD = (ExRD+ExLD)/2.0;
+		  fluxArrEM(i,j,k,BZ_LOCAL) = 0.25*(BzLD+BzRD+BzLU+BzRU) - 0.5/c*(EyR-EyL) + 0.5/c*(ExU-ExD);
+
+		  Real ByR = (ByRU+ByRD)/2.0;
+		  Real ByL = (ByLU+ByLD)/2.0;
+		  Real BxU = (BxRU+BxLU)/2.0;
+		  Real BxD = (BxRD+BxLD)/2.0;
+		  fluxArrEM(i,j,k,EZ_LOCAL) = 0.25*(EzLD+EzRD+EzLU+EzRU) + 0.5*c*(ByR-ByL) - 0.5*c*(BxU-BxD);
+
+		  if (i<3 && j==5)
+		    std::cout << "Old " << i << " "  << fluxArrEM(i,j,k,BZ_LOCAL) << " " << fluxArrEM(i,j,k,EZ_LOCAL)  << std::endl;
+
+		  
+		}
+	    }
+	}       
+    }
+
+  // Update face-centred EM fields
+  for (int d = 0; d < amrex::SpaceDim ; d++)   
+    {
+
+      const int iOffset = ( d == 0 ? 1 : 0);
+      const int jOffset = ( d == 1 ? 1 : 0);
+      const int kOffset = ( d == 2 ? 1 : 0);
+
+      int d_EM = (d==0) ? 1 : 0;
+    
+      // Loop over all the patches at this level
+      for (MFIter mfi(S_EM[d_EM], true); mfi.isValid(); ++mfi)
+	{
+	  const Box& bx = mfi.tilebox();
+
+	  const Dim3 lo = lbound(bx);
+	  const Dim3 hi = ubound(bx);
+
+	  // Indexable arrays for the data, and the directional flux
+	  // Based on the corner-centred definition of the flux array, the
+	  // data array runs from e.g. [0,N+1] and the flux array from [-1,N+1]
+	  //const auto& arr = Sborder.array(mfi);
+	  const auto& arrEM = S_EM[d_EM].array(mfi);
+	  //const auto& arrEMother = S_EM[d].array(mfi);
+	  const auto& fluxArrEM = fluxesEM.array(mfi);
+	  const auto& fluxArr = fluxes[d_EM].array(mfi);
+
+	  const Dim3 hiDomain = ubound(geom.Domain());
+      
+	  for(int k = lo.z; k <= hi.z; k++)
+	    {
+	      for(int j = lo.y; j <= hi.y; j++)
+		{
+		  for(int i = lo.x; i <= hi.x; i++)
+		    {
+		      // 2D code; z-component updated using cell-centred scheme
+		      arrEM(i,j,k,BX_LOCAL+d_EM) += std::pow(-1,d)*(dt / dx[d]) * (fluxArrEM(i+iOffset, j+jOffset, k+kOffset, EZ_LOCAL) - fluxArrEM(i,j,k,EZ_LOCAL));
+		      arrEM(i,j,k,EX_LOCAL+d_EM) -= std::pow(-1,d)*c*c*(dt / dx[d]) * (fluxArrEM(i+iOffset, j+jOffset, k+kOffset, BZ_LOCAL) - fluxArrEM(i,j,k,BZ_LOCAL));
+
+		      // 3D code
+		      /*arrEM(i,j,k,BX_LOCAL+(1+d)%3) += (dt / dx[d]) * (fluxArrEM(i+iOffset, j+jOffset, k+kOffset, EX_LOCAL+(2+d)%3) - fluxArrEM(i,j,k,EX_LOCAL+(2+d)%3));
+			arrEM(i,j,k,BX_LOCAL+(2+d)%3) -= (dt / dx[d]) * (fluxArrEM(i+iOffset, j+jOffset, k+kOffset, EX_LOCAL+(1+d)%3) - fluxArrEM(i,j,k,EX_LOCAL+(1+d)%3));
+			arrEM(i,j,k,EX_LOCAL+(1+d)%3) -= c*c*(dt / dx[d]) * (fluxArrEM(i+iOffset, j+jOffset, k+kOffset, BX_LOCAL+(2+d)%3) - fluxArrEM(i,j,k,BX_LOCAL+(2+d)%3));
+			arrEM(i,j,k,EX_LOCAL+(2+d)%3) += c*c*(dt / dx[d]) * (fluxArrEM(i+iOffset, j+jOffset, k+kOffset, BX_LOCAL+(1+d)%3) - fluxArrEM(i,j,k,BX_LOCAL+(1+d)%3));
+		      */
+		      
+		      // source terms
+		      Real currentFace = r_i*fluxArr(i,j,k,RHO_I) + r_e*fluxArr(i,j,k,RHO_E);
+		      arrEM(i,j,k,EX_LOCAL+d_EM) -= dt*1.0/(lambda_d*lambda_d*l_r)*currentFace;
+
+		    }
+		}
+	    }      
+	}
+    
+      // We need to compute boundary conditions again after each update
+      S_EM[0].FillBoundary(geom.periodicity());
+      S_EM[1].FillBoundary(geom.periodicity());
+     
+      // added by 2020D 
+      // Fill non-periodic physical boundaries                          
+      FillDomainBoundary(S_EM[0], geom, bc_EM);    
+      FillDomainBoundary(S_EM[1], geom, bc_EM);  
+      
+    }
+
+  // Compute cell-centred EM fields from face-centred
+  for (MFIter mfi(Sborder, true); mfi.isValid(); ++mfi)
+    {
+      const Box& box = mfi.tilebox();
+      
+      const Dim3 lo = lbound(box);
+      const Dim3 hi = ubound(box);
+      
+      // Indexable arrays for the data, and the directional flux
+      // Based on the corner-centred definition of the flux array, the
+      // data array runs from e.g. [0,N+1] and the flux array from [-1,N+1]
+      const auto& arr = Sborder.array(mfi);
+      const auto& arrEM_X = S_EM[0].array(mfi);
+      const auto& arrEM_Y = S_EM[1].array(mfi); 
+      //const auto& fluxArrEM = fluxesEM.array(mfi);
+      //const auto& fluxArrX = fluxes[0].array(mfi);
+      //const auto& fluxArrY = fluxes[1].array(mfi);
+
+      const auto& slopesFC_X = slopesFC[0].array(mfi);
+      const auto& slopesFC_Y = slopesFC[1].array(mfi);
+
+      // only for 2D
+      const auto& slopesCC_X = slopesCC[0].array(mfi);
+      const auto& slopesCC_Y = slopesCC[1].array(mfi);
+  
+      const auto& slopesQ = slopesCharge.array(mfi);
+      
+      for(int k = lo.z; k <= hi.z; k++)
+  	{
+  	  for(int j = lo.y; j <= hi.y; j++)
+  	    {
+  	      for(int i = lo.x; i <= hi.x; i++)
+  		{		 
+		  
+  		  Real a0,axx,axy,axz,b0,bxy,byy,byz,c0,cxz,cyz,czz;
+  		  Real x,y;
+
+  		  // Magnetic field       
+		  axy = (slopesFC_X(i+1,j,k,BX_LOCAL)-slopesFC_X(i,j,k,BX_LOCAL));
+  		  axz = 0.0;
+		  bxy = (slopesFC_Y(i,j+1,k,BY_LOCAL)-slopesFC_Y(i,j,k,BY_LOCAL));
+  		  byz = 0.0;
+  		  cxz = 0.0;
+  		  cyz = 0.0;
+		  axx = -dx[0]/2.0*(bxy/dx[1]); // +cxz/dx[2]
+		  byy = -dx[1]/2.0*(axy/dx[0]); // ++cyz/dx[2]
+  		  czz = 0.0;
+		  a0 = (arrEM_X(i+1,j,k,BX_LOCAL)+arrEM_X(i,j,k,BX_LOCAL))/2.0 - axx/6.0;
+		  b0 = (arrEM_Y(i,j+1,k,BY_LOCAL)+arrEM_Y(i,j,k,BY_LOCAL))/2.0 - byy/6.0;
+  		  c0 = arr(i,j,k,BZ) - czz/6.0;
+
+  		  arr(i,j,k,BX) = a0;
+  		  arr(i,j,k,BY) = b0;
+		  
+  		  // Electric field
+  		  axy = (slopesFC_X(i+1,j,k,EX_LOCAL)-slopesFC_X(i,j,k,EX_LOCAL));
+  		  axz = 0.0;
+  		  bxy = (slopesFC_Y(i,j+1,k,EY_LOCAL)-slopesFC_Y(i,j,k,EY_LOCAL));
+  		  byz = 0.0;
+  		  cxz = 0.0;
+  		  cyz = 0.0;
+		  axx = dx[0]/2.0*(slopesQ(i,j,k,0)-bxy/dx[1]); // +cxz/dx[2]
+		  byy = dx[1]/2.0*(slopesQ(i,j,k,1)-axy/dx[0]); // ++cyz/dx[2]
+  		  czz = 0.0;
+  		  a0 = (arrEM_X(i+1,j,k,EX_LOCAL)+arrEM_X(i,j,k,EX_LOCAL))/2.0 - axx/6.0;
+  		  b0 = (arrEM_Y(i,j+1,k,EY_LOCAL)+arrEM_Y(i,j,k,EY_LOCAL))/2.0 - byy/6.0;
+  		  c0 = arr(i,j,k,EZ) - czz/6.0;
+
+  		  arr(i,j,k,EX) = a0;
+  		  arr(i,j,k,EY) = b0;
+		  
+  		}
+  	    }
+  	}       
+    }
+
+  // Only 2D
+  // Compute edge components for y-components at x-faces
+  for (MFIter mfi(fluxes[0], true); mfi.isValid(); ++mfi)
+    {
+      const Box& box = mfi.tilebox();
+      
+      const Dim3 lo = lbound(box);
+      const Dim3 hi = ubound(box);
+      
+      // use old data
+      //const auto& arr = Sborder.array(mfi);
+      const auto& arr = S0.array(mfi);
+      const auto& arrEM_X = S_EM[0].array(mfi);
+      const auto& arrEM_Y = S_EM[1].array(mfi); 
+      //const auto& fluxArrEM = fluxesEM.array(mfi);
+      const auto& fluxArrX = fluxes[0].array(mfi);
+      //const auto& fluxArrY = fluxes[1].array(mfi);
+
+      const auto& slopesFC_X = slopesFC[0].array(mfi);
+      const auto& slopesFC_Y = slopesFC[1].array(mfi);
+
+      // only for 2D
+      const auto& slopesCC_X = slopesCC[0].array(mfi);
+      const auto& slopesCC_Y = slopesCC[1].array(mfi);
+  
+      const auto& slopesQ = slopesCharge.array(mfi);
+      
+      for(int k = lo.z; k <= hi.z; k++)
+  	{
+  	  for(int j = lo.y; j <= hi.y; j++)
+  	    {
+  	      for(int i = lo.x; i <= hi.x; i++)
+  		{		 
+		  
+  		  Real a0,ax,ay,az,axx,axy,axz,b0,bx,by,bz,bxy,byy,byz,c0,cx,cy,cz,cxz,cyz,czz;
+  		  Real x,y;
+		  
+  		  // Magnetic field
+  		  // L state
+  		  x = dx[0]/2.0, y = 0.0;
+  		  ay = (slopesFC_X(i,j,k,BX_LOCAL)+slopesFC_X(i-1,j,k,BX_LOCAL))/2.0;
+		  axy = (slopesFC_X(i,j,k,BX_LOCAL)-slopesFC_X(i-1,j,k,BX_LOCAL));
+  		  az = 0.0;
+  		  axz = 0.0;
+  		  bx = (slopesFC_Y(i-1,j+1,k,BY_LOCAL)+slopesFC_Y(i-1,j,k,BY_LOCAL))/2.0;
+		  bxy = (slopesFC_Y(i-1,j+1,k,BY_LOCAL)-slopesFC_Y(i-1,j,k,BY_LOCAL));
+  		  bz = 0.0;
+  		  byz = 0.0;
+  		  cx = slopesCC_X(i-1,j,k,BZ_LOCAL);
+  		  cxz = 0.0;
+  		  cy = slopesCC_Y(i-1,j,k,BZ_LOCAL);
+  		  cyz = 0.0;
+		  axx = -dx[0]/2.0*(bxy/dx[1]); // +cxz/dx[2]
+		  byy = -dx[1]/2.0*(axy/dx[0]); // ++cyz/dx[2]
+		  czz = 0.0;
+		  a0 = (arrEM_X(i,j,k,BX_LOCAL)+arrEM_X(i-1,j,k,BX_LOCAL))/2.0 - axx/6.0;
+		  ax = (arrEM_X(i,j,k,BX_LOCAL)-arrEM_X(i-1,j,k,BX_LOCAL));
+		  b0 = (arrEM_Y(i-1,j+1,k,BY_LOCAL)+arrEM_Y(i-1,j,k,BY_LOCAL))/2.0 - byy/6.0;
+		  by = (arrEM_Y(i-1,j+1,k,BY_LOCAL)-arrEM_Y(i-1,j,k,BY_LOCAL));
+  		  c0 = arr(i-1,j,k,BZ) - czz/6.0;
+  		  cz = 0.0;
+		  Real BxL = a0 + ax*(x/dx[0]) + ay*(y/dx[1]) // + az*
+		    + axx*((x/dx[0])*(x/dx[0]) - 1.0/12.0) + axy*(x/dx[0])*(y/dx[1]); // + axz*
+		  Real ByL = b0 + bx*(x/dx[0]) + by*(y/dx[1]) // + bz*
+		    + byy*((y/dx[1])*(y/dx[1]) - 1.0/12.0) + bxy*(x/dx[0])*(y/dx[1]); // + bxz*
+		  Real BzL = c0 + cx*(x/dx[0]) + cy*(y/dx[1]); // + cz* + cxz* + cyz* + czz		  
+
+  		  // R state
+  		  x = -dx[0]/2.0, y = 0.0;
+  		  ay = (slopesFC_X(i+1,j,k,BX_LOCAL)+slopesFC_X(i,j,k,BX_LOCAL))/2.0;
+		  axy = (slopesFC_X(i+1,j,k,BX_LOCAL)-slopesFC_X(i,j,k,BX_LOCAL));
+  		  az = 0.0;
+  		  axz = 0.0;
+  		  bx = (slopesFC_Y(i,j+1,k,BY_LOCAL)+slopesFC_Y(i,j,k,BY_LOCAL))/2.0;
+		  bxy = (slopesFC_Y(i,j+1,k,BY_LOCAL)-slopesFC_Y(i,j,k,BY_LOCAL));
+  		  bz = 0.0;
+  		  byz = 0.0;
+  		  cx = slopesCC_X(i,j,k,BZ_LOCAL);
+  		  cxz = 0.0;
+  		  cy = slopesCC_Y(i,j,k,BZ_LOCAL);
+  		  cyz = 0.0;
+		  axx = -dx[0]/2.0*(bxy/dx[1]); // +cxz/dx[2]
+		  byy = -dx[1]/2.0*(axy/dx[0]); // ++cyz/dx[2]
+		  czz = 0.0;
+		  a0 = (arrEM_X(i+1,j,k,BX_LOCAL)+arrEM_X(i,j,k,BX_LOCAL))/2.0 - axx/6.0;
+		  ax = (arrEM_X(i+1,j,k,BX_LOCAL)-arrEM_X(i,j,k,BX_LOCAL));
+		  b0 = (arrEM_Y(i,j+1,k,BY_LOCAL)+arrEM_Y(i,j,k,BY_LOCAL))/2.0 - byy/6.0;
+		  by = (arrEM_Y(i,j+1,k,BY_LOCAL)-arrEM_Y(i,j,k,BY_LOCAL));
+  		  c0 = arr(i,j,k,BZ) - czz/6.0;
+  		  cz = 0.0;
+		  Real BxR = a0 + ax*(x/dx[0]) + ay*(y/dx[1]) // + az*
+		    + axx*((x/dx[0])*(x/dx[0]) - 1.0/12.0) + axy*(x/dx[0])*(y/dx[1]); // + axz*
+		  Real ByR = b0 + bx*(x/dx[0]) + by*(y/dx[1]) // + bz*
+		    + byy*((y/dx[1])*(y/dx[1]) - 1.0/12.0) + bxy*(x/dx[0])*(y/dx[1]); // + bxz*
+		  Real BzR = c0 + cx*(x/dx[0]) + cy*(y/dx[1]); // + cz* + cxz* + cyz* + czz		  
+
+  		  // Electric field
+  		  // L state
+  		  x = dx[0]/2.0, y = 0.0;
+  		  ay = (slopesFC_X(i,j,k,EX_LOCAL)+slopesFC_X(i-1,j,k,EX_LOCAL))/2.0;
+		  axy = (slopesFC_X(i,j,k,EX_LOCAL)-slopesFC_X(i-1,j,k,EX_LOCAL));
+  		  az = 0.0;
+  		  axz = 0.0;
+  		  bx = (slopesFC_Y(i-1,j+1,k,EY_LOCAL)+slopesFC_Y(i-1,j,k,EY_LOCAL))/2.0;
+		  bxy = (slopesFC_Y(i-1,j+1,k,EY_LOCAL)-slopesFC_Y(i-1,j,k,EY_LOCAL));
+  		  bz = 0.0;
+  		  byz = 0.0;
+  		  cx = slopesCC_X(i-1,j,k,EZ_LOCAL);
+  		  cxz = 0.0;
+  		  cy = slopesCC_Y(i-1,j,k,EZ_LOCAL);
+  		  cyz = 0.0;
+		  axx = dx[0]/2.0*(slopesQ(i-1,j,k,0)-bxy/dx[1]); // +cxz/dx[2]  
+		  byy = dx[1]/2.0*(slopesQ(i-1,j,k,1)-axy/dx[0]); // ++cyz/dx[2]
+  		  czz = 0.0;
+		  a0 = (arrEM_X(i,j,k,EX_LOCAL)+arrEM_X(i-1,j,k,EX_LOCAL))/2.0 - axx/6.0;
+		  ax = (arrEM_X(i,j,k,EX_LOCAL)-arrEM_X(i-1,j,k,EX_LOCAL));
+		  b0 = (arrEM_Y(i-1,j+1,k,EY_LOCAL)+arrEM_Y(i-1,j,k,EY_LOCAL))/2.0 - byy/6.0;
+		  by = (arrEM_Y(i-1,j+1,k,EY_LOCAL)-arrEM_Y(i-1,j,k,EY_LOCAL));
+  		  c0 = arr(i-1,j,k,EZ) - czz/6.0;
+  		  cz = 0.0;
+		  Real ExL = a0 + ax*(x/dx[0]) + ay*(y/dx[1]) // + az*
+		    + axx*((x/dx[0])*(x/dx[0]) - 1.0/12.0) + axy*(x/dx[0])*(y/dx[1]); // + axz*
+		  Real EyL = b0 + bx*(x/dx[0]) + by*(y/dx[1]) // + bz*
+		    + byy*((y/dx[1])*(y/dx[1]) - 1.0/12.0) + bxy*(x/dx[0])*(y/dx[1]); // + bxz*
+		  Real EzL = c0 + cx*(x/dx[0]) + cy*(y/dx[1]); // + cz* + cxz* + cyz* + czz		  
+
+  		  // R state
+  		  x = -dx[0]/2.0, y = 0.0;
+  		  ay = (slopesFC_X(i+1,j,k,EX_LOCAL)+slopesFC_X(i,j,k,EX_LOCAL))/2.0;
+		  axy = (slopesFC_X(i+1,j,k,EX_LOCAL)-slopesFC_X(i,j,k,EX_LOCAL));
+  		  az = 0.0;
+  		  axz = 0.0;
+  		  bx = (slopesFC_Y(i,j+1,k,EY_LOCAL)+slopesFC_Y(i,j,k,EY_LOCAL))/2.0;  	
+		  bxy = (slopesFC_Y(i,j+1,k,EY_LOCAL)-slopesFC_Y(i,j,k,EY_LOCAL));
+  		  bz = 0.0;
+  		  byz = 0.0;
+  		  cx = slopesCC_X(i,j,k,EZ_LOCAL);
+  		  cxz = 0.0;
+  		  cy = slopesCC_Y(i,j,k,EZ_LOCAL);
+  		  cyz = 0.0;
+		  axx = dx[0]/2.0*(slopesQ(i,j,k,0)-bxy/dx[1]); // +cxz/dx[2]
+		  byy = dx[1]/2.0*(slopesQ(i,j,k,1)-axy/dx[0]); // ++cyz/dx[2]
+  		  czz = 0.0;
+		  a0 = (arrEM_X(i+1,j,k,EX_LOCAL)+arrEM_X(i,j,k,EX_LOCAL))/2.0 - axx/6.0;
+		  ax = (arrEM_X(i+1,j,k,EX_LOCAL)-arrEM_X(i,j,k,EX_LOCAL));
+		  b0 = (arrEM_Y(i,j+1,k,EY_LOCAL)+arrEM_Y(i,j,k,EY_LOCAL))/2.0 - byy/6.0;
+		  by = (arrEM_Y(i,j+1,k,EY_LOCAL)-arrEM_Y(i,j,k,EY_LOCAL));
+  		  c0 = arr(i,j,k,EZ) - czz/6.0;
+  		  cz = 0.0;
+		  Real ExR = a0 + ax*(x/dx[0]) + ay*(y/dx[1]) // + az*
+		    + axx*((x/dx[0])*(x/dx[0]) - 1.0/12.0) + axy*(x/dx[0])*(y/dx[1]); // + axz*
+		  Real EyR = b0 + bx*(x/dx[0]) + by*(y/dx[1]) // + bz*
+		    + byy*((y/dx[1])*(y/dx[1]) - 1.0/12.0) + bxy*(x/dx[0])*(y/dx[1]); // + bxz*
+		  Real EzR = c0 + cx*(x/dx[0]) + cy*(y/dx[1]); // + cz* + cxz* + cyz* + czz		  
+
+  		  fluxArrX(i,j,k,BY) = 0.5*(ByL+ByR) + 0.5/c*(EzR-EzL);
+  		  fluxArrX(i,j,k,EY) = 0.5*(EyL+EyR) - 0.5*c*(BzR-BzL);
+  		}
+  	    }
+  	}
+    }
+  
+  // Only 2D
+  // Compute edge components for x-components at y-faces
+  for (MFIter mfi(fluxes[1], true); mfi.isValid(); ++mfi)
+    {
+      const Box& box = mfi.tilebox();
+      
+      const Dim3 lo = lbound(box);
+      const Dim3 hi = ubound(box);
+
+      // use old data
+      //const auto& arr = Sborder.array(mfi);
+      const auto& arr = S0.array(mfi);
+      const auto& arrEM_X = S_EM[0].array(mfi);
+      const auto& arrEM_Y = S_EM[1].array(mfi); 
+      //const auto& fluxArrEM = fluxesEM.array(mfi);
+      //const auto& fluxArrX = fluxes[0].array(mfi);
+      const auto& fluxArrY = fluxes[1].array(mfi);
+
+      const auto& slopesFC_X = slopesFC[0].array(mfi);
+      const auto& slopesFC_Y = slopesFC[1].array(mfi);
+
+      // only for 2D
+      const auto& slopesCC_X = slopesCC[0].array(mfi);
+      const auto& slopesCC_Y = slopesCC[1].array(mfi);
+  
+      const auto& slopesQ = slopesCharge.array(mfi);
+      
+      for(int k = lo.z; k <= hi.z; k++)
+  	{
+  	  for(int j = lo.y; j <= hi.y; j++)
+  	    {
+  	      for(int i = lo.x; i <= hi.x; i++)
+  		{		 
+		  
+  		  Real a0,ax,ay,az,axx,axy,axz,b0,bx,by,bz,bxy,byy,byz,c0,cx,cy,cz,cxz,cyz,czz;
+  		  Real x,y;
+		  	
+  		  // D state
+  		  x = 0.0, y = dx[1]/2.0;
+  		  ay = (slopesFC_X(i+1,j-1,k,BX_LOCAL)+slopesFC_X(i,j-1,k,BX_LOCAL))/2.0;
+		  axy = (slopesFC_X(i+1,j-1,k,BX_LOCAL)-slopesFC_X(i,j-1,k,BX_LOCAL));
+  		  az = 0.0;
+  		  axz = 0.0;
+  		  bx = (slopesFC_Y(i,j,k,BY_LOCAL)+slopesFC_Y(i,j-1,k,BY_LOCAL))/2.0;
+		  bxy = (slopesFC_Y(i,j,k,BY_LOCAL)-slopesFC_Y(i,j-1,k,BY_LOCAL));
+  		  bz = 0.0;
+  		  byz = 0.0;
+  		  cx = slopesCC_X(i,j-1,k,BZ_LOCAL);
+  		  cxz = 0.0;
+  		  cy = slopesCC_Y(i,j-1,k,BZ_LOCAL);
+  		  cyz = 0.0;
+		  axx = -dx[0]/2.0*(bxy/dx[1]); // +cxz/dx[2]
+		  byy = -dx[1]/2.0*(axy/dx[0]); // ++cyz/dx[2]
+  		  czz = 0.0;
+		  a0 = (arrEM_X(i+1,j-1,k,BX_LOCAL)+arrEM_X(i,j-1,k,BX_LOCAL))/2.0 - axx/6.0;
+		  ax = (arrEM_X(i+1,j-1,k,BX_LOCAL)-arrEM_X(i,j-1,k,BX_LOCAL));
+		  b0 = (arrEM_Y(i,j,k,BY_LOCAL)+arrEM_Y(i,j-1,k,BY_LOCAL))/2.0 - byy/6.0;
+		  by = (arrEM_Y(i,j,k,BY_LOCAL)-arrEM_Y(i,j-1,k,BY_LOCAL));
+  		  c0 = arr(i,j-1,k,BZ) - czz/6.0;
+  		  cz = 0.0;
+		  Real BxD = a0 + ax*(x/dx[0]) + ay*(y/dx[1]) // + az*
+		    + axx*((x/dx[0])*(x/dx[0]) - 1.0/12.0) + axy*(x/dx[0])*(y/dx[1]); // + axz*
+		  Real ByD = b0 + bx*(x/dx[0]) + by*(y/dx[1]) // + bz*
+		    + byy*((y/dx[1])*(y/dx[1]) - 1.0/12.0) + bxy*(x/dx[0])*(y/dx[1]); // + bxz*
+		  Real BzD = c0 + cx*(x/dx[0]) + cy*(y/dx[1]); // + cz* + cxz* + cyz* + czz		  
+		  
+  		  // U state
+  		  x = 0.0, y = -dx[1]/2.0;
+  		  ay = (slopesFC_X(i+1,j,k,BX_LOCAL)+slopesFC_X(i,j,k,BX_LOCAL))/2.0;
+		  axy = (slopesFC_X(i+1,j,k,BX_LOCAL)-slopesFC_X(i,j,k,BX_LOCAL));
+  		  az = 0.0;
+  		  axz = 0.0;
+  		  bx = (slopesFC_Y(i,j+1,k,BY_LOCAL)+slopesFC_Y(i,j,k,BY_LOCAL))/2.0;
+		  bxy = (slopesFC_Y(i,j+1,k,BY_LOCAL)-slopesFC_Y(i,j,k,BY_LOCAL));
+  		  bz = 0.0;
+  		  byz = 0.0;
+  		  cx = slopesCC_X(i,j,k,BZ_LOCAL);
+  		  cxz = 0.0;
+  		  cy = slopesCC_Y(i,j,k,BZ_LOCAL);
+  		  cyz = 0.0;
+		  axx = -dx[0]/2.0*(bxy/dx[1]); // +cxz/dx[2]
+		  byy = -dx[1]/2.0*(axy/dx[0]); // ++cyz/dx[2]
+  		  czz = 0.0;
+		  a0 = (arrEM_X(i+1,j,k,BX_LOCAL)+arrEM_X(i,j,k,BX_LOCAL))/2.0 - axx/6.0;
+		  ax = (arrEM_X(i+1,j,k,BX_LOCAL)-arrEM_X(i,j,k,BX_LOCAL));
+		  b0 = (arrEM_Y(i,j+1,k,BY_LOCAL)+arrEM_Y(i,j,k,BY_LOCAL))/2.0 - byy/6.0;
+		  by = (arrEM_Y(i,j+1,k,BY_LOCAL)-arrEM_Y(i,j,k,BY_LOCAL));
+  		  c0 = arr(i,j,k,BZ) - czz/6.0;
+  		  cz = 0.0;
+		  Real BxU = a0 + ax*(x/dx[0]) + ay*(y/dx[1]) // + az*
+		    + axx*((x/dx[0])*(x/dx[0]) - 1.0/12.0) + axy*(x/dx[0])*(y/dx[1]); // + axz*
+		  Real ByU = b0 + bx*(x/dx[0]) + by*(y/dx[1]) // + bz*
+		    + byy*((y/dx[1])*(y/dx[1]) - 1.0/12.0) + bxy*(x/dx[0])*(y/dx[1]); // + bxz*
+		  Real BzU = c0 + cx*(x/dx[0]) + cy*(y/dx[1]); // + cz* + cxz* + cyz* + czz		  
+		  
+  		  // Electric field
+  		  // D state
+  		  x = 0.0, y = dx[1]/2.0;
+  		  ay = (slopesFC_X(i+1,j-1,k,EX_LOCAL)+slopesFC_X(i,j-1,k,EX_LOCAL))/2.0;
+		  axy = (slopesFC_X(i+1,j-1,k,EX_LOCAL)-slopesFC_X(i,j-1,k,EX_LOCAL));
+  		  az = 0.0;
+  		  axz = 0.0;
+  		  bx = (slopesFC_Y(i,j,k,EY_LOCAL)+slopesFC_Y(i,j-1,k,EY_LOCAL))/2.0;
+		  bxy = (slopesFC_Y(i,j,k,EY_LOCAL)-slopesFC_Y(i,j-1,k,EY_LOCAL));
+  		  bz = 0.0;
+  		  byz = 0.0;
+  		  cx = slopesCC_X(i,j-1,k,EZ_LOCAL);
+  		  cxz = 0.0;
+  		  cy = slopesCC_Y(i,j-1,k,EZ_LOCAL);
+  		  cyz = 0.0;
+		  axx = dx[0]/2.0*(slopesQ(i,j-1,k,0)-bxy/dx[1]); // +cxz/dx[2]
+		  byy = dx[1]/2.0*(slopesQ(i,j-1,k,1)-axy/dx[0]); // ++cyz/dx[2]
+		  czz = 0.0;
+		  a0 = (arrEM_X(i+1,j-1,k,EX_LOCAL)+arrEM_X(i,j-1,k,EX_LOCAL))/2.0 - axx/6.0;
+		  ax = (arrEM_X(i+1,j-1,k,EX_LOCAL)-arrEM_X(i,j-1,k,EX_LOCAL));
+		  b0 = (arrEM_Y(i,j,k,EY_LOCAL)+arrEM_Y(i,j-1,k,EY_LOCAL))/2.0 - byy/6.0;
+		  by = (arrEM_Y(i,j,k,EY_LOCAL)-arrEM_Y(i,j-1,k,EY_LOCAL));
+  		  c0 = arr(i,j-1,k,EZ) - czz/6.0;
+  		  cz = 0.0;
+		  Real ExD = a0 + ax*(x/dx[0]) + ay*(y/dx[1]) // + az*
+		    + axx*((x/dx[0])*(x/dx[0]) - 1.0/12.0) + axy*(x/dx[0])*(y/dx[1]); // + axz*
+		  Real EyD = b0 + bx*(x/dx[0]) + by*(y/dx[1]) // + bz*
+		    + byy*((y/dx[1])*(y/dx[1]) - 1.0/12.0) + bxy*(x/dx[0])*(y/dx[1]); // + bxz*
+		  Real EzD = c0 + cx*(x/dx[0]) + cy*(y/dx[1]); // + cz* + cxz* + cyz* + czz		  
+
+  		  // U state
+  		  x = 0.0, y = -dx[1]/2.0;
+  		  ay = (slopesFC_X(i+1,j,k,EX_LOCAL)+slopesFC_X(i,j,k,EX_LOCAL))/2.0;
+		  axy = (slopesFC_X(i+1,j,k,EX_LOCAL)-slopesFC_X(i,j,k,EX_LOCAL));
+  		  az = 0.0;
+  		  axz = 0.0;
+  		  bx = (slopesFC_Y(i,j+1,k,EY_LOCAL)+slopesFC_Y(i,j,k,EY_LOCAL))/2.0;
+		  bxy = (slopesFC_Y(i,j+1,k,EY_LOCAL)-slopesFC_Y(i,j,k,EY_LOCAL));
+  		  bz = 0.0;
+  		  byz = 0.0;
+  		  cx = slopesCC_X(i,j,k,EZ_LOCAL);
+  		  cxz = 0.0;
+  		  cy = slopesCC_Y(i,j,k,EZ_LOCAL);
+  		  cyz = 0.0;
+		  axx = dx[0]/2.0*(slopesQ(i,j,k,0)-bxy/dx[1]); // +cxz/dx[2]
+		  byy = dx[1]/2.0*(slopesQ(i,j,k,1)-axy/dx[0]); // ++cyz/dx[2]		  
+  		  czz = 0.0;
+		  a0 = (arrEM_X(i+1,j,k,EX_LOCAL)+arrEM_X(i,j,k,EX_LOCAL))/2.0 - axx/6.0;
+		  ax = (arrEM_X(i+1,j,k,EX_LOCAL)-arrEM_X(i,j,k,EX_LOCAL));
+		  b0 = (arrEM_Y(i,j+1,k,EY_LOCAL)+arrEM_Y(i,j,k,EY_LOCAL))/2.0 - byy/6.0;
+		  by = (arrEM_Y(i,j+1,k,EY_LOCAL)-arrEM_Y(i,j,k,EY_LOCAL));
+  		  c0 = arr(i,j,k,EZ) - czz/6.0;
+  		  cz = 0.0;
+		  Real ExU = a0 + ax*(x/dx[0]) + ay*(y/dx[1]) // + az*
+		    + axx*((x/dx[0])*(x/dx[0]) - 1.0/12.0) + axy*(x/dx[0])*(y/dx[1]); // + axz*
+		  Real EyU = b0 + bx*(x/dx[0]) + by*(y/dx[1]) // + bz*
+		    + byy*((y/dx[1])*(y/dx[1]) - 1.0/12.0) + bxy*(x/dx[0])*(y/dx[1]); // + bxz*
+		  Real EzU = c0 + cx*(x/dx[0]) + cy*(y/dx[1]); // + cz* + cxz* + cyz* + czz		  
+
+  		  fluxArrY(i,j,k,BX) = 0.5*(BxD+BxU) - 0.5/c*(EzU-EzD);
+  		  fluxArrY(i,j,k,EX) = 0.5*(ExD+ExU) + 0.5*c*(BzU-BzD); 
+  		}
+  	    }
+  	}
+    }
+
+  // Update cell-centred z-components of EM fields
+  for (MFIter mfi(Sborder, true); mfi.isValid(); ++mfi)
+    {
+      const Box& bx = mfi.tilebox();
+
+      const Dim3 lo = lbound(bx);
+      const Dim3 hi = ubound(bx);
+
+      // Indexable arrays for the data, and the directional flux
+      // Based on the vertex-centred definition of the flux array, the
+      // data array runs from e.g. [0,N] and the flux array from [0,N+1]
+      const auto& arr = Sborder.array(mfi);
+      const auto& fluxArrX = fluxes[0].array(mfi);
+      const auto& fluxArrY = fluxes[1].array(mfi);
+	        
+      for(int k = lo.z; k <= hi.z; k++)
+  	{
+  	  for(int j = lo.y; j <= hi.y; j++)
+  	    {
+  	      for(int i = lo.x; i <= hi.x; i++)
+  		{
+  		  // Update cell-centred z-components becuause it is 2D code
+  		  arr(i,j,k,BZ) = arr(i,j,k,BZ) - (dt / dx[0]) * (fluxArrX(i+1,j,k,EY) - fluxArrX(i,j,k,EY)) + (dt / dx[1]) * (fluxArrY(i,j+1,k,EX) - fluxArrY(i,j,k,EX));
+  		  arr(i,j,k,EZ) = arr(i,j,k,EZ) + c*c*(dt / dx[0]) * (fluxArrX(i+1,j,k,BY) - fluxArrX(i,j,k,BY)) - c*c*(dt / dx[1]) * (fluxArrY(i,j+1,k,BX) - fluxArrY(i,j,k,BX));		  
+
+  		  // source terms
+  		  arr(i,j,k,EZ) = arr(i,j,k,EZ) - dt*1.0/(lambda_d*lambda_d*l_r)*(r_i*arr(i,j,k,MOMZ_I) + r_e*arr(i,j,k,MOMZ_E));
+  		}
+  	    }
+  	}
+    }
+    
+}
+void CAMReXmp::MaxwellSolverDivFree(Array<MultiFab,AMREX_SPACEDIM>& S_EM, MultiFab& fluxesEM, MultiFab& Sborder, MultiFab (&fluxes)[AMREX_SPACEDIM], MultiFab& S0, const Real* dx, Real dt)
+{
+
+  // Note that fluxesEM and fluxes are different definitions
+  // fluxesEM are EM star states, fluxes are fluxes
+  
+  // Useful when dealing with high-order reconstruction
+  // To get first-order slope in y-direction for Bx: slopes[BX_LOCALL].array(i,j,k,Y)
+  // Useful to define indices int X,Y,Z in second-order linear reconstruction
+  // For third-order quadratic reconstruction use int X,Y,Z,XX,YY,ZZ,XY,YZ,XZ
+  // Although for x-components fields, only exist Y,Z,YY,ZZ,YZ (see Balsara et al. 2017)
+  
+  Array<MultiFab,6> slopes;
+  // number of slopes
+  // 2 slopes for second-order linear reconstruction
+  // Ex = Ex^0 + Ex^y*(y/Delta_y) + Ex^z*(z/Delta_z), where Ex^y and Ex^z are the slopes
+  // For 2D code, only 1 slope for x- and y-compoenents
+  // For clarity, will use 3 slopes for second-order, first one represents slope in x-direction
+  // 9 slopes for third-order, and so on
+  int nSlopes = 3;
+  // indices for the slopes
+  // for 2D, do not need Z index
+  // for third order, use also XX,YY,ZZ,XY,YZ,XZ
+  int X=0,Y=1,Z=2;
+  slopes[BX_LOCAL].define(convert(grids,IntVect{AMREX_D_DECL(1,0,0)}), dmap, nSlopes, 1);
+  slopes[BY_LOCAL].define(convert(grids,IntVect{AMREX_D_DECL(0,1,0)}), dmap, nSlopes, 1);
+  slopes[EX_LOCAL].define(convert(grids,IntVect{AMREX_D_DECL(1,0,0)}), dmap, nSlopes, 1);
+  slopes[EY_LOCAL].define(convert(grids,IntVect{AMREX_D_DECL(0,1,0)}), dmap, nSlopes, 1);
+
+  // For 2D code, 2 slopes for z-components, although it is cell-centred
+  slopes[BZ_LOCAL].define(grids, dmap, nSlopes, 1);
+  slopes[EZ_LOCAL].define(grids, dmap, nSlopes, 1);
+    
+  // Three components, one for each direction
+  MultiFab slopesCharge(grids, dmap, AMREX_SPACEDIM, 1);
+
+  // Compute slopes of the charge densities
+  for (int d = 0; d < AMREX_SPACEDIM ; d++)   
+    {
+
+      const int iOffset = ( d == 0 ? 1 : 0);
+      const int jOffset = ( d == 1 ? 1 : 0);
+      const int kOffset = ( d == 2 ? 1 : 0);
+
+      // Compute cell-centred density slopes
+      for (MFIter mfi(slopesCharge, true); mfi.isValid(); ++mfi)
+	{
+	  const Box& bx = mfi.tilebox();
+      
+	  const Dim3 lo = lbound(bx);
+	  const Dim3 hi = ubound(bx);
+
+	  // uses old charge
+	  const Array4<Real> arr = S0.array(mfi);
+	  Array4<Real> slopes = slopesCharge.array(mfi);
+      
+	  for(int k = lo.z; k <= hi.z; k++)
+	    {
+	      for(int j = lo.y-1; j <= hi.y+1; j++)
+		{
+		  for(int i = lo.x-1; i <= hi.x+1; i++)
+		    {
+		      Real u_iMinus1 = (r_i*arr(i-iOffset,j-jOffset,k-kOffset,RHO_I)
+					+ r_e*arr(i-iOffset,j-jOffset,k-kOffset,RHO_E))/(lambda_d*lambda_d*l_r);
+		      Real u_i = (r_i*arr(i,j,k,RHO_I) + r_e*arr(i,j,k,RHO_E))/(lambda_d*lambda_d*l_r);
+		      Real u_iPlus1 = (r_i*arr(i+iOffset,j+jOffset,k+kOffset,RHO_I)
+				       + r_e*arr(i+iOffset,j+jOffset,k+kOffset,RHO_E))/(lambda_d*lambda_d*l_r);
+
+		      // slopes for the current
+		      slopes(i,j,k,d) = TVD_slope(u_iMinus1,u_i,u_iPlus1);
+
+		    }
+		}
+	    }      
+	}
+    }
+  
+  // Compute cell-centred z-components slopes in x- and y-direction
+  for (int d = 0; d < AMREX_SPACEDIM ; d++)
+    {
+
+      const int iOffset = ( d == 0 ? 1 : 0);
+      const int jOffset = ( d == 1 ? 1 : 0);
+      const int kOffset = ( d == 2 ? 1 : 0);
+      
+      for (MFIter mfi(slopes[BZ_LOCAL], true); mfi.isValid(); ++mfi)
+	{
+	  const Box& bx = mfi.tilebox();
+      
+	  const Dim3 lo = lbound(bx);
+	  const Dim3 hi = ubound(bx);
+
+	  const Array4<Real> arr = Sborder.array(mfi);
+	  Array4<Real> slopesBZ = slopes[BZ_LOCAL].array(mfi);
+	  Array4<Real> slopesEZ = slopes[EZ_LOCAL].array(mfi);
+      
+	  for(int k = lo.z; k <= hi.z; k++)
+	    {
+	      for(int j = lo.y-1; j <= hi.y+1; j++)
+		{
+		  for(int i = lo.x-1; i <= hi.x+1; i++)
+		    {
+
+		      Real u_iMinus1 = arr(i-iOffset,j-jOffset,k-kOffset,BZ);
+		      Real u_i = arr(i,j,k,BZ);
+		      Real u_iPlus1 = arr(i+iOffset,j+jOffset,k+kOffset,BZ);
+		      slopesBZ(i,j,k,d) = TVD_slope(u_iMinus1,u_i,u_iPlus1);
+
+		      u_iMinus1 = arr(i-iOffset,j-jOffset,k-kOffset,EZ);
+		      u_i = arr(i,j,k,EZ);
+		      u_iPlus1 = arr(i+iOffset,j+jOffset,k+kOffset,EZ);
+		      slopesEZ(i,j,k,d) = TVD_slope(u_iMinus1,u_i,u_iPlus1);		    
+
+		    }
+		}
+	    }      
+	}
+    }
+  
+  // Compute y-components slopes in x-direction
+  for (MFIter mfi(slopes[BY_LOCAL], true); mfi.isValid(); ++mfi)
+    {
+      const Box& bx = mfi.tilebox();
+      
+      const Dim3 lo = lbound(bx);
+      const Dim3 hi = ubound(bx);
+
+      const Array4<Real> arr = S_EM[1].array(mfi);
+      Array4<Real> slopesBY = slopes[BY_LOCAL].array(mfi);
+      Array4<Real> slopesEY = slopes[EY_LOCAL].array(mfi);
+      
+      for(int k = lo.z; k <= hi.z; k++)
+	{
+	  for(int j = lo.y-1; j <= hi.y+1; j++)
+	    {
+	      for(int i = lo.x-1; i <= hi.x+1; i++)
+		{
+
+		  Real u_iMinus1 = arr(i-1,j,k,BY_LOCAL);
+		  Real u_i = arr(i,j,k,BY_LOCAL);		    
+		  Real u_iPlus1 = arr(i+1,j,k,BY_LOCAL);
+		  slopesBY(i,j,k,X) = TVD_slope(u_iMinus1,u_i,u_iPlus1);
+
+		  u_iMinus1 = arr(i-1,j,k,EY_LOCAL);
+		  u_i = arr(i,j,k,EY_LOCAL);		    
+		  u_iPlus1 = arr(i+1,j,k,EY_LOCAL);
+		  slopesEY(i,j,k,X) = TVD_slope(u_iMinus1,u_i,u_iPlus1);
+
+		}
+	    }
+	}      
+    }
+  // Compute x-components slopes in y-direction
+  for (MFIter mfi(slopes[BX_LOCAL], true); mfi.isValid(); ++mfi)
+    {
+      const Box& bx = mfi.tilebox();
+      
+      const Dim3 lo = lbound(bx);
+      const Dim3 hi = ubound(bx);
+
+      const Array4<Real> arr = S_EM[0].array(mfi);
+      Array4<Real> slopesBX = slopes[BX_LOCAL].array(mfi);
+      Array4<Real> slopesEX = slopes[EX_LOCAL].array(mfi);
+      
+      for(int k = lo.z; k <= hi.z; k++)
+	{
+	  for(int j = lo.y-1; j <= hi.y+1; j++)
+	    {
+	      for(int i = lo.x-1; i <= hi.x+1; i++)
+		{
+
+		  Real u_iMinus1 = arr(i,j-1,k,BX_LOCAL);
+		  Real u_i = arr(i,j,k,BX_LOCAL);		    
+		  Real u_iPlus1 = arr(i,j+1,k,BX_LOCAL);
+		  slopesBX(i,j,k,Y) = TVD_slope(u_iMinus1,u_i,u_iPlus1);
+
+		  u_iMinus1 = arr(i,j-1,k,EX_LOCAL);
+		  u_i = arr(i,j,k,EX_LOCAL);		    
+		  u_iPlus1 = arr(i,j+1,k,EX_LOCAL);
+		  slopesEX(i,j,k,Y) = TVD_slope(u_iMinus1,u_i,u_iPlus1);
+
+		}
+	    }
+	}      
+    }
+
+
+  // Coefficients for the magnetic and electric fields
+  // For second order, there are 21 coeff.
+  // i.e. a0,ax,ay,az,axx,...,b0,bx,...,c0,cx,...,czz
+  // use 1 ghost cell
+  int a0=0,ax=1,ay=2,az=3,axx=4,axy=5,axz=6;
+  int b0=7,bx=8,by=9,bz=10,byy=11,bxy=12,byz=13;
+  int c0=14,cx=15,cy=16,cz=17,czz=18,cxz=19,cyz=20;
+  
+  MultiFab Bcoeff(grids, dmap, 21, 1);
+  MultiFab Ecoeff(grids, dmap, 21, 1);
+
+  // Compute coefficients for the field function
+  for (MFIter mfi(Bcoeff, true); mfi.isValid(); ++mfi)
+    {
+      const Box& box = mfi.tilebox();
+      
+      const Dim3 lo = lbound(box);
+      const Dim3 hi = ubound(box);
+
+      // coeff
+      const auto& Bc = Bcoeff.array(mfi);
+      const auto& Ec = Ecoeff.array(mfi);
+      
+      // data
+      const auto& arr = S0.array(mfi);
+      const auto& arrEM_X = S_EM[0].array(mfi);
+      const auto& arrEM_Y = S_EM[1].array(mfi);       
+
+      // slopes
+      const auto& slopesBX = slopes[BX_LOCAL].array(mfi);
+      const auto& slopesBY = slopes[BY_LOCAL].array(mfi);
+      const auto& slopesBZ = slopes[BZ_LOCAL].array(mfi);
+      const auto& slopesEX = slopes[EX_LOCAL].array(mfi);
+      const auto& slopesEY = slopes[EY_LOCAL].array(mfi);
+      const auto& slopesEZ = slopes[EZ_LOCAL].array(mfi);
+      
+      const auto& slopesQ = slopesCharge.array(mfi);
+      
+      for(int k = lo.z; k <= hi.z; k++)
+	{
+	  for(int j = lo.y-1; j <= hi.y+1; j++)
+	    {
+	      for(int i = lo.x-1; i <= hi.x+1; i++)
+		{		 
+		  
+		  Bc(i,j,k,ay) = (slopesBX(i+1,j,k,Y)+slopesBX(i,j,k,Y))/2.0;
+		  Bc(i,j,k,axy) = (slopesBX(i+1,j,k,Y)-slopesBX(i,j,k,Y));
+		  Bc(i,j,k,az) = 0.0;
+		  Bc(i,j,k,axz) = 0.0;
+		  Bc(i,j,k,bx) = (slopesBY(i,j+1,k,X)+slopesBY(i,j,k,X))/2.0;
+		  Bc(i,j,k,bxy) = (slopesBY(i,j+1,k,X)-slopesBY(i,j,k,X));
+		  Bc(i,j,k,bz) = 0.0;
+		  Bc(i,j,k,byz) = 0.0;
+		  Bc(i,j,k,cx) = slopesBZ(i,j,k,X);
+		  Bc(i,j,k,cxz) = 0.0;
+		  Bc(i,j,k,cy) = slopesBZ(i,j,k,Y);
+		  Bc(i,j,k,cyz) = 0.0;
+		  Bc(i,j,k,axx) = -dx[0]/2.0*(Bc(i,j,k,bxy)/dx[1]); // +cxz/dx[2]
+		  Bc(i,j,k,byy) = -dx[1]/2.0*(Bc(i,j,k,axy)/dx[0]); // ++cyz/dx[2]
+		  Bc(i,j,k,czz) = 0.0;
+		  Bc(i,j,k,a0) = (arrEM_X(i+1,j,k,BX_LOCAL)+arrEM_X(i,j,k,BX_LOCAL))/2.0 - Bc(i,j,k,axx)/6.0;
+		  Bc(i,j,k,ax) = (arrEM_X(i+1,j,k,BX_LOCAL)-arrEM_X(i,j,k,BX_LOCAL));
+		  Bc(i,j,k,b0) = (arrEM_Y(i,j+1,k,BY_LOCAL)+arrEM_Y(i,j,k,BY_LOCAL))/2.0 - Bc(i,j,k,byy)/6.0;
+		  Bc(i,j,k,by) = (arrEM_Y(i,j+1,k,BY_LOCAL)-arrEM_Y(i,j,k,BY_LOCAL));
+		  Bc(i,j,k,c0) = arr(i,j,k,BZ) - Bc(i,j,k,czz)/6.0;
+		  Bc(i,j,k,cz) = 0.0;
+
+		  Ec(i,j,k,ay) = (slopesEX(i+1,j,k,Y)+slopesEX(i,j,k,Y))/2.0;
+		  Ec(i,j,k,axy) = (slopesEX(i+1,j,k,Y)-slopesEX(i,j,k,Y));
+		  Ec(i,j,k,az) = 0.0;
+		  Ec(i,j,k,axz) = 0.0;
+		  Ec(i,j,k,bx) = (slopesEY(i,j+1,k,X)+slopesEY(i,j,k,X))/2.0;
+		  Ec(i,j,k,bxy) = (slopesEY(i,j+1,k,X)-slopesEY(i,j,k,X));
+		  Ec(i,j,k,bz) = 0.0;
+		  Ec(i,j,k,byz) = 0.0;
+		  Ec(i,j,k,cx) = slopesEZ(i,j,k,X);
+		  Ec(i,j,k,cxz) = 0.0;
+		  Ec(i,j,k,cy) = slopesEZ(i,j,k,Y);
+		  Ec(i,j,k,cyz) = 0.0;
+		  Ec(i,j,k,axx) = -dx[0]/2.0*(Ec(i,j,k,bxy)/dx[1]-slopesQ(i,j,k,0)); // +cxz/dx[2]
+		  Ec(i,j,k,byy) = -dx[1]/2.0*(Ec(i,j,k,axy)/dx[0]-slopesQ(i,j,k,1)); // ++cyz/dx[2]
+		  Ec(i,j,k,czz) = 0.0;
+		  Ec(i,j,k,a0) = (arrEM_X(i+1,j,k,EX_LOCAL)+arrEM_X(i,j,k,EX_LOCAL))/2.0 - Ec(i,j,k,axx)/6.0;
+		  Ec(i,j,k,ax) = (arrEM_X(i+1,j,k,EX_LOCAL)-arrEM_X(i,j,k,EX_LOCAL));
+		  Ec(i,j,k,b0) = (arrEM_Y(i,j+1,k,EY_LOCAL)+arrEM_Y(i,j,k,EY_LOCAL))/2.0 - Ec(i,j,k,byy)/6.0;
+		  Ec(i,j,k,by) = (arrEM_Y(i,j+1,k,EY_LOCAL)-arrEM_Y(i,j,k,EY_LOCAL));
+		  Ec(i,j,k,c0) = arr(i,j,k,EZ) - Ec(i,j,k,czz)/6.0; //czz*dx[2]*dx[2]/6.0
+		  Ec(i,j,k,cz) = 0.0;		  
+
+		}
+	    }
+	}
+    }
+
+  // Compute edge components of the EM fields    
+  for (MFIter mfi(fluxesEM, true); mfi.isValid(); ++mfi)
+    {
+      const Box& box = mfi.tilebox();
+      
+      const Dim3 lo = lbound(box);
+      const Dim3 hi = ubound(box);
+      // use old array, Sborder should also work
+      //const auto& arr = Sborder.array(mfi);
+      const auto& arr = S0.array(mfi);
+      const auto& arrEM_X = S_EM[0].array(mfi);
+      const auto& arrEM_Y = S_EM[1].array(mfi); 
+      const auto& fluxArrEM = fluxesEM.array(mfi);
+
+      const auto& Bc = Bcoeff.array(mfi);
+      const auto& Ec = Ecoeff.array(mfi);
+
+      for(int k = lo.z; k <= hi.z; k++)
+	{
+	  for(int j = lo.y; j <= hi.y; j++)
+	    {
+	      for(int i = lo.x; i <= hi.x; i++)
+		{		 
+		  
+		  Real x,y,z;
+		  int iOffset,jOffset,kOffset;
+
+		  // For 2D code
+		  z = 0.0;
+		  kOffset = 0;
+		  
+		  // LD state
+		  x = dx[0]/2.0, y = dx[1]/2.0;
+		  iOffset = -1, jOffset = -1;
+		  Vector<Real> EM_LD = EM_linearFunc(Bc,Ec,i+iOffset,j+jOffset,k+kOffset,x,y,z,dx);
+		  		  
+		  // RD state
+		  x = -dx[0]/2.0, y = dx[1]/2.0;
+		  iOffset = 0, jOffset = -1;
+		  Vector<Real> EM_RD = EM_linearFunc(Bc,Ec,i+iOffset,j+jOffset,k+kOffset,x,y,z,dx);
+
+		  // LU state
+		  x = dx[0]/2.0, y = -dx[1]/2.0;
+		  iOffset = -1, jOffset = 0;
+		  Vector<Real> EM_LU = EM_linearFunc(Bc,Ec,i+iOffset,j+jOffset,k+kOffset,x,y,z,dx);
+		  
+		  // RU state
+		  x = -dx[0]/2.0, y = -dx[1]/2.0;
+		  iOffset = 0, jOffset = 0;
+		  Vector<Real> EM_RU = EM_linearFunc(Bc,Ec,i+iOffset,j+jOffset,k+kOffset,x,y,z,dx);
+		  
+		  // If the reconstruction is consistent, then EyRU=EyRD
+		  Real EyR = (EM_RU[EY_LOCAL]+EM_RD[EY_LOCAL])/2.0;
+		  Real EyL = (EM_LU[EY_LOCAL]+EM_LD[EY_LOCAL])/2.0;
+		  Real ExU = (EM_RU[EX_LOCAL]+EM_LU[EX_LOCAL])/2.0;
+		  Real ExD = (EM_RD[EX_LOCAL]+EM_LD[EX_LOCAL])/2.0;
+		  fluxArrEM(i,j,k,BZ_LOCAL) = 0.25*(EM_RU[BZ_LOCAL]+EM_RD[BZ_LOCAL]+EM_LU[BZ_LOCAL]+EM_LD[BZ_LOCAL])
+		    - 0.5/c*(EyR-EyL) + 0.5/c*(ExU-ExD);
+
+		  Real ByR = (EM_RU[BY_LOCAL]+EM_RD[BY_LOCAL])/2.0;
+		  Real ByL = (EM_LU[BY_LOCAL]+EM_LD[BY_LOCAL])/2.0;
+		  Real BxU = (EM_RU[BX_LOCAL]+EM_LU[BX_LOCAL])/2.0;
+		  Real BxD = (EM_RD[BX_LOCAL]+EM_LD[BX_LOCAL])/2.0;
+		  fluxArrEM(i,j,k,EZ_LOCAL) = 0.25*(EM_RU[EZ_LOCAL]+EM_RD[EZ_LOCAL]+EM_LU[EZ_LOCAL]+EM_LD[EZ_LOCAL])
+		    + 0.5*c*(ByR-ByL) - 0.5*c*(BxU-BxD);
+		}
+	    }
+	}       
+    }
+
+  // Update face-centred EM fields
+  for (int d = 0; d < amrex::SpaceDim ; d++)   
+    {
+
+      const int iOffset = ( d == 0 ? 1 : 0);
+      const int jOffset = ( d == 1 ? 1 : 0);
+      const int kOffset = ( d == 2 ? 1 : 0);
+
+      int d_EM = (d==0) ? 1 : 0;
+    
+      // Loop over all the patches at this level
+      for (MFIter mfi(S_EM[d_EM], true); mfi.isValid(); ++mfi)
+	{
+	  const Box& bx = mfi.tilebox();
+
+	  const Dim3 lo = lbound(bx);
+	  const Dim3 hi = ubound(bx);
+
+	  // Indexable arrays for the data, and the directional flux
+	  // Based on the corner-centred definition of the flux array, the
+	  // data array runs from e.g. [0,N+1] and the flux array from [-1,N+1]
+	  //const auto& arr = Sborder.array(mfi);
+	  const auto& arrEM = S_EM[d_EM].array(mfi);
+	  //const auto& arrEMother = S_EM[d].array(mfi);
+	  const auto& fluxArrEM = fluxesEM.array(mfi);
+	  const auto& fluxArr = fluxes[d_EM].array(mfi);
+
+	  const Dim3 hiDomain = ubound(geom.Domain());
+      
+	  for(int k = lo.z; k <= hi.z; k++)
+	    {
+	      for(int j = lo.y; j <= hi.y; j++)
+		{
+		  for(int i = lo.x; i <= hi.x; i++)
+		    {
+		      // 2D code; z-component updated using cell-centred scheme
+		      arrEM(i,j,k,BX_LOCAL+d_EM) += std::pow(-1,d)*(dt / dx[d]) * (fluxArrEM(i+iOffset, j+jOffset, k+kOffset, EZ_LOCAL) - fluxArrEM(i,j,k,EZ_LOCAL));
+		      arrEM(i,j,k,EX_LOCAL+d_EM) -= std::pow(-1,d)*c*c*(dt / dx[d]) * (fluxArrEM(i+iOffset, j+jOffset, k+kOffset, BZ_LOCAL) - fluxArrEM(i,j,k,BZ_LOCAL));
+
+		      // 3D code
+		      /*arrEM(i,j,k,BX_LOCAL+(1+d)%3) += (dt / dx[d]) * (fluxArrEM(i+iOffset, j+jOffset, k+kOffset, EX_LOCAL+(2+d)%3) - fluxArrEM(i,j,k,EX_LOCAL+(2+d)%3));
+			arrEM(i,j,k,BX_LOCAL+(2+d)%3) -= (dt / dx[d]) * (fluxArrEM(i+iOffset, j+jOffset, k+kOffset, EX_LOCAL+(1+d)%3) - fluxArrEM(i,j,k,EX_LOCAL+(1+d)%3));
+			arrEM(i,j,k,EX_LOCAL+(1+d)%3) -= c*c*(dt / dx[d]) * (fluxArrEM(i+iOffset, j+jOffset, k+kOffset, BX_LOCAL+(2+d)%3) - fluxArrEM(i,j,k,BX_LOCAL+(2+d)%3));
+			arrEM(i,j,k,EX_LOCAL+(2+d)%3) += c*c*(dt / dx[d]) * (fluxArrEM(i+iOffset, j+jOffset, k+kOffset, BX_LOCAL+(1+d)%3) - fluxArrEM(i,j,k,BX_LOCAL+(1+d)%3));
+		      */
+		      
+		      // source terms
+		      Real currentFace = r_i*fluxArr(i,j,k,RHO_I) + r_e*fluxArr(i,j,k,RHO_E);
+		      arrEM(i,j,k,EX_LOCAL+d_EM) -= dt*1.0/(lambda_d*lambda_d*l_r)*currentFace;
+
+		    }
+		}
+	    }      
+	}
+    
+      // We need to compute boundary conditions again after each update
+      S_EM[0].FillBoundary(geom.periodicity());
+      S_EM[1].FillBoundary(geom.periodicity());
+     
+      // added by 2020D 
+      // Fill non-periodic physical boundaries                          
+      FillDomainBoundary(S_EM[0], geom, bc_EM);    
+      FillDomainBoundary(S_EM[1], geom, bc_EM);  
+      
+    }
+
+  // Compute cell-centred EM fields from face-centred
+  for (MFIter mfi(Sborder, true); mfi.isValid(); ++mfi)
+    {
+      const Box& box = mfi.tilebox();
+      
+      const Dim3 lo = lbound(box);
+      const Dim3 hi = ubound(box);
+      
+      // Indexable arrays for the data, and the directional flux
+      // Based on the corner-centred definition of the flux array, the
+      // data array runs from e.g. [0,N+1] and the flux array from [-1,N+1]
+      const auto& arr = Sborder.array(mfi);
+      const auto& arrEM_X = S_EM[0].array(mfi);
+      const auto& arrEM_Y = S_EM[1].array(mfi); 
+
+      const auto& Bc = Bcoeff.array(mfi);
+      const auto& Ec = Ecoeff.array(mfi);
+      
+      for(int k = lo.z; k <= hi.z; k++)
+  	{
+  	  for(int j = lo.y; j <= hi.y; j++)
+  	    {
+  	      for(int i = lo.x; i <= hi.x; i++)
+  		{		 
+
+  		  arr(i,j,k,BX) = (arrEM_X(i+1,j,k,BX_LOCAL)+arrEM_X(i,j,k,BX_LOCAL))/2.0 - Bc(i,j,k,axx)/6.0;
+  		  arr(i,j,k,BY) = (arrEM_Y(i,j+1,k,BY_LOCAL)+arrEM_Y(i,j,k,BY_LOCAL))/2.0 - Bc(i,j,k,byy)/6.0;
+  		  arr(i,j,k,EX) = (arrEM_X(i+1,j,k,EX_LOCAL)+arrEM_X(i,j,k,EX_LOCAL))/2.0 - Ec(i,j,k,axx)/6.0;
+  		  arr(i,j,k,EY) = (arrEM_Y(i,j+1,k,EY_LOCAL)+arrEM_Y(i,j,k,EY_LOCAL))/2.0 - Ec(i,j,k,byy)/6.0;
+		  
+  		}
+  	    }
+  	}       
+    }
+
+  // Only 2D
+  // Compute edge components for y-components at x-faces
+  for (MFIter mfi(fluxes[0], true); mfi.isValid(); ++mfi)
+    {
+      const Box& box = mfi.tilebox();
+      
+      const Dim3 lo = lbound(box);
+      const Dim3 hi = ubound(box);
+      
+      // use old data
+      //const auto& arr = Sborder.array(mfi);
+      const auto& arr = S0.array(mfi);
+      const auto& arrEM_X = S_EM[0].array(mfi);
+      const auto& arrEM_Y = S_EM[1].array(mfi); 
+      //const auto& fluxArrEM = fluxesEM.array(mfi);
+      const auto& fluxArrX = fluxes[0].array(mfi);
+      //const auto& fluxArrY = fluxes[1].array(mfi);
+
+      const auto& Bc = Bcoeff.array(mfi);
+      const auto& Ec = Ecoeff.array(mfi);
+      
+      for(int k = lo.z; k <= hi.z; k++)
+  	{
+  	  for(int j = lo.y; j <= hi.y; j++)
+  	    {
+  	      for(int i = lo.x; i <= hi.x; i++)
+  		{		 
+
+		  Real x,y,z;
+		  int iOffset,jOffset,kOffset;
+
+		  // For 2D code
+		  z = 0.0;
+		  kOffset = 0;
+		  
+  		  // L state
+  		  x = dx[0]/2.0, y = 0.0;
+		  iOffset = -1, jOffset = 0;
+		  Vector<Real> EM_L = EM_linearFunc(Bc,Ec,i+iOffset,j+jOffset,k+kOffset,x,y,z,dx);
+		   
+  		  // R state
+  		  x = -dx[0]/2.0, y = 0.0;
+		  iOffset = 0, jOffset = 0;
+		  Vector<Real> EM_R = EM_linearFunc(Bc,Ec,i+iOffset,j+jOffset,k+kOffset,x,y,z,dx);
+
+		  // Note that this is not the flux, but the star states
+  		  fluxArrX(i,j,k,BY) = 0.5*(EM_R[BY_LOCAL]+EM_L[BY_LOCAL])
+		    + 0.5/c*(EM_R[EZ_LOCAL]-EM_L[EZ_LOCAL]);
+  		  fluxArrX(i,j,k,EY) = 0.5*(EM_R[EY_LOCAL]+EM_L[EY_LOCAL])
+		    - 0.5*c*(EM_R[BZ_LOCAL]-EM_L[BZ_LOCAL]);
+  		}
+  	    }
+  	}
+    }
+  
+  // Only 2D
+  // Compute edge components for x-components at y-faces
+  for (MFIter mfi(fluxes[1], true); mfi.isValid(); ++mfi)
+    {
+      const Box& box = mfi.tilebox();
+      
+      const Dim3 lo = lbound(box);
+      const Dim3 hi = ubound(box);
+
+      // use old data
+      //const auto& arr = Sborder.array(mfi);
+      const auto& arr = S0.array(mfi);
+      const auto& arrEM_X = S_EM[0].array(mfi);
+      const auto& arrEM_Y = S_EM[1].array(mfi); 
+      //const auto& fluxArrEM = fluxesEM.array(mfi);
+      //const auto& fluxArrX = fluxes[0].array(mfi);
+      const auto& fluxArrY = fluxes[1].array(mfi);
+
+      const auto& Bc = Bcoeff.array(mfi);
+      const auto& Ec = Ecoeff.array(mfi);
+      
+      for(int k = lo.z; k <= hi.z; k++)
+  	{
+  	  for(int j = lo.y; j <= hi.y; j++)
+  	    {
+  	      for(int i = lo.x; i <= hi.x; i++)
+  		{		 		  
+
+		  Real x,y,z;
+		  int iOffset,jOffset,kOffset;
+		  	
+		  // For 2D code
+		  z = 0.0;
+		  kOffset = 0;
+
+  		  // D state
+  		  x = 0.0, y = dx[1]/2.0;
+		  iOffset = 0, jOffset = -1;
+		  Vector<Real> EM_D = EM_linearFunc(Bc,Ec,i+iOffset,j+jOffset,k+kOffset,x,y,z,dx);
+		  
+  		  // U state
+  		  x = 0.0, y = -dx[1]/2.0;
+		  iOffset = 0, jOffset = 0;
+		  Vector<Real> EM_U = EM_linearFunc(Bc,Ec,i+iOffset,j+jOffset,k+kOffset,x,y,z,dx);
+
+		  // Note that this is not the flux, but the star states		  
+  		  fluxArrY(i,j,k,BX) = 0.5*(EM_U[BX_LOCAL]+EM_D[BX_LOCAL])
+		    - 0.5/c*(EM_U[EZ_LOCAL]-EM_D[EZ_LOCAL]);
+  		  fluxArrY(i,j,k,EX) = 0.5*(EM_U[EX_LOCAL]+EM_D[EX_LOCAL])
+		    + 0.5*c*(EM_U[BZ_LOCAL]-EM_D[BZ_LOCAL]); 
+  		}
+  	    }
+  	}
+    }
+
+  // Update cell-centred z-components of EM fields
+  for (MFIter mfi(Sborder, true); mfi.isValid(); ++mfi)
+    {
+      const Box& bx = mfi.tilebox();
+
+      const Dim3 lo = lbound(bx);
+      const Dim3 hi = ubound(bx);
+
+      // Indexable arrays for the data, and the directional flux
+      // Based on the vertex-centred definition of the flux array, the
+      // data array runs from e.g. [0,N] and the flux array from [0,N+1]
+      const auto& arr = Sborder.array(mfi);
+      const auto& fluxArrX = fluxes[0].array(mfi);
+      const auto& fluxArrY = fluxes[1].array(mfi);
+	        
+      for(int k = lo.z; k <= hi.z; k++)
+  	{
+  	  for(int j = lo.y; j <= hi.y; j++)
+  	    {
+  	      for(int i = lo.x; i <= hi.x; i++)
+  		{
+  		  // Update cell-centred z-components becuause it is 2D code
+  		  arr(i,j,k,BZ) = arr(i,j,k,BZ) - (dt / dx[0]) * (fluxArrX(i+1,j,k,EY) - fluxArrX(i,j,k,EY)) + (dt / dx[1]) * (fluxArrY(i,j+1,k,EX) - fluxArrY(i,j,k,EX));
+  		  arr(i,j,k,EZ) = arr(i,j,k,EZ) + c*c*(dt / dx[0]) * (fluxArrX(i+1,j,k,BY) - fluxArrX(i,j,k,BY)) - c*c*(dt / dx[1]) * (fluxArrY(i,j+1,k,BX) - fluxArrY(i,j,k,BX));		  
+
+  		  // source terms
+  		  arr(i,j,k,EZ) = arr(i,j,k,EZ) - dt*1.0/(lambda_d*lambda_d*l_r)*(r_i*arr(i,j,k,MOMZ_I) + r_e*arr(i,j,k,MOMZ_E));
+  		}
+  	    }
+  	}
+    }    
 }

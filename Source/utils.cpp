@@ -1383,6 +1383,24 @@ Vector<Real> flux_HLLC(const Array4<Real>& arr, int i, int j, int k, int iOffset
   
   return flux;
 }
+Real get_delta_i(Real u_iMinus1, Real u_i, Real u_iPlus1){
+  Real delta_iMinusHalf, delta_iPlusHalf, delta_i;
+  delta_iMinusHalf = u_i - u_iMinus1;
+  delta_iPlusHalf = u_iPlus1 - u_i;
+  delta_i = 0.5*(delta_iPlusHalf+delta_iMinusHalf);
+  return delta_i;
+}
+Real TVD_slope(Real u_iMinus1, Real u_i, Real u_iPlus1)
+{
+  // slope measure
+  Real delta_i = get_delta_i(u_iMinus1, u_i, u_iPlus1);
+  // slope ratio
+  Real ri = get_r(u_iMinus1,u_i,u_iPlus1);
+  // slope limiter
+  Real epsilon_i = get_epsilon(ri);
+
+  return epsilon_i*delta_i;
+}
 // second order linear reconstruction on the left
 Vector<Real> TVD2_reconstruction_L(Vector<Real> u_iMinus1, Vector<Real> u_i, Vector<Real> u_iPlus1,
 				   Vector<int> limiting_idx){
@@ -1806,4 +1824,39 @@ Vector<Real> Maxwell_corner(const Array4<Real>& arr, int i, int j, int k, int iO
   */
   
   return corner;
+}
+Vector<Real> EM_linearFunc(const Array4<Real>& Bc, const Array4<Real>& Ec,  int i, int j, int k, Real x, Real y, Real z, const Real* dx)
+{
+  // For second order, there are 27 coeff.
+  // i.e. a0,ax,ay,az,axx,...,b0,bx,...,c0,cx,...,czz  
+  int a0=0,ax=1,ay=2,az=3,axx=4,axy=5,axz=6;
+  int b0=7,bx=8,by=9,bz=10,byy=11,bxy=12,byz=13;
+  int c0=14,cx=15,cy=16,cz=17,czz=18,cxz=19,cyz=20;
+  
+  Vector<Real> EM(NUM_STATE_MAXWELL,0.0);
+  
+  EM[BX_LOCAL] = Bc(i,j,k,a0) + Bc(i,j,k,ax)*(x/dx[0])
+    + Bc(i,j,k,ay)*(y/dx[1]) // + az*
+    + Bc(i,j,k,axx)*((x/dx[0])*(x/dx[0]) - 1.0/12.0)
+    + Bc(i,j,k,axy)*(x/dx[0])*(y/dx[1]); // + axz*
+  EM[BY_LOCAL] = Bc(i,j,k,b0) + Bc(i,j,k,bx)*(x/dx[0])
+    + Bc(i,j,k,by)*(y/dx[1]) // + bz*
+    + Bc(i,j,k,byy)*((y/dx[1])*(y/dx[1]) - 1.0/12.0)
+    + Bc(i,j,k,bxy)*(x/dx[0])*(y/dx[1]); // + bxz*
+  EM[BZ_LOCAL] = Bc(i,j,k,c0) + Bc(i,j,k,cx)*(x/dx[0])
+    + Bc(i,j,k,cy)*(y/dx[1]); // + cz* + cxz* + cyz* + czz		  
+
+  EM[EX_LOCAL] = Ec(i,j,k,a0) + Ec(i,j,k,ax)*(x/dx[0])
+    + Ec(i,j,k,ay)*(y/dx[1]) // + az*
+    + Ec(i,j,k,axx)*((x/dx[0])*(x/dx[0]) - 1.0/12.0)
+    + Ec(i,j,k,axy)*(x/dx[0])*(y/dx[1]); // + axz*
+  EM[EY_LOCAL] = Ec(i,j,k,b0) + Ec(i,j,k,bx)*(x/dx[0])
+    + Ec(i,j,k,by)*(y/dx[1]) // + bz*
+    + Ec(i,j,k,byy)*((y/dx[1])*(y/dx[1]) - 1.0/12.0)
+    + Ec(i,j,k,bxy)*(x/dx[0])*(y/dx[1]); // + bxz*
+  EM[EZ_LOCAL] = Ec(i,j,k,c0) + Ec(i,j,k,cx)*(x/dx[0])
+    + Ec(i,j,k,cy)*(y/dx[1]); // + cz* + cxz* + cyz* + czz		  
+
+  return EM;
+  
 }

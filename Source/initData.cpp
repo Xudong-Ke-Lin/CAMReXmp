@@ -90,7 +90,7 @@ CAMReXmp::initData ()
 	  if (test=="BrioWu"){
 	    Real B_x_L = 0.75, B_y_L = 1.0, B_z_L = 0.0;
 	    Real B_x_R = 0.75, B_y_R = -1.0, B_z_R = 0.0;
-
+	    
 	    if (x<=(geom.ProbLo()[0]+geom.ProbHi()[0])/2.0){
 	      B_x = B_x_L, B_y = B_y_L, B_z = B_z_L;
 	    } else{
@@ -100,6 +100,11 @@ CAMReXmp::initData ()
 	      B_x = B_y_L, B_y = B_x_L, B_z = B_z_L;
 	    } else{
 	      B_x = B_y_R, B_y = B_x_R, B_z = B_z_R;
+	      }*/
+	    /*if (x+y<=geom.ProbHi()[1]){
+	      B_x = B_x_L, B_y = B_y_L, B_z = B_z_L;
+	    } else{
+	      B_x = B_x_R, B_y = B_y_R, B_z = B_z_R;
 	      }*/
 	    
 	    arr(i,j,k,BX_LOCAL) = B_x;	    
@@ -165,17 +170,22 @@ CAMReXmp::initData ()
   	  if (test=="BrioWu"){
   	    Real B_x_L = 0.75, B_y_L = 1.0, B_z_L = 0.0;
   	    Real B_x_R = 0.75, B_y_R = -1.0, B_z_R = 0.0;
-
+	    
   	    if (x<=(geom.ProbLo()[0]+geom.ProbHi()[0])/2.0){
   	      B_x = B_x_L, B_y = B_y_L, B_z = B_z_L;
   	    } else{
   	      B_x = B_x_R, B_y = B_y_R, B_z = B_z_R;
-  	    }
+	    }
   	    /*if (y<=(geom.ProbLo()[1]+geom.ProbHi()[1])/2.0){
   	      B_x = B_y_L, B_y = B_x_L, B_z = B_z_L;
   	    } else{
   	      B_x = B_y_R, B_y = B_x_R, B_z = B_z_R;
-  	      }*/
+	      }*/
+	    /*if (x+y<=geom.ProbHi()[1]){
+	      B_x = B_x_L, B_y = B_y_L, B_z = B_z_L;
+	    } else{
+	      B_x = B_x_R, B_y = B_y_R, B_z = B_z_R;
+	      }*/
 	    
   	    arr(i,j,k,BX_LOCAL) = 0.0;
   	    arr(i,j,k,BY_LOCAL) = B_y;
@@ -244,18 +254,24 @@ CAMReXmp::initData ()
 	    Real B_x_L = 0.75, B_y_L = 1.0, B_z_L = 0.0;
 	    Real rho_R = 0.125, v_x_R = 0.0, v_y_R = 0.0, v_z_R = 0.0, p_R = 0.05;
 	    Real B_x_R = 0.75, B_y_R = -1.0, B_z_R = 0.0;
-
+	    
 	    if (x<=(geom.ProbLo()[0]+geom.ProbHi()[0])/2.0){
 	      rho = rho_L, v_x = v_x_L, v_y = v_y_L, v_z = v_z_L, p = p_L, B_x = B_x_L, B_y = B_y_L, B_z = B_z_L;
 	    } else{
 	      rho = rho_R, v_x = v_x_R, v_y = v_y_R, v_z = v_z_R, p = p_R, B_x = B_x_R, B_y = B_y_R, B_z = B_z_R;
 	    }
+	    
 	    /*if (y<=(geom.ProbLo()[1]+geom.ProbHi()[1])/2.0){
               rho = rho_L, v_x = v_y_L, v_y = v_x_L, v_z = v_z_L, p = p_L, B_x = B_y_L, B_y = B_x_L, B_z = B_z_L;                           
             } else{                                                                                                       
               rho = rho_R, v_x = v_y_R, v_y = v_x_R, v_z = v_z_R, p = p_R, B_x = B_y_R, B_y = B_x_R, B_z = B_z_R;   
 	      }*/
-
+	    /*if (x+y<=geom.ProbHi()[1]){
+	      rho = rho_L, v_x = v_x_L, v_y = v_y_L, v_z = v_z_L, p = p_L, B_x = B_x_L, B_y = B_y_L, B_z = B_z_L;
+	    } else{
+	      rho = rho_R, v_x = v_x_R, v_y = v_y_R, v_z = v_z_R, p = p_R, B_x = B_x_R, B_y = B_y_R, B_z = B_z_R;
+	      }*/
+	    
 	    arr(i,j,k,0) = rho;
 	    arr(i,j,k,1) = arr(i,j,k,0)*v_x;
 	    arr(i,j,k,2) = arr(i,j,k,0)*v_y;

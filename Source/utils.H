@@ -125,6 +125,9 @@ Real calc_mutime(const Vector<Real>& u_i, const Vector<Real>& u_iPlus1, int d, R
 Real calc_mutime_elec(const Vector<Real>& u_i, const Vector<Real>& u_iPlus1, int d, Real cfl);
 Real calc_mutime_Maxwell(const Vector<Real>& u_i, const Vector<Real>& u_iPlus1, int d, Real cfl);
 
+
+Real get_delta_i(Real u_iMinus1, Real u_i, Real u_iPlus1);
+Real TVD_slope(Real u_iMinus1, Real u_i, Real u_iPlus1);
 Vector<Real> TVD2_reconstruction_L(Vector<Real> u_iMinus1, Vector<Real> u_i, Vector<Real> u_iPlus1,
 				   Vector<int> limiting_idx);
 Vector<Real> TVD2_reconstruction_R(Vector<Real> u_iMinus1, Vector<Real> u_i, Vector<Real> u_iPlus1,
@@ -141,3 +144,5 @@ std::array<Vector<Real>, 2> MUSCL_Hancock_Godunov_Maxwell_and_transverse(const A
 									 Real dx, Real dt, int d);
 Vector<Real> MUSCL_Hancock_exact_flux(const Array4<Real>& arr, int i, int j, int k, int iOffset, int jOffset, int kOffset,
 				     Real dx, Real dt, int d);
+Vector<Real> EM_linearFunc(const Array4<Real>& Bc, const Array4<Real>& Ec,  int i, int j, int k, Real x, Real y, Real z,
+			   const Real* dx);
