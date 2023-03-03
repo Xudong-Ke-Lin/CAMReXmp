@@ -35,7 +35,6 @@ enum StateVariableMaxwell {
 			   BX_LOCAL = 0, BY_LOCAL = 1, BZ_LOCAL = 2, EX_LOCAL = 3, EY_LOCAL = 4, EZ_LOCAL = 5
 };
 
-
 class CAMReXmp;
 
 typedef void (CAMReXmp::*advanceFunctionPointer)(MultiFab&, amrex::MultiFab (&)[AMREX_SPACEDIM], const Real*, Real);
@@ -187,6 +186,16 @@ public:
   static int RKOrder;
   static std::string MaxwellMethod;
   static std::string sourceMethod;
+
+  // Number of slopes in third order Legendre reconstruction
+  //static int nSlopes;
+#if (AMREX_SPACEDIM == 1)
+  static const int nSlopes = 2;
+#endif
+#if (AMREX_SPACEDIM == 2)
+  static const int nSlopes = 5;
+#endif
+  
   
 protected:
 
@@ -250,8 +259,7 @@ protected:
   static std::array<LinOpBCType, AMREX_SPACEDIM> mlmg_hibc_Y;
   static std::array<LinOpBCType, AMREX_SPACEDIM> mlmg_lobc_Z;
   static std::array<LinOpBCType, AMREX_SPACEDIM> mlmg_hibc_Z;
-
-
+  
 private:
 
   void StrangFirst(amrex::MultiFab&, amrex::MultiFab (&)[AMREX_SPACEDIM], const amrex::Real*, amrex::Real);
@@ -271,6 +279,7 @@ private:
   void hyperbolicMaxwellSolverDivFree(Array<MultiFab,AMREX_SPACEDIM>&, MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], const Real*, Real);
   void hyperbolicMaxwellSolverDivFreeBalsara(Array<MultiFab,AMREX_SPACEDIM>&, MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], MultiFab&, const Real*, Real);
   void MaxwellSolverDivFree(Array<MultiFab,AMREX_SPACEDIM>&, MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], MultiFab&, const Real*, Real);
+  void MaxwellSolverDivFreeWENO(Array<MultiFab,AMREX_SPACEDIM>&, MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], MultiFab&, const Real*, Real);
   void hyperbolicMaxwellSolverDivFreeSubCycle(Array<MultiFab,AMREX_SPACEDIM>&, MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], const Real*, Real);
   void hyperbolicMaxwellSolverDivFreeSubCycleIneff(Array<MultiFab,AMREX_SPACEDIM>&, MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], MultiFab&, MultiFab (&)[AMREX_SPACEDIM], const Real*, Real);
   void computeCurrentUpdate(amrex::MultiFab&, const amrex::MultiFab&, const amrex::Real*, amrex::Real);

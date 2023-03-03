@@ -14,6 +14,8 @@ Real NUM_STATE = CAMReXmp::NUM_STATE;
 Real NUM_STATE_FLUID = CAMReXmp::NUM_STATE_FLUID;
 Real NUM_STATE_MAXWELL = CAMReXmp::NUM_STATE_MAXWELL;
 
+//int nSlopes = CAMReXmp::nSlopes;
+
 // read settings file                                                                                
 std::string test;
 
@@ -229,22 +231,22 @@ Real dot_product(Vector<Real> a, Vector<Real> b){
 // r is the slope ratio
 Real get_epsilon(Real r){
   // MIMBEE
-  /* if (r <= 0){
+  if (r <= 0){
     return 0.0;
   } else if (r>0 && r<=1.0){
     return r;
   } else{
     Real epsilon_R = 2.0/(1.0+r);
     return std::min(1.0, epsilon_R);
-    }*/
+    }
   // Van-Leer
-  if (r <= 0){
+  /*if (r <= 0){
     return 0.0;
   } else{
     Real epsilon_R = 2.0/(1.0+r);
     Real epsilon_L = 2.0*r/(1.0+r);
     return std::min(epsilon_L, epsilon_R);
-  }
+    }*/
   // Superbee
   /*if (r <= 0){
     return 0.0;
@@ -1401,10 +1403,34 @@ Real TVD_slope(Real u_iMinus1, Real u_i, Real u_iPlus1)
 
   return epsilon_i*delta_i;
 }
+Vector<Real> TVD_slopes(Vector<Real> u_iMinus1, Vector<Real> u_i, Vector<Real> u_iPlus1,
+			Vector<int> limiting_idx)
+{
+  // slope measure
+  Vector<Real> delta_i = get_delta_i(u_iMinus1, u_i, u_iPlus1);
+
+  // cell boundary extrapolated values in a linear reconstruction
+  Vector<Real> u_iL;
+
+  // slopes
+  Vector<Real> slopes;
+  for (int i = 0; i<u_i.size() ; i++)    
+    {
+      // slope ratio 
+      Real ri = get_r(u_iMinus1[limiting_idx[i]], u_i[limiting_idx[i]], u_iPlus1[limiting_idx[i]]);
+	
+      // slope limiter
+      Real epsilon_i = get_epsilon(ri);
+
+      slopes.push_back(epsilon_i*delta_i[i]);
+    }
+
+  return slopes;
+}
 // second order linear reconstruction on the left
 Vector<Real> TVD2_reconstruction_L(Vector<Real> u_iMinus1, Vector<Real> u_i, Vector<Real> u_iPlus1,
 				   Vector<int> limiting_idx){
-    // slope measure
+  // slope measure
     Vector<Real> delta_i = get_delta_i(u_iMinus1, u_i, u_iPlus1);
 
     // cell boundary extrapolated values in a linear reconstruction
@@ -1476,157 +1502,291 @@ Vector<Real> half_update_R(Vector<Real> u_iL, Vector<Real> u_iR, Real dx, Real d
 
 Vector<Real> MUSCL_Hancock_HLLC_flux(const Array4<Real>& arr, int i, int j, int k, int iOffset, int jOffset, int kOffset,
 				     Real dx, Real dt, int d){
+  // Vector<Real> ui_iMinus1, ue_iMinus1;
+  // Vector<Real> ui_i, ue_i;
+  // Vector<Real> ui_iPlus1, ue_iPlus1;
+  // Vector<Real> ui_iPlus2, ue_iPlus2;
+
+  // for (int n = 0; n<NUM_STATE_FLUID/2; n++)
+  //   {
+  //     ui_iMinus1.push_back(arr(i-2*iOffset,j-2*jOffset,k-2*kOffset,n));
+  //     ui_i.push_back(arr(i-iOffset,j-jOffset,k-kOffset,n));
+  //     ui_iPlus1.push_back(arr(i,j,k,n));
+  //     ui_iPlus2.push_back(arr(i+iOffset,j+jOffset,k+kOffset,n));
+      
+  //     ue_iMinus1.push_back(arr(i-2*iOffset,j-2*jOffset,k-2*kOffset,n+NUM_STATE_FLUID/2));
+  //     ue_i.push_back(arr(i-iOffset,j-jOffset,k-kOffset,n+NUM_STATE_FLUID/2));
+  //     ue_iPlus1.push_back(arr(i,j,k,n+NUM_STATE_FLUID/2));
+  //     ue_iPlus2.push_back(arr(i+iOffset,j+jOffset,k+kOffset,n+NUM_STATE_FLUID/2));
+  //   }
+
+  // // Slope limiting variable index
+  // Vector<int> limiting_idx(NUM_STATE_FLUID/2, NUM_STATE_FLUID/2-1);
+  
+  // // Cell boundary extrapolated values at the left and the right for the ion
+  // Vector<Real> slopes_i_i = TVD_slopes(ui_iMinus1, ui_i, ui_iPlus1, limiting_idx);
+  // Vector<Real> slopes_iPlus1_i = TVD_slopes(ui_i, ui_iPlus1, ui_iPlus2, limiting_idx);
+  // Vector<Real> u_iL_i,u_iR_i,u_iPlus1L_i,u_iPlus1R_i;
+  // for (int n = 0; n<NUM_STATE_FLUID/2; n++)
+  //   {
+  //     u_iL_i.push_back(ui_i[n] - 0.5*slopes_i_i[n]);
+  //     u_iR_i.push_back(ui_i[n] + 0.5*slopes_i_i[n]);
+  //     u_iPlus1L_i.push_back(ui_iPlus1[n] - 0.5*slopes_iPlus1_i[n]);
+  //     u_iPlus1R_i.push_back(ui_iPlus1[n] + 0.5*slopes_iPlus1_i[n]);
+  //   }
+  // //Vector<Real> u_iL_i = TVD2_reconstruction_L(ui_iMinus1, ui_i, ui_iPlus1, limiting_idx);
+  // //Vector<Real> u_iR_i = TVD2_reconstruction_R(ui_iMinus1, ui_i, ui_iPlus1, limiting_idx);
+  // //Vector<Real> u_iPlus1L_i = TVD2_reconstruction_L(ui_i, ui_iPlus1, ui_iPlus2, limiting_idx);
+  // //Vector<Real> u_iPlus1R_i = TVD2_reconstruction_R(ui_i, ui_iPlus1, ui_iPlus2, limiting_idx);
+
+  // // Cell boundary extrapolated values at the left and the right for the electron
+  // Vector<Real> slopes_i_e = TVD_slopes(ue_iMinus1, ue_i, ue_iPlus1, limiting_idx);
+  // Vector<Real> slopes_iPlus1_e = TVD_slopes(ue_i, ue_iPlus1, ue_iPlus2, limiting_idx);
+  // Vector<Real> u_iL_e,u_iR_e,u_iPlus1L_e,u_iPlus1R_e;
+  // for (int n = 0; n<NUM_STATE_FLUID/2; n++)
+  //   {
+  //     u_iL_e.push_back(ue_i[n] - 0.5*slopes_i_e[n]);
+  //     u_iR_e.push_back(ue_i[n] + 0.5*slopes_i_e[n]);
+  //     u_iPlus1L_e.push_back(ue_iPlus1[n] - 0.5*slopes_iPlus1_e[n]);
+  //     u_iPlus1R_e.push_back(ue_iPlus1[n] + 0.5*slopes_iPlus1_e[n]);
+  //   }
+  // //Vector<Real> u_iL_e = TVD2_reconstruction_L(ue_iMinus1, ue_i, ue_iPlus1, limiting_idx);
+  // //Vector<Real> u_iR_e = TVD2_reconstruction_R(ue_iMinus1, ue_i, ue_iPlus1, limiting_idx);
+  // //Vector<Real> u_iPlus1L_e = TVD2_reconstruction_L(ue_i, ue_iPlus1, ue_iPlus2, limiting_idx);
+  // //Vector<Real> u_iPlus1R_e = TVD2_reconstruction_R(ue_i, ue_iPlus1, ue_iPlus2, limiting_idx);
+  
+  // // Reiamnn problem left state for the ion variables 
+  // Vector<Real> u_i_nPlusHalf_R_i = half_update_R(u_iL_i, u_iR_i, dx, dt, d, &fluidFlux); 
+  // // Reiamnn problem right state for the ion variables
+  // Vector<Real> u_iPlus1_nPlusHalf_L_i = half_update_L(u_iPlus1L_i, u_iPlus1R_i, dx, dt, d, &fluidFlux);
+
+  // // Reiamnn problem left state for the electron variables
+  // Vector<Real> u_i_nPlusHalf_R_e = half_update_R(u_iL_e, u_iR_e, dx, dt, d, &fluidFlux); 
+  // // Reiamnn problem right state for the electron variables
+  // Vector<Real> u_iPlus1_nPlusHalf_L_e = half_update_L(u_iPlus1L_e, u_iPlus1R_e, dx, dt, d, &fluidFlux);
+
+  // // 1st order in space
+  // /*
+  // Vector<Real> u_i_nPlusHalf_R_i = ui_i;
+  // Vector<Real> u_iPlus1_nPlusHalf_L_i = ui_iPlus1;
+  // Vector<Real> u_i_nPlusHalf_R_e = ue_i;
+  // Vector<Real> u_iPlus1_nPlusHalf_L_e = ue_iPlus1;
+  // */
+  // //amrex::Print() << u_i_nPlusHalf_R_i[0] << " " << u_iPlus1_nPlusHalf_L_i[0] << " " << u_i_nPlusHalf_R_e[0] << " " << u_iPlus1_nPlusHalf_L_e[0] << std::endl;
+  
+  // // speeds for approximate Riemann problem
+  // Real S_R_i = get_S_K(u_i_nPlusHalf_R_i, u_iPlus1_nPlusHalf_L_i, d);
+  // Real S_L_i = -S_R_i;
+  // Real S_star_i = get_S_star(u_i_nPlusHalf_R_i, u_iPlus1_nPlusHalf_L_i, S_L_i, S_R_i, d);  
+
+  // Real S_R_e = get_S_K(u_i_nPlusHalf_R_e, u_iPlus1_nPlusHalf_L_e, d);
+  // Real S_L_e = -S_R_e;
+  // Real S_star_e = get_S_star(u_i_nPlusHalf_R_e, u_iPlus1_nPlusHalf_L_e, S_L_e, S_R_e, d);
+  
+  // // flux depending on the speeds, defined in slides or Toro's book
+  // Vector<Real> flux(NUM_STATE_FLUID,0.0);
+  // // Ion HLLC
+  // if (S_L_i>=0){
+  //   Vector<Real> function = fluidFlux(u_i_nPlusHalf_R_i, d);
+  //   for (int n = 0; n<=ENER_I; n++)
+  //     {       
+  //       flux[n] = function[n];
+  // 	//if ((i==256) && (j>253))
+  // 	//std::cout << "Fun1: " << i << " " << j << " " << flux[n] << " " << function[n] << " " << u_i_nPlusHalf_R_i[n] << std::endl;
+  //     }
+  // } else if (S_L_i<=0 && S_star_i>=0){
+  //   Vector<Real> u_HLLC_L= get_u_HLLC(u_i_nPlusHalf_R_i, S_L_i, S_star_i, d);
+  //   Vector<Real> function = fluidFlux(u_i_nPlusHalf_R_i, d);
+  //   Vector<Real> diff;
+  //   for (int n = 0; n<=ENER_I; n++)
+  //     {
+  //       diff.push_back(S_L_i*(u_HLLC_L[n]-u_i_nPlusHalf_R_i[n]));
+  // 	flux[n] = function[n]+diff[n];
+  // 	//if ((i==256) && (j>252)){
+  // 	//std::cout << "Fun2: " << i << " " << j << " " << flux[n] << " " << function[n] << " " << u_i_nPlusHalf_R_i[n] << " " << u_HLLC_L[n] << " " << diff[n] << std::endl;
+  // 	  //std::cout << S_L_i << " " << S_star_i << " " << u_i_nPlusHalf_R_i[2]/u_i_nPlusHalf_R_i[0] << std::endl;
+  // 	  //std::cout << get_pressure(u_i_nPlusHalf_R_i) << " " << get_pressure( u_iPlus1_nPlusHalf_L_i) << " " << S_R_i << " " << u_iPlus1_nPlusHalf_L_i[2]/u_iPlus1_nPlusHalf_L_i[0] << std::endl;
+  // 	//}
+  //     }
+  // } else if (S_star_i<=0 && S_R_i>=0){
+  //   Vector<Real> u_HLLC_R = get_u_HLLC(u_iPlus1_nPlusHalf_L_i, S_R_i, S_star_i, d);
+  //   Vector<Real> function = fluidFlux(u_iPlus1_nPlusHalf_L_i, d);
+  //   Vector<Real> diff;
+  //   for (int n = 0; n<=ENER_I; n++)
+  //     {
+  //       diff.push_back(S_R_i*(u_HLLC_R[n]-u_iPlus1_nPlusHalf_L_i[n]));
+  // 	flux[n] = function[n]+diff[n];
+  // 	//if ((i==32) && (j>28))
+  // 	//std::cout << "Fun3: " << i << " " << j << " " << flux[n] << " " << function[n] << " " << u_iPlus1_nPlusHalf_L_i[n] << " " << u_HLLC_R[n] << std::endl;
+  //     }
+  // } else {    
+  //   Vector<Real> function = fluidFlux(u_iPlus1_nPlusHalf_L_i, d);
+  //   for (int n = 0; n<=ENER_I; n++)
+  //     {
+  //       flux[n] = function[n];
+  // 	//if ((i==256) && (j>253))
+  // 	//std::cout << "Fun4: " << i << " " << j << " " << flux[n] << " " << function[n] << " " << u_iPlus1_nPlusHalf_L_i[n] << std::endl;
+
+  //     }
+  // }
+  // // Electron HLLC
+  // if (S_L_e>=0){
+  //   Vector<Real> function = fluidFlux(u_i_nPlusHalf_R_e, d);
+  //   for (int n = RHO_E; n<=ENER_E; n++)
+  //     {       
+  //       flux[n] = function[n-5];
+  //     }
+  // } else if (S_L_e<=0 && S_star_e>=0){
+  //   Vector<Real> u_HLLC_L= get_u_HLLC(u_i_nPlusHalf_R_e, S_L_e, S_star_e, d);
+  //   Vector<Real> function = fluidFlux(u_i_nPlusHalf_R_e, d);
+  //   Vector<Real> diff;
+  //   for (int n = RHO_E; n<=ENER_E; n++)
+  //     {
+  //       diff.push_back(S_L_e*(u_HLLC_L[n-5]-u_i_nPlusHalf_R_e[n-5]));
+  // 	flux[n] = function[n-5]+diff[n-5];
+  //     }
+  // } else if (S_star_e<=0 && S_R_e>=0){
+  //   Vector<Real> u_HLLC_R = get_u_HLLC(u_iPlus1_nPlusHalf_L_e, S_R_e, S_star_e, d);
+  //   Vector<Real> function = fluidFlux(u_iPlus1_nPlusHalf_L_e, d);
+  //   Vector<Real> diff;
+  //   for (int n = RHO_E; n<=ENER_E; n++)
+  //     {
+  //       diff.push_back(S_R_e*(u_HLLC_R[n-5]-u_iPlus1_nPlusHalf_L_e[n-5]));
+  // 	flux[n] = function[n-5]+diff[n-5];
+  //     }
+  // } else {    
+  //   Vector<Real> function = fluidFlux(u_iPlus1_nPlusHalf_L_e, d);
+  //   for (int n = RHO_E; n<=ENER_E; n++)
+  //     {
+  //       flux[n] = function[n-5];
+  //     }
+  // }
+
+  Vector<Real> ui_iMinus2, ue_iMinus2;
   Vector<Real> ui_iMinus1, ue_iMinus1;
   Vector<Real> ui_i, ue_i;
   Vector<Real> ui_iPlus1, ue_iPlus1;
-  Vector<Real> ui_iPlus2, ue_iPlus2;
 
   for (int n = 0; n<NUM_STATE_FLUID/2; n++)
     {
-      ui_iMinus1.push_back(arr(i-2*iOffset,j-2*jOffset,k-2*kOffset,n));
-      ui_i.push_back(arr(i-iOffset,j-jOffset,k-kOffset,n));
-      ui_iPlus1.push_back(arr(i,j,k,n));
-      ui_iPlus2.push_back(arr(i+iOffset,j+jOffset,k+kOffset,n));
+      ui_iMinus2.push_back(arr(i-2*iOffset,j-2*jOffset,k-2*kOffset,n));
+      ui_iMinus1.push_back(arr(i-iOffset,j-jOffset,k-kOffset,n));
+      ui_i.push_back(arr(i,j,k,n));
+      ui_iPlus1.push_back(arr(i+iOffset,j+jOffset,k+kOffset,n));
       
-      ue_iMinus1.push_back(arr(i-2*iOffset,j-2*jOffset,k-2*kOffset,n+NUM_STATE_FLUID/2));
-      ue_i.push_back(arr(i-iOffset,j-jOffset,k-kOffset,n+NUM_STATE_FLUID/2));
-      ue_iPlus1.push_back(arr(i,j,k,n+NUM_STATE_FLUID/2));
-      ue_iPlus2.push_back(arr(i+iOffset,j+jOffset,k+kOffset,n+NUM_STATE_FLUID/2));
+      ue_iMinus2.push_back(arr(i-2*iOffset,j-2*jOffset,k-2*kOffset,n+NUM_STATE_FLUID/2));
+      ue_iMinus1.push_back(arr(i-iOffset,j-jOffset,k-kOffset,n+NUM_STATE_FLUID/2));
+      ue_i.push_back(arr(i,j,k,n+NUM_STATE_FLUID/2));
+      ue_iPlus1.push_back(arr(i+iOffset,j+jOffset,k+kOffset,n+NUM_STATE_FLUID/2));
     }
 
   // Slope limiting variable index
   Vector<int> limiting_idx(NUM_STATE_FLUID/2, NUM_STATE_FLUID/2-1);
   
   // Cell boundary extrapolated values at the left and the right for the ion
-  Vector<Real> u_iL_i = TVD2_reconstruction_L(ui_iMinus1, ui_i, ui_iPlus1, limiting_idx);
-  Vector<Real> u_iR_i = TVD2_reconstruction_R(ui_iMinus1, ui_i, ui_iPlus1, limiting_idx);
-  Vector<Real> u_iPlus1L_i = TVD2_reconstruction_L(ui_i, ui_iPlus1, ui_iPlus2, limiting_idx);
-  Vector<Real> u_iPlus1R_i = TVD2_reconstruction_R(ui_i, ui_iPlus1, ui_iPlus2, limiting_idx);
+  Vector<Real> slopes_iMinus1_i = TVD_slopes(ui_iMinus2, ui_iMinus1, ui_i, limiting_idx);
+  Vector<Real> slopes_i_i = TVD_slopes(ui_iMinus1, ui_i, ui_iPlus1, limiting_idx);
+  Vector<Real> u_iMinus1L_i,u_iMinus1R_i,u_iL_i,u_iR_i;
+  for (int n = 0; n<NUM_STATE_FLUID/2; n++)
+    {
+      u_iMinus1L_i.push_back(ui_iMinus1[n] - 0.5*slopes_iMinus1_i[n]);
+      u_iMinus1R_i.push_back(ui_iMinus1[n] + 0.5*slopes_iMinus1_i[n]);
+      u_iL_i.push_back(ui_i[n] - 0.5*slopes_i_i[n]);
+      u_iR_i.push_back(ui_i[n] + 0.5*slopes_i_i[n]);
+    }
 
   // Cell boundary extrapolated values at the left and the right for the electron
-  Vector<Real> u_iL_e = TVD2_reconstruction_L(ue_iMinus1, ue_i, ue_iPlus1, limiting_idx);
-  Vector<Real> u_iR_e = TVD2_reconstruction_R(ue_iMinus1, ue_i, ue_iPlus1, limiting_idx);
-  Vector<Real> u_iPlus1L_e = TVD2_reconstruction_L(ue_i, ue_iPlus1, ue_iPlus2, limiting_idx);
-  Vector<Real> u_iPlus1R_e = TVD2_reconstruction_R(ue_i, ue_iPlus1, ue_iPlus2, limiting_idx);
-  
+  Vector<Real> slopes_iMinus1_e = TVD_slopes(ue_iMinus2, ue_iMinus1, ue_i, limiting_idx);
+  Vector<Real> slopes_i_e = TVD_slopes(ue_iMinus1, ue_i, ue_iPlus1, limiting_idx);
+  Vector<Real> u_iMinus1L_e,u_iMinus1R_e,u_iL_e,u_iR_e;
+  for (int n = 0; n<NUM_STATE_FLUID/2; n++)
+    {
+      u_iMinus1L_e.push_back(ue_iMinus1[n] - 0.5*slopes_iMinus1_e[n]);
+      u_iMinus1R_e.push_back(ue_iMinus1[n] + 0.5*slopes_iMinus1_e[n]);
+      u_iL_e.push_back(ue_i[n] - 0.5*slopes_i_e[n]);
+      u_iR_e.push_back(ue_i[n] + 0.5*slopes_i_e[n]);
+    }
+
   // Reiamnn problem left state for the ion variables 
-  Vector<Real> u_i_nPlusHalf_R_i = half_update_R(u_iL_i, u_iR_i, dx, dt, d, &fluidFlux); 
+  Vector<Real> u_iMinus1_nPlusHalf_R_i = half_update_R(u_iMinus1L_i, u_iMinus1R_i, dx, dt, d, &fluidFlux); 
   // Reiamnn problem right state for the ion variables
-  Vector<Real> u_iPlus1_nPlusHalf_L_i = half_update_L(u_iPlus1L_i, u_iPlus1R_i, dx, dt, d, &fluidFlux);
+  Vector<Real> u_i_nPlusHalf_L_i = half_update_L(u_iL_i, u_iR_i, dx, dt, d, &fluidFlux);
 
   // Reiamnn problem left state for the electron variables
-  Vector<Real> u_i_nPlusHalf_R_e = half_update_R(u_iL_e, u_iR_e, dx, dt, d, &fluidFlux); 
+  Vector<Real> u_iMinus1_nPlusHalf_R_e = half_update_R(u_iMinus1L_e, u_iMinus1R_e, dx, dt, d, &fluidFlux); 
   // Reiamnn problem right state for the electron variables
-  Vector<Real> u_iPlus1_nPlusHalf_L_e = half_update_L(u_iPlus1L_e, u_iPlus1R_e, dx, dt, d, &fluidFlux);
-  /*
-  if ((i==256) && (j>252)){
-    std::cout << "Reconstruction: " << i << " " << j << " ";
-    for(int n=0;n<5;n++)
-      std::cout << u_iL_i[n] << " " << u_iR_i[n] << " " << u_iPlus1L_i[n] << " " << u_iPlus1R_i[n] << " " << u_i_nPlusHalf_R_i[n] << " " << u_iPlus1_nPlusHalf_L_i[n] << " " << ui_iMinus1[n] << " " << ui_i[n] << " " <<  ui_iPlus1[n] << " " <<  ui_iPlus2[n] << std::endl;
-    Vector<Real> func_iR = fluidFlux(u_iL_i, d);
-    Vector<Real> func_iL = fluidFlux(u_iR_i, d);
-    Vector<Real> diff;
-    Vector<Real> half_step_evolution;
-    for (int n = 0; n<u_iR_i.size(); n++)
-      {
-	diff.push_back(func_iR[n]-func_iL[n]);
-	half_step_evolution.push_back(u_iR_i[n] - 0.5*(dt/dx)*diff[n]);
-	std::cout << "Half evolution " << u_iR_i[n] << " " << func_iR[n] << " " << func_iL[n] << " " << diff[n] << std::endl;
-      }
-    
-  }
-  */
-  // 1st order in space
-  /*
-  Vector<Real> u_i_nPlusHalf_R_i = ui_i;
-  Vector<Real> u_iPlus1_nPlusHalf_L_i = ui_iPlus1;
-  Vector<Real> u_i_nPlusHalf_R_e = ue_i;
-  Vector<Real> u_iPlus1_nPlusHalf_L_e = ue_iPlus1;
-  */
-  //amrex::Print() << u_i_nPlusHalf_R_i[0] << " " << u_iPlus1_nPlusHalf_L_i[0] << " " << u_i_nPlusHalf_R_e[0] << " " << u_iPlus1_nPlusHalf_L_e[0] << std::endl;
-  
-  // speeds for approximate Riemann problem
-  Real S_R_i = get_S_K(u_i_nPlusHalf_R_i, u_iPlus1_nPlusHalf_L_i, d);
-  Real S_L_i = -S_R_i;
-  Real S_star_i = get_S_star(u_i_nPlusHalf_R_i, u_iPlus1_nPlusHalf_L_i, S_L_i, S_R_i, d);  
+  Vector<Real> u_i_nPlusHalf_L_e = half_update_L(u_iL_e, u_iR_e, dx, dt, d, &fluidFlux);
 
-  Real S_R_e = get_S_K(u_i_nPlusHalf_R_e, u_iPlus1_nPlusHalf_L_e, d);
+  // speeds for approximate Riemann problem
+  Real S_R_i = get_S_K(u_iMinus1_nPlusHalf_R_i, u_i_nPlusHalf_L_i, d);
+  Real S_L_i = -S_R_i;
+  Real S_star_i = get_S_star(u_iMinus1_nPlusHalf_R_i, u_i_nPlusHalf_L_i, S_L_i, S_R_i, d);  
+
+  Real S_R_e = get_S_K(u_iMinus1_nPlusHalf_R_e, u_i_nPlusHalf_L_e, d);
   Real S_L_e = -S_R_e;
-  Real S_star_e = get_S_star(u_i_nPlusHalf_R_e, u_iPlus1_nPlusHalf_L_e, S_L_e, S_R_e, d);
+  Real S_star_e = get_S_star(u_iMinus1_nPlusHalf_R_e, u_i_nPlusHalf_L_e, S_L_e, S_R_e, d);
   
   // flux depending on the speeds, defined in slides or Toro's book
   Vector<Real> flux(NUM_STATE_FLUID,0.0);
   // Ion HLLC
   if (S_L_i>=0){
-    Vector<Real> function = fluidFlux(u_i_nPlusHalf_R_i, d);
+    Vector<Real> function = fluidFlux(u_iMinus1_nPlusHalf_R_i, d);
     for (int n = 0; n<=ENER_I; n++)
       {       
         flux[n] = function[n];
-	//if ((i==256) && (j>253))
-	//std::cout << "Fun1: " << i << " " << j << " " << flux[n] << " " << function[n] << " " << u_i_nPlusHalf_R_i[n] << std::endl;
       }
   } else if (S_L_i<=0 && S_star_i>=0){
-    Vector<Real> u_HLLC_L= get_u_HLLC(u_i_nPlusHalf_R_i, S_L_i, S_star_i, d);
-    Vector<Real> function = fluidFlux(u_i_nPlusHalf_R_i, d);
+    Vector<Real> u_HLLC_L= get_u_HLLC(u_iMinus1_nPlusHalf_R_i, S_L_i, S_star_i, d);
+    Vector<Real> function = fluidFlux(u_iMinus1_nPlusHalf_R_i, d);
     Vector<Real> diff;
     for (int n = 0; n<=ENER_I; n++)
       {
-        diff.push_back(S_L_i*(u_HLLC_L[n]-u_i_nPlusHalf_R_i[n]));
+        diff.push_back(S_L_i*(u_HLLC_L[n]-u_iMinus1_nPlusHalf_R_i[n]));
 	flux[n] = function[n]+diff[n];
-	//if ((i==256) && (j>252)){
-	//std::cout << "Fun2: " << i << " " << j << " " << flux[n] << " " << function[n] << " " << u_i_nPlusHalf_R_i[n] << " " << u_HLLC_L[n] << " " << diff[n] << std::endl;
-	  //std::cout << S_L_i << " " << S_star_i << " " << u_i_nPlusHalf_R_i[2]/u_i_nPlusHalf_R_i[0] << std::endl;
-	  //std::cout << get_pressure(u_i_nPlusHalf_R_i) << " " << get_pressure( u_iPlus1_nPlusHalf_L_i) << " " << S_R_i << " " << u_iPlus1_nPlusHalf_L_i[2]/u_iPlus1_nPlusHalf_L_i[0] << std::endl;
-	//}
       }
   } else if (S_star_i<=0 && S_R_i>=0){
-    Vector<Real> u_HLLC_R = get_u_HLLC(u_iPlus1_nPlusHalf_L_i, S_R_i, S_star_i, d);
-    Vector<Real> function = fluidFlux(u_iPlus1_nPlusHalf_L_i, d);
+    Vector<Real> u_HLLC_R = get_u_HLLC(u_i_nPlusHalf_L_i, S_R_i, S_star_i, d);
+    Vector<Real> function = fluidFlux(u_i_nPlusHalf_L_i, d);
     Vector<Real> diff;
     for (int n = 0; n<=ENER_I; n++)
       {
-        diff.push_back(S_R_i*(u_HLLC_R[n]-u_iPlus1_nPlusHalf_L_i[n]));
+        diff.push_back(S_R_i*(u_HLLC_R[n]-u_i_nPlusHalf_L_i[n]));
 	flux[n] = function[n]+diff[n];
-	//if ((i==32) && (j>28))
-	//std::cout << "Fun3: " << i << " " << j << " " << flux[n] << " " << function[n] << " " << u_iPlus1_nPlusHalf_L_i[n] << " " << u_HLLC_R[n] << std::endl;
       }
   } else {    
-    Vector<Real> function = fluidFlux(u_iPlus1_nPlusHalf_L_i, d);
+    Vector<Real> function = fluidFlux(u_i_nPlusHalf_L_i, d);
     for (int n = 0; n<=ENER_I; n++)
       {
         flux[n] = function[n];
-	//if ((i==256) && (j>253))
-	//std::cout << "Fun4: " << i << " " << j << " " << flux[n] << " " << function[n] << " " << u_iPlus1_nPlusHalf_L_i[n] << std::endl;
-
       }
   }
   // Electron HLLC
   if (S_L_e>=0){
-    Vector<Real> function = fluidFlux(u_i_nPlusHalf_R_e, d);
+    Vector<Real> function = fluidFlux(u_iMinus1_nPlusHalf_R_e, d);
     for (int n = RHO_E; n<=ENER_E; n++)
       {       
         flux[n] = function[n-5];
       }
   } else if (S_L_e<=0 && S_star_e>=0){
-    Vector<Real> u_HLLC_L= get_u_HLLC(u_i_nPlusHalf_R_e, S_L_e, S_star_e, d);
-    Vector<Real> function = fluidFlux(u_i_nPlusHalf_R_e, d);
+    Vector<Real> u_HLLC_L= get_u_HLLC(u_iMinus1_nPlusHalf_R_e, S_L_e, S_star_e, d);
+    Vector<Real> function = fluidFlux(u_iMinus1_nPlusHalf_R_e, d);
     Vector<Real> diff;
     for (int n = RHO_E; n<=ENER_E; n++)
       {
-        diff.push_back(S_L_e*(u_HLLC_L[n-5]-u_i_nPlusHalf_R_e[n-5]));
+        diff.push_back(S_L_e*(u_HLLC_L[n-5]-u_iMinus1_nPlusHalf_R_e[n-5]));
 	flux[n] = function[n-5]+diff[n-5];
       }
   } else if (S_star_e<=0 && S_R_e>=0){
-    Vector<Real> u_HLLC_R = get_u_HLLC(u_iPlus1_nPlusHalf_L_e, S_R_e, S_star_e, d);
-    Vector<Real> function = fluidFlux(u_iPlus1_nPlusHalf_L_e, d);
+    Vector<Real> u_HLLC_R = get_u_HLLC(u_i_nPlusHalf_L_e, S_R_e, S_star_e, d);
+    Vector<Real> function = fluidFlux(u_i_nPlusHalf_L_e, d);
     Vector<Real> diff;
     for (int n = RHO_E; n<=ENER_E; n++)
       {
-        diff.push_back(S_R_e*(u_HLLC_R[n-5]-u_iPlus1_nPlusHalf_L_e[n-5]));
+        diff.push_back(S_R_e*(u_HLLC_R[n-5]-u_i_nPlusHalf_L_e[n-5]));
 	flux[n] = function[n-5]+diff[n-5];
       }
   } else {    
-    Vector<Real> function = fluidFlux(u_iPlus1_nPlusHalf_L_e, d);
+    Vector<Real> function = fluidFlux(u_i_nPlusHalf_L_e, d);
     for (int n = RHO_E; n<=ENER_E; n++)
       {
         flux[n] = function[n-5];
@@ -1825,6 +1985,65 @@ Vector<Real> Maxwell_corner(const Array4<Real>& arr, int i, int j, int k, int iO
   
   return corner;
 }
+Vector<Real> EM_quadraticFunc(const Array4<Real>& Bc, const Array4<Real>& Ec,  int i, int j, int k, Real x, Real y, Real z, const Real* dx)
+{
+  // For second order, there are 18 coeff.
+  // i.e. a0,ax,ay,az,axx,...,b0,bx,...,c0,cx,...,czz  
+  int a0=0,ax=1,ay=2,az=3,axx=4,ayy=5,azz=6,axy=7,ayz=8,axz=9,axxx=10,axxy=11,axxz=12,axyy=13,axzz=14,axyz=15;
+  int b0=16,bx=17,by=18,bz=19,bxx=20,byy=21,bzz=22,bxy=23,byz=24,bxz=25,byyy=26,bxyy=27,byyz=28,bxxy=29,byzz=30,bxyz=31;
+  int c0=32,cx=33,cy=34,cz=35,cxx=36,cyy=37,czz=38,cxy=39,cyz=40,cxz=41,czzz=42,cxzz=43,cyzz=44,cxxz=45,cyyz=46,cxyz=47;
+  
+  Vector<Real> EM(NUM_STATE_MAXWELL,0.0);
+
+  Real xdx = x/dx[0], ydy = y/dx[1];
+  
+  EM[BX_LOCAL] = Bc(i,j,k,a0) + Bc(i,j,k,ax)*xdx
+    + Bc(i,j,k,ay)*ydy // + az*
+    + Bc(i,j,k,axx)*(xdx*xdx - 1.0/12.0)
+    + Bc(i,j,k,ayy)*(ydy*ydy - 1.0/12.0) 
+    + Bc(i,j,k,axy)*xdx*ydy
+    + Bc(i,j,k,axxx)*(xdx*xdx*xdx - 3.0/20.0*xdx)
+    + Bc(i,j,k,axxy)*(xdx*xdx - 1.0/12.0)*ydy
+    + Bc(i,j,k,axyy)*(ydy*ydy - 1.0/12.0)*xdx;
+  EM[BY_LOCAL] = Bc(i,j,k,b0) + Bc(i,j,k,bx)*xdx
+    + Bc(i,j,k,by)*ydy // + bz*
+    + Bc(i,j,k,bxx)*(xdx*xdx - 1.0/12.0)
+    + Bc(i,j,k,byy)*(ydy*ydy - 1.0/12.0)
+    + Bc(i,j,k,bxy)*xdx*ydy
+    + Bc(i,j,k,byyy)*(ydy*ydy*ydy - 3.0/20.0*ydy)
+    + Bc(i,j,k,bxyy)*(ydy*ydy - 1.0/12.0)*xdx
+    + Bc(i,j,k,bxxy)*(xdx*xdx - 1.0/12.0)*ydy;
+  EM[BZ_LOCAL] = Bc(i,j,k,c0) + Bc(i,j,k,cx)*xdx
+    + Bc(i,j,k,cy)*ydy
+    + Bc(i,j,k,cxx)*(xdx*xdx - 1.0/12.0)
+    + Bc(i,j,k,cyy)*(ydy*ydy - 1.0/12.0)
+    + Bc(i,j,k,cxy)*xdx*ydy;
+
+  EM[EX_LOCAL] = Ec(i,j,k,a0) + Ec(i,j,k,ax)*xdx
+    + Ec(i,j,k,ay)*ydy // + az*
+    + Ec(i,j,k,axx)*(xdx*xdx - 1.0/12.0)
+    + Ec(i,j,k,ayy)*(ydy*ydy - 1.0/12.0) 
+    + Ec(i,j,k,axy)*xdx*ydy
+    + Ec(i,j,k,axxx)*(xdx*xdx*xdx - 3.0/20.0*xdx)
+    + Ec(i,j,k,axxy)*(xdx*xdx - 1.0/12.0)*ydy
+    + Ec(i,j,k,axyy)*(ydy*ydy - 1.0/12.0)*xdx;
+  EM[EY_LOCAL] = Ec(i,j,k,b0) + Ec(i,j,k,bx)*xdx
+    + Ec(i,j,k,by)*ydy // + bz*
+    + Ec(i,j,k,bxx)*(xdx*xdx - 1.0/12.0)
+    + Ec(i,j,k,byy)*(ydy*ydy - 1.0/12.0)
+    + Ec(i,j,k,bxy)*xdx*ydy
+    + Ec(i,j,k,byyy)*(ydy*ydy*ydy - 3.0/20.0*ydy)
+    + Ec(i,j,k,bxyy)*(ydy*ydy - 1.0/12.0)*xdx
+    + Ec(i,j,k,bxxy)*(xdx*xdx - 1.0/12.0)*ydy;
+  EM[EZ_LOCAL] = Ec(i,j,k,c0) + Ec(i,j,k,cx)*xdx
+    + Ec(i,j,k,cy)*ydy
+    + Bc(i,j,k,cxx)*(xdx*xdx - 1.0/12.0)
+    + Bc(i,j,k,cyy)*(ydy*ydy - 1.0/12.0)
+    + Bc(i,j,k,cxy)*xdx*ydy;
+
+  return EM;
+  
+}
 Vector<Real> EM_linearFunc(const Array4<Real>& Bc, const Array4<Real>& Ec,  int i, int j, int k, Real x, Real y, Real z, const Real* dx)
 {
   // For second order, there are 27 coeff.
@@ -1834,29 +2053,1060 @@ Vector<Real> EM_linearFunc(const Array4<Real>& Bc, const Array4<Real>& Ec,  int 
   int c0=14,cx=15,cy=16,cz=17,czz=18,cxz=19,cyz=20;
   
   Vector<Real> EM(NUM_STATE_MAXWELL,0.0);
-  
-  EM[BX_LOCAL] = Bc(i,j,k,a0) + Bc(i,j,k,ax)*(x/dx[0])
-    + Bc(i,j,k,ay)*(y/dx[1]) // + az*
-    + Bc(i,j,k,axx)*((x/dx[0])*(x/dx[0]) - 1.0/12.0)
-    + Bc(i,j,k,axy)*(x/dx[0])*(y/dx[1]); // + axz*
-  EM[BY_LOCAL] = Bc(i,j,k,b0) + Bc(i,j,k,bx)*(x/dx[0])
-    + Bc(i,j,k,by)*(y/dx[1]) // + bz*
-    + Bc(i,j,k,byy)*((y/dx[1])*(y/dx[1]) - 1.0/12.0)
-    + Bc(i,j,k,bxy)*(x/dx[0])*(y/dx[1]); // + bxz*
-  EM[BZ_LOCAL] = Bc(i,j,k,c0) + Bc(i,j,k,cx)*(x/dx[0])
-    + Bc(i,j,k,cy)*(y/dx[1]); // + cz* + cxz* + cyz* + czz		  
 
-  EM[EX_LOCAL] = Ec(i,j,k,a0) + Ec(i,j,k,ax)*(x/dx[0])
-    + Ec(i,j,k,ay)*(y/dx[1]) // + az*
-    + Ec(i,j,k,axx)*((x/dx[0])*(x/dx[0]) - 1.0/12.0)
-    + Ec(i,j,k,axy)*(x/dx[0])*(y/dx[1]); // + axz*
-  EM[EY_LOCAL] = Ec(i,j,k,b0) + Ec(i,j,k,bx)*(x/dx[0])
-    + Ec(i,j,k,by)*(y/dx[1]) // + bz*
-    + Ec(i,j,k,byy)*((y/dx[1])*(y/dx[1]) - 1.0/12.0)
-    + Ec(i,j,k,bxy)*(x/dx[0])*(y/dx[1]); // + bxz*
-  EM[EZ_LOCAL] = Ec(i,j,k,c0) + Ec(i,j,k,cx)*(x/dx[0])
-    + Ec(i,j,k,cy)*(y/dx[1]); // + cz* + cxz* + cyz* + czz		  
+  Real xdx = x/dx[0], ydy = y/dx[1];
+  
+  EM[BX_LOCAL] = Bc(i,j,k,a0) + Bc(i,j,k,ax)*xdx
+    + Bc(i,j,k,ay)*ydy // + az*
+    + Bc(i,j,k,axx)*(xdx*xdx - 1.0/12.0)
+    + Bc(i,j,k,axy)*xdx*ydy; // + axz*
+  EM[BY_LOCAL] = Bc(i,j,k,b0) + Bc(i,j,k,bx)*xdx
+    + Bc(i,j,k,by)*ydy // + bz*
+    + Bc(i,j,k,byy)*(ydy*ydy - 1.0/12.0)
+    + Bc(i,j,k,bxy)*xdx*ydy; // + bxz*
+  EM[BZ_LOCAL] = Bc(i,j,k,c0) + Bc(i,j,k,cx)*xdx
+    + Bc(i,j,k,cy)*ydy; // + cz* + cxz* + cyz* + czz		  
+
+  EM[EX_LOCAL] = Ec(i,j,k,a0) + Ec(i,j,k,ax)*xdx
+    + Ec(i,j,k,ay)*ydy // + az*
+    + Ec(i,j,k,axx)*(xdx*xdx - 1.0/12.0)
+    + Ec(i,j,k,axy)*xdx*ydy; // + axz*
+  EM[EY_LOCAL] = Ec(i,j,k,b0) + Ec(i,j,k,bx)*xdx
+    + Ec(i,j,k,by)*ydy // + bz*
+    + Ec(i,j,k,byy)*(ydy*ydy - 1.0/12.0)
+    + Ec(i,j,k,bxy)*xdx*ydy; // + bxz*
+  EM[EZ_LOCAL] = Ec(i,j,k,c0) + Ec(i,j,k,cx)*xdx
+    + Ec(i,j,k,cy)*ydy; // + cz* + cxz* + cyz* + czz		  
 
   return EM;
   
 }
+// Vector<Real> MUSCL_Hancock_WENOHLLC_flux(const Array4<Real>& arr, int i, int j, int k, int iOffset, int jOffset, int kOffset,
+// 					 Real dx, Real dt, int d){
+//   Vector<Real> ui_iMinus3, ue_iMinus3;
+//   Vector<Real> ui_iMinus2, ue_iMinus2;
+//   Vector<Real> ui_iMinus1, ue_iMinus1;
+//   Vector<Real> ui_i, ue_i;
+//   Vector<Real> ui_iPlus1, ue_iPlus1;
+//   Vector<Real> ui_iPlus2, ue_iPlus2;
+
+//   for (int n = 0; n<NUM_STATE_FLUID/2; n++)
+//     {
+//       ui_iMinus3.push_back(arr(i-3*iOffset,j-3*jOffset,k-3*kOffset,n));
+//       ui_iMinus2.push_back(arr(i-2*iOffset,j-2*jOffset,k-2*kOffset,n));
+//       ui_iMinus1.push_back(arr(i-iOffset,j-jOffset,k-kOffset,n));
+//       ui_i.push_back(arr(i,j,k,n));
+//       ui_iPlus1.push_back(arr(i+iOffset,j+jOffset,k+kOffset,n));
+//       ui_iPlus2.push_back(arr(i+2*iOffset,j+2*jOffset,k+2*kOffset,n));
+
+//       ue_iMinus3.push_back(arr(i-3*iOffset,j-3*jOffset,k-3*kOffset,n+NUM_STATE_FLUID/2));
+//       ue_iMinus2.push_back(arr(i-2*iOffset,j-2*jOffset,k-2*kOffset,n+NUM_STATE_FLUID/2));
+//       ue_iMinus1.push_back(arr(i-iOffset,j-jOffset,k-kOffset,n+NUM_STATE_FLUID/2));
+//       ue_i.push_back(arr(i,j,k,n+NUM_STATE_FLUID/2));
+//       ue_iPlus1.push_back(arr(i+iOffset,j+jOffset,k+kOffset,n+NUM_STATE_FLUID/2));
+//       ue_iPlus2.push_back(arr(i+2*iOffset,j+2*jOffset,k+2*kOffset,n+NUM_STATE_FLUID/2));
+//     }
+
+//   Real ux,uxx,L1,L2;
+  
+//   Vector<Real> P1i_Minus1,P2i_Minus1,P3i_Minus1;
+//   Vector<Real> P1i,P2i,P3i;  
+//   Vector<Real> IS1i_Minus1,IS2i_Minus1,IS3i_Minus1;
+//   Vector<Real> IS1i,IS2i,IS3i;
+//   for (int n = 0; n<NUM_STATE_FLUID/2; n++)
+//     {
+//       Real x = 0.5;
+//       L1 = x;
+//       L2 = x*x -1.0/12.0;
+
+//       ux = -2.0*ui_iMinus2[n] + ui_iMinus3[n]/2.0 + 3.0*ui_iMinus1[n]/2.0;      
+//       uxx = (ui_iMinus3[n] - 2.0*ui_iMinus2[n] + ui_iMinus1[n])/2.0;      
+//       P1i_Minus1.push_back(ui_iMinus1[n] + ux*L1 + uxx*L2);
+//       IS1i_Minus1.push_back(ux*ux + 13.0/3.0*uxx*uxx);
+
+//       ux = (ui_i[n]-ui_iMinus2[n])/2.0;
+//       uxx = (ui_iMinus2[n] - 2.0*ui_iMinus1[n] + ui_i[n])/2.0;
+//       P2i_Minus1.push_back(ui_iMinus1[n] + ux*L1 + uxx*L2);
+//       IS2i_Minus1.push_back(ux*ux + 13.0/3.0*uxx*uxx);
+      
+//       ux = -3.0*ui_iMinus1[n]/2.0 + 2.0*ui_i[n] - ui_iPlus1[n]/2.0;
+//       uxx = (ui_iMinus1[n]  - 2.0*ui_i[n] + ui_iPlus1[n])/2.0;
+//       P3i_Minus1.push_back(ui_iMinus1[n] + ux*L1 + uxx*L2);
+//       IS3i_Minus1.push_back(ux*ux + 13.0/3.0*uxx*uxx);
+
+
+//       x = -0.5;
+//       L1 = x;
+//       L2 = x*x -1.0/12.0;
+      
+//       ux = -2.0*ui_iMinus1[n] + ui_iMinus2[n]/2.0 + 3.0*ui_i[n]/2.0;
+//       uxx = (ui_iMinus2[n] - 2.0*ui_iMinus1[n] + ui_i[n])/2.0;
+//       P1i.push_back(ui_i[n] + ux*L1 + uxx*L2);
+//       IS1i.push_back(ux*ux + 13.0/3.0*uxx*uxx);
+      
+//       ux = (ui_iPlus1[n]-ui_iMinus1[n])/2.0;
+//       uxx = (ui_iMinus1[n] - 2.0*ui_i[n] + ui_iPlus1[n])/2.0;
+//       P2i.push_back(ui_i[n] + ux*L1 + uxx*L2);
+//       IS2i.push_back(ux*ux + 13.0/3.0*uxx*uxx);
+
+//       ux = -3.0*ui_i[n]/2.0 + 2.0*ui_iPlus1[n] - ui_iPlus2[n]/2.0;
+//       uxx = (ui_i[n]  - 2.0*ui_iPlus1[n] + ui_iPlus2[n])/2.0;
+//       P3i.push_back(ui_i[n] + ux*L1 + uxx*L2);
+//       IS3i.push_back(ux*ux + 13.0/3.0*uxx*uxx);
+//     }
+  
+//   Vector<Real> P1e_Minus1,P2e_Minus1,P3e_Minus1;
+//   Vector<Real> P1e,P2e,P3e;
+//   Vector<Real> IS1e_Minus1,IS2e_Minus1,IS3e_Minus1;
+//   Vector<Real> IS1e,IS2e,IS3e;
+//   for (int n = 0; n<NUM_STATE_FLUID/2; n++)
+//     {
+//       Real x = 0.5;
+//       L1 = x;
+//       L2 = x*x -1.0/12.0;
+
+//       ux = -2.0*ue_iMinus2[n] + ue_iMinus3[n]/2.0 + 3.0*ue_iMinus1[n]/2.0;      
+//       uxx = (ue_iMinus3[n] - 2.0*ue_iMinus2[n] + ue_iMinus1[n])/2.0;      
+//       P1e_Minus1.push_back(ue_iMinus1[n] + ux*L1 + uxx*L2);
+//       IS1e_Minus1.push_back(ux*ux + 13.0/3.0*uxx*uxx);
+
+//       ux = (ue_i[n]-ue_iMinus2[n])/2.0;
+//       uxx = (ue_iMinus2[n] - 2.0*ue_iMinus1[n] + ue_i[n])/2.0;
+//       P2e_Minus1.push_back(ue_iMinus1[n] + ux*L1 + uxx*L2);
+//       IS2e_Minus1.push_back(ux*ux + 13.0/3.0*uxx*uxx);
+      
+//       ux = -3.0*ue_iMinus1[n]/2.0 + 2.0*ue_i[n] - ue_iPlus1[n]/2.0;
+//       uxx = (ue_iMinus1[n]  - 2.0*ue_i[n] + ue_iPlus1[n])/2.0;
+//       P3e_Minus1.push_back(ue_iMinus1[n] + ux*L1 + uxx*L2);
+//       IS3e_Minus1.push_back(ux*ux + 13.0/3.0*uxx*uxx);
+
+
+//       x = -0.5;
+//       L1 = x;
+//       L2 = x*x -1.0/12.0;
+      
+//       ux = -2.0*ue_iMinus1[n] + ue_iMinus2[n]/2.0 + 3.0*ue_i[n]/2.0;
+//       uxx = (ue_iMinus2[n] - 2.0*ue_iMinus1[n] + ue_i[n])/2.0;
+//       P1e.push_back(ue_i[n] + ux*L1 + uxx*L2);
+//       IS1e.push_back(ux*ux + 13.0/3.0*uxx*uxx);
+      
+//       ux = (ue_iPlus1[n]-ue_iMinus1[n])/2.0;
+//       uxx = (ue_iMinus1[n] - 2.0*ue_i[n] + ue_iPlus1[n])/2.0;
+//       P2e.push_back(ue_i[n] + ux*L1 + uxx*L2);
+//       IS2e.push_back(ux*ux + 13.0/3.0*uxx*uxx);
+
+//       ux = -3.0*ue_i[n]/2.0 + 2.0*ue_iPlus1[n] - ue_iPlus2[n]/2.0;
+//       uxx = (ue_i[n]  - 2.0*ue_iPlus1[n] + ue_iPlus2[n])/2.0;
+//       P3e.push_back(ue_i[n] + ux*L1 + uxx*L2);
+//       IS3e.push_back(ux*ux + 13.0/3.0*uxx*uxx);
+//     }
+
+//   Vector<Real> alpha1i_iMinus1,alpha1i_i,alpha1e_iMinus1,alpha1e_i;
+//   Vector<Real> alpha2i_iMinus1,alpha2i_i,alpha2e_iMinus1,alpha2e_i;
+//   Vector<Real> alpha3i_iMinus1,alpha3i_i,alpha3e_iMinus1,alpha3e_i;
+//   Real e = 1e-6;
+//   for (int n = 0; n<NUM_STATE_FLUID/2; n++)
+//     {
+//       Real d1 = 1.0/102.0, d2 = 100.0/102.0, d3 = 1.0/102.0;
+//       alpha1i_iMinus1.push_back(d1/((e+IS1i_Minus1[n])*(e+IS1i_Minus1[n])));
+//       alpha2i_iMinus1.push_back(d2/((e+IS2i_Minus1[n])*(e+IS2i_Minus1[n])));
+//       alpha3i_iMinus1.push_back(d3/((e+IS3i_Minus1[n])*(e+IS3i_Minus1[n])));
+
+//       alpha1i_i.push_back(d1/((e+IS1i[n])*(e+IS1i[n])));
+//       alpha2i_i.push_back(d2/((e+IS2i[n])*(e+IS2i[n])));
+//       alpha3i_i.push_back(d3/((e+IS3i[n])*(e+IS3i[n])));
+
+//       alpha1e_iMinus1.push_back(d1/((e+IS1e_Minus1[n])*(e+IS1e_Minus1[n])));
+//       alpha2e_iMinus1.push_back(d2/((e+IS2e_Minus1[n])*(e+IS2e_Minus1[n])));
+//       alpha3e_iMinus1.push_back(d3/((e+IS3e_Minus1[n])*(e+IS3e_Minus1[n])));
+
+//       alpha1e_i.push_back(d1/((e+IS1e[n])*(e+IS1e[n])));
+//       alpha2e_i.push_back(d2/((e+IS2e[n])*(e+IS2e[n])));
+//       alpha3e_i.push_back(d3/((e+IS3e[n])*(e+IS3e[n])));
+
+//     }
+
+//   Vector<Real> alphai_iMinus1,alphai_i,alphae_iMinus1,alphae_i;
+//   for (int n = 0; n<NUM_STATE_FLUID/2; n++)
+//     {
+//       alphai_iMinus1.push_back(alpha1i_iMinus1[n] + alpha2i_iMinus1[n] + alpha3i_iMinus1[n]);
+//       alphai_i.push_back(alpha1i_i[n] + alpha2i_i[n] + alpha3i_i[n]);
+//       alphae_iMinus1.push_back(alpha1e_iMinus1[n] + alpha2e_iMinus1[n] + alpha3e_iMinus1[n]);
+//       alphae_i.push_back(alpha1e_i[n] + alpha2e_i[n] + alpha3e_i[n]);
+      
+//     }
+
+//   Vector<Real> omega1i_iMinus1,omega1i_i,omega1e_iMinus1,omega1e_i;
+//   Vector<Real> omega2i_iMinus1,omega2i_i,omega2e_iMinus1,omega2e_i;
+//   Vector<Real> omega3i_iMinus1,omega3i_i,omega3e_iMinus1,omega3e_i;
+//   for (int n = 0; n<NUM_STATE_FLUID/2; n++)
+//     {
+//       omega1i_iMinus1.push_back(alpha1i_iMinus1[n]/alphai_iMinus1[n]);
+//       omega2i_iMinus1.push_back(alpha2i_iMinus1[n]/alphai_iMinus1[n]);
+//       omega3i_iMinus1.push_back(alpha3i_iMinus1[n]/alphai_iMinus1[n]);
+
+//       omega1i_i.push_back(alpha1i_i[n]/alphai_i[n]);
+//       omega2i_i.push_back(alpha2i_i[n]/alphai_i[n]);
+//       omega3i_i.push_back(alpha3i_i[n]/alphai_i[n]);
+
+//       omega1e_iMinus1.push_back(alpha1e_iMinus1[n]/alphae_iMinus1[n]);
+//       omega2e_iMinus1.push_back(alpha2e_iMinus1[n]/alphae_iMinus1[n]);
+//       omega3e_iMinus1.push_back(alpha3e_iMinus1[n]/alphae_iMinus1[n]);
+
+//       omega1e_i.push_back(alpha1e_i[n]/alphae_i[n]);
+//       omega2e_i.push_back(alpha2e_i[n]/alphae_i[n]);
+//       omega3e_i.push_back(alpha3e_i[n]/alphae_i[n]);
+
+//     }
+  
+//   // Cell boundary extrapolated values at the left and the right for the ion
+//   //Vector<Real> slopes_iMinus1_i;// = TVD_slopes(ue_iMinus2, ue_iMinus1, ue_i, limiting_idx);
+//   //Vector<Real> slopes_i_i;// = TVD_slopes(ue_iMinus1, ue_i, ue_iPlus1, limiting_idx);
+//   Vector<Real> u_iMinus1L_i,u_iMinus1R_i,u_iL_i,u_iR_i;
+//   for (int n = 0; n<NUM_STATE_FLUID/2; n++)
+//     {
+//       //u_iMinus1L_i.push_back(ue_iMinus1[n] - 0.5*slopes_iMinus1_i[n]);
+//       //u_iMinus1R_i.push_back(ue_iMinus1[n] + 0.5*slopes_iMinus1_i[n]);
+//       //u_iL_i.push_back(ue_i[n] - 0.5*slopes_i_i[n]);
+//       //u_iR_i.push_back(ue_i[n] + 0.5*slopes_i_i[n]);
+      
+//       u_iMinus1R_i.push_back(omega1i_iMinus1[n]*P1i_Minus1[n] + omega2i_iMinus1[n]*P2i_Minus1[n]
+// 			     + omega3i_iMinus1[n]*P3i_Minus1[n]);
+
+//       u_iL_i.push_back(omega1i_i[n]*P1i[n] + omega2i_i[n]*P2i[n] + omega3i_i[n]*P3i[n]);
+      
+//     }
+
+//   // Cell boundary extrapolated values at the left and the right for the electron
+//   Vector<Real> slopes_iMinus1_e;// = TVD_slopes(ue_iMinus2, ue_iMinus1, ue_i, limiting_idx);
+//   Vector<Real> slopes_i_e;// = TVD_slopes(ue_iMinus1, ue_i, ue_iPlus1, limiting_idx);
+//   Vector<Real> u_iMinus1L_e,u_iMinus1R_e,u_iL_e,u_iR_e;
+//   for (int n = 0; n<NUM_STATE_FLUID/2; n++)
+//     {
+//       //u_iMinus1L_e.push_back(ue_iMinus1[n] - 0.5*slopes_iMinus1_e[n]);
+//       // u_iMinus1R_e.push_back(ue_iMinus1[n] + 0.5*slopes_iMinus1_e[n]);
+//       //u_iL_e.push_back(ue_i[n] - 0.5*slopes_i_e[n]);
+//       //u_iR_e.push_back(ue_i[n] + 0.5*slopes_i_e[n]);
+
+//       u_iMinus1R_e.push_back(omega1e_iMinus1[n]*P1e_Minus1[n] + omega2e_iMinus1[n]*P2e_Minus1[n]
+// 			     + omega3e_iMinus1[n]*P3e_Minus1[n]);
+
+//       u_iL_e.push_back(omega1e_i[n]*P1e[n] + omega2e_i[n]*P2e[n] + omega3e_i[n]*P3e[n]);
+//     }
+//   /*
+//   if (i>253 && i<258){
+//     for (int n = 0; n<NUM_STATE_FLUID/2; n++)
+//       std::cout << i << " " << n << " " << u_iMinus1R_e[n] << " " << u_iL_e[n] << " " << ue_iMinus1[n] << " " << ue_i[n] << std::endl;
+//   }
+//   */
+//   // Reiamnn problem left state for the ion variables 
+//   //Vector<Real> u_iMinus1_nPlusHalf_R_i = half_update_R(u_iMinus1L_i, u_iMinus1R_i, dx, dt, d, &fluidFlux);
+//   Vector<Real> u_iMinus1_nPlusHalf_R_i = u_iMinus1R_i;
+//   // Reiamnn problem right state for the ion variables
+//   //Vector<Real> u_i_nPlusHalf_L_i = half_update_L(u_iL_i, u_iR_i, dx, dt, d, &fluidFlux);
+//   Vector<Real> u_i_nPlusHalf_L_i = u_iL_i;
+  
+//   // Reiamnn problem left state for the electron variables
+//   //Vector<Real> u_iMinus1_nPlusHalf_R_e = half_update_R(u_iMinus1L_e, u_iMinus1R_e, dx, dt, d, &fluidFlux); 
+//   Vector<Real> u_iMinus1_nPlusHalf_R_e = u_iMinus1R_e;
+//   // Reiamnn problem right state for the electron variables
+//   //Vector<Real> u_i_nPlusHalf_L_e = half_update_L(u_iL_e, u_iR_e, dx, dt, d, &fluidFlux);
+//   Vector<Real> u_i_nPlusHalf_L_e = u_iL_e;
+  
+//   // speeds for approximate Riemann problem
+//   Real S_R_i = get_S_K(u_iMinus1_nPlusHalf_R_i, u_i_nPlusHalf_L_i, d);
+//   Real S_L_i = -S_R_i;
+//   Real S_star_i = get_S_star(u_iMinus1_nPlusHalf_R_i, u_i_nPlusHalf_L_i, S_L_i, S_R_i, d);  
+
+//   Real S_R_e = get_S_K(u_iMinus1_nPlusHalf_R_e, u_i_nPlusHalf_L_e, d);
+//   Real S_L_e = -S_R_e;
+//   Real S_star_e = get_S_star(u_iMinus1_nPlusHalf_R_e, u_i_nPlusHalf_L_e, S_L_e, S_R_e, d);
+  
+//   // flux depending on the speeds, defined in slides or Toro's book
+//   Vector<Real> flux(NUM_STATE_FLUID,0.0);
+//   // Ion HLLC
+//   if (S_L_i>=0){
+//     Vector<Real> function = fluidFlux(u_iMinus1_nPlusHalf_R_i, d);
+//     for (int n = 0; n<=ENER_I; n++)
+//       {       
+//         flux[n] = function[n];
+//       }
+//   } else if (S_L_i<=0 && S_star_i>=0){
+//     Vector<Real> u_HLLC_L= get_u_HLLC(u_iMinus1_nPlusHalf_R_i, S_L_i, S_star_i, d);
+//     Vector<Real> function = fluidFlux(u_iMinus1_nPlusHalf_R_i, d);
+//     Vector<Real> diff;
+//     for (int n = 0; n<=ENER_I; n++)
+//       {
+//         diff.push_back(S_L_i*(u_HLLC_L[n]-u_iMinus1_nPlusHalf_R_i[n]));
+// 	flux[n] = function[n]+diff[n];
+//       }
+//   } else if (S_star_i<=0 && S_R_i>=0){
+//     Vector<Real> u_HLLC_R = get_u_HLLC(u_i_nPlusHalf_L_i, S_R_i, S_star_i, d);
+//     Vector<Real> function = fluidFlux(u_i_nPlusHalf_L_i, d);
+//     Vector<Real> diff;
+//     for (int n = 0; n<=ENER_I; n++)
+//       {
+//         diff.push_back(S_R_i*(u_HLLC_R[n]-u_i_nPlusHalf_L_i[n]));
+// 	flux[n] = function[n]+diff[n];
+//       }
+//   } else {    
+//     Vector<Real> function = fluidFlux(u_i_nPlusHalf_L_i, d);
+//     for (int n = 0; n<=ENER_I; n++)
+//       {
+//         flux[n] = function[n];
+//       }
+//   }
+//   // Electron HLLC
+//   if (S_L_e>=0){
+//     Vector<Real> function = fluidFlux(u_iMinus1_nPlusHalf_R_e, d);
+//     for (int n = RHO_E; n<=ENER_E; n++)
+//       {       
+//         flux[n] = function[n-5];
+//       }
+//   } else if (S_L_e<=0 && S_star_e>=0){
+//     Vector<Real> u_HLLC_L= get_u_HLLC(u_iMinus1_nPlusHalf_R_e, S_L_e, S_star_e, d);
+//     Vector<Real> function = fluidFlux(u_iMinus1_nPlusHalf_R_e, d);
+//     Vector<Real> diff;
+//     for (int n = RHO_E; n<=ENER_E; n++)
+//       {
+//         diff.push_back(S_L_e*(u_HLLC_L[n-5]-u_iMinus1_nPlusHalf_R_e[n-5]));
+// 	flux[n] = function[n-5]+diff[n-5];
+//       }
+//   } else if (S_star_e<=0 && S_R_e>=0){
+//     Vector<Real> u_HLLC_R = get_u_HLLC(u_i_nPlusHalf_L_e, S_R_e, S_star_e, d);
+//     Vector<Real> function = fluidFlux(u_i_nPlusHalf_L_e, d);
+//     Vector<Real> diff;
+//     for (int n = RHO_E; n<=ENER_E; n++)
+//       {
+//         diff.push_back(S_R_e*(u_HLLC_R[n-5]-u_i_nPlusHalf_L_e[n-5]));
+// 	flux[n] = function[n-5]+diff[n-5];
+//       }
+//   } else {    
+//     Vector<Real> function = fluidFlux(u_i_nPlusHalf_L_e, d);
+//     for (int n = RHO_E; n<=ENER_E; n++)
+//       {
+//         flux[n] = function[n-5];
+//       }
+//   }
+
+//   return flux;
+// }
+// Vector<Real> MUSCL_Hancock_WENOHLLC_flux(const Array4<Real>& arr, int i, int j, int k, int iOffset, int jOffset, int kOffset, int start,
+// 					 Real dx, Real dt, int d){
+//   Vector<Real> u_iMinus3;
+//   Vector<Real> u_iMinus2;
+//   Vector<Real> u_iMinus1;
+//   Vector<Real> u_i;
+//   Vector<Real> u_iPlus1;
+//   Vector<Real> u_iPlus2;
+
+//   for (int n = 0; n<NUM_STATE_FLUID/2; n++)
+//     {
+//       u_iMinus3.push_back(arr(i-3*iOffset,j-3*jOffset,k-3*kOffset,n+start));
+//       u_iMinus2.push_back(arr(i-2*iOffset,j-2*jOffset,k-2*kOffset,n+start));
+//       u_iMinus1.push_back(arr(i-iOffset,j-jOffset,k-kOffset,n+start));
+//       u_i.push_back(arr(i,j,k,n+start));
+//       u_iPlus1.push_back(arr(i+iOffset,j+jOffset,k+kOffset,n+start));
+//       u_iPlus2.push_back(arr(i+2*iOffset,j+2*jOffset,k+2*kOffset,n+start));
+//     }
+
+//   Real x,ux,uxx,L1,L2;
+  
+//   Vector<Real> P1_iMinus1L,P2_iMinus1L,P3_iMinus1L;
+//   Vector<Real> P1_iMinus1R,P2_iMinus1R,P3_iMinus1R;
+//   Vector<Real> P1_iL,P2_iL,P3_iL;
+//   Vector<Real> P1_iR,P2_iR,P3_iR;  
+//   Vector<Real> IS1_iMinus1,IS2_iMinus1,IS3_iMinus1;
+//   Vector<Real> IS1,IS2,IS3;
+//   for (int n = 0; n<NUM_STATE_FLUID/2; n++)
+//     {
+//       // i-1 cell
+//       // first stencil
+//       ux = -2.0*u_iMinus2[n] + u_iMinus3[n]/2.0 + 3.0*u_iMinus1[n]/2.0;      
+//       uxx = (u_iMinus3[n] - 2.0*u_iMinus2[n] + u_iMinus1[n])/2.0;      
+//       IS1_iMinus1.push_back(ux*ux + 13.0/3.0*uxx*uxx);
+//       // left state
+//       x = -0.5;
+//       L1 = x, L2 = x*x -1.0/12.0;
+//       P1_iMinus1L.push_back(ux*L1 + uxx*L2);
+//       // right state
+//       x = 0.5;
+//       L1 = x, L2 = x*x -1.0/12.0;
+//       P1_iMinus1R.push_back(ux*L1 + uxx*L2);
+      
+//       // second stencil
+//       ux = (u_i[n]-u_iMinus2[n])/2.0;
+//       uxx = (u_iMinus2[n] - 2.0*u_iMinus1[n] + u_i[n])/2.0;
+//       IS2_iMinus1.push_back(ux*ux + 13.0/3.0*uxx*uxx);
+//       // left state
+//       x = -0.5;
+//       L1 = x, L2 = x*x -1.0/12.0;
+//       P2_iMinus1L.push_back(ux*L1 + uxx*L2);
+//       // right state
+//       x = 0.5;
+//       L1 = x, L2 = x*x -1.0/12.0;
+//       P2_iMinus1R.push_back(ux*L1 + uxx*L2);
+      
+//       // third stencil
+//       ux = -3.0*u_iMinus1[n]/2.0 + 2.0*u_i[n] - u_iPlus1[n]/2.0;
+//       uxx = (u_iMinus1[n]  - 2.0*u_i[n] + u_iPlus1[n])/2.0;
+//       IS3_iMinus1.push_back(ux*ux + 13.0/3.0*uxx*uxx);
+//       // left state
+//       x = -0.5;
+//       L1 = x, L2 = x*x -1.0/12.0;
+//       P3_iMinus1L.push_back(ux*L1 + uxx*L2);
+//       // right state
+//       x = 0.5;
+//       L1 = x, L2 = x*x -1.0/12.0;
+//       P3_iMinus1R.push_back(ux*L1 + uxx*L2);
+      
+//       // i cell
+//       // first stencil
+//       ux = -2.0*u_iMinus1[n] + u_iMinus2[n]/2.0 + 3.0*u_i[n]/2.0;
+//       uxx = (u_iMinus2[n] - 2.0*u_iMinus1[n] + u_i[n])/2.0;
+//       IS1.push_back(ux*ux + 13.0/3.0*uxx*uxx);
+//       // left state
+//       x = -0.5;
+//       L1 = x, L2 = x*x -1.0/12.0;
+//       P1_iL.push_back(ux*L1 + uxx*L2);
+//       // right state
+//       x = 0.5;
+//       L1 = x, L2 = x*x -1.0/12.0;
+//       P1_iR.push_back(ux*L1 + uxx*L2);
+
+//       // second stencil
+//       ux = (u_iPlus1[n]-u_iMinus1[n])/2.0;
+//       uxx = (u_iMinus1[n] - 2.0*u_i[n] + u_iPlus1[n])/2.0;
+//       IS2.push_back(ux*ux + 13.0/3.0*uxx*uxx);
+//       // left state
+//       x = -0.5;
+//       L1 = x, L2 = x*x -1.0/12.0;
+//       P2_iL.push_back(ux*L1 + uxx*L2);
+//       // right state
+//       x = 0.5;
+//       L1 = x, L2 = x*x -1.0/12.0;
+//       P2_iR.push_back(ux*L1 + uxx*L2);
+
+//       // third stencil
+//       ux = -3.0*u_i[n]/2.0 + 2.0*u_iPlus1[n] - u_iPlus2[n]/2.0;
+//       uxx = (u_i[n]  - 2.0*u_iPlus1[n] + u_iPlus2[n])/2.0;
+//       IS3.push_back(ux*ux + 13.0/3.0*uxx*uxx);
+//       // left state
+//       x = -0.5;
+//       L1 = x, L2 = x*x -1.0/12.0;     
+//       P3_iL.push_back(ux*L1 + uxx*L2);
+//       // right state
+//       x = 0.5;
+//       L1 = x, L2 = x*x -1.0/12.0;
+//       P3_iR.push_back(ux*L1 + uxx*L2);
+//     }  
+
+//   Vector<Real> alpha1_iMinus1,alpha1_i;
+//   Vector<Real> alpha2_iMinus1,alpha2_i;
+//   Vector<Real> alpha3_iMinus1,alpha3_i;
+//   Real e = 1e-6, dLarge=100.0;
+//   for (int n = 0; n<NUM_STATE_FLUID/2; n++)
+//     {
+//       Real d1 = 1.0/(dLarge+2.0), d2 = dLarge/(dLarge+2.0), d3 = 1.0/(dLarge+2.0);
+//       alpha1_iMinus1.push_back(d1/((e+IS1_iMinus1[n])*(e+IS1_iMinus1[n])));
+//       alpha2_iMinus1.push_back(d2/((e+IS2_iMinus1[n])*(e+IS2_iMinus1[n])));
+//       alpha3_iMinus1.push_back(d3/((e+IS3_iMinus1[n])*(e+IS3_iMinus1[n])));
+
+//       alpha1_i.push_back(d1/((e+IS1[n])*(e+IS1[n])));
+//       alpha2_i.push_back(d2/((e+IS2[n])*(e+IS2[n])));
+//       alpha3_i.push_back(d3/((e+IS3[n])*(e+IS3[n])));
+//     }
+
+//   Vector<Real> alpha_iMinus1,alpha_i;
+//   for (int n = 0; n<NUM_STATE_FLUID/2; n++)
+//     {
+//       alpha_iMinus1.push_back(alpha1_iMinus1[n] + alpha2_iMinus1[n] + alpha3_iMinus1[n]);
+//       alpha_i.push_back(alpha1_i[n] + alpha2_i[n] + alpha3_i[n]);      
+//     }
+
+//   Vector<Real> omega1_iMinus1,omega1_i;
+//   Vector<Real> omega2_iMinus1,omega2_i;
+//   Vector<Real> omega3_iMinus1,omega3_i;
+//   for (int n = 0; n<NUM_STATE_FLUID/2; n++)
+//     {
+//       omega1_iMinus1.push_back(alpha1_iMinus1[n]/alpha_iMinus1[n]);
+//       omega2_iMinus1.push_back(alpha2_iMinus1[n]/alpha_iMinus1[n]);
+//       omega3_iMinus1.push_back(alpha3_iMinus1[n]/alpha_iMinus1[n]);
+
+//       omega1_i.push_back(alpha1_i[n]/alpha_i[n]);
+//       omega2_i.push_back(alpha2_i[n]/alpha_i[n]);
+//       omega3_i.push_back(alpha3_i[n]/alpha_i[n]);
+//     }
+  
+//   // Cell boundary extrapolated values at the left and the right
+//   Vector<Real> u_iMinus1L,u_iMinus1R,u_iL,u_iR;
+//   for (int n = 0; n<NUM_STATE_FLUID/2; n++)
+//     {
+      
+//       u_iMinus1L.push_back(u_iMinus1[n] + omega1_iMinus1[n]*P1_iMinus1L[n]
+// 			   + omega2_iMinus1[n]*P2_iMinus1L[n]
+// 			   + omega3_iMinus1[n]*P3_iMinus1L[n]);
+//       u_iMinus1R.push_back(u_iMinus1[n] + omega1_iMinus1[n]*P1_iMinus1R[n]
+// 			   + omega2_iMinus1[n]*P2_iMinus1R[n]
+// 			   + omega3_iMinus1[n]*P3_iMinus1R[n]);
+
+//       u_iL.push_back(u_i[n] + omega1_i[n]*P1_iL[n] + omega2_i[n]*P2_iL[n] + omega3_i[n]*P3_iL[n]);
+//       u_iR.push_back(u_i[n] + omega1_i[n]*P1_iR[n] + omega2_i[n]*P2_iR[n] + omega3_i[n]*P3_iR[n]);
+      
+//     }
+
+//   // Reiamnn problem left state
+//   Vector<Real> u_iMinus1_nPlusHalf_R = half_update_R(u_iMinus1L, u_iMinus1R, dx, dt, d, &fluidFlux);
+//   // Reiamnn problem right state
+//   Vector<Real> u_i_nPlusHalf_L = half_update_L(u_iL, u_iR, dx, dt, d, &fluidFlux);
+    
+//   // speeds for approximate Riemann problem
+//   Real S_R = get_S_K(u_iMinus1_nPlusHalf_R, u_i_nPlusHalf_L, d);
+//   Real S_L = -S_R;
+//   Real S_star = get_S_star(u_iMinus1_nPlusHalf_R, u_i_nPlusHalf_L, S_L, S_R, d);  
+
+//   // flux depending on the speeds, defined in slides or Toro's book
+//   Vector<Real> flux(NUM_STATE_FLUID/2,0.0);
+//   // HLLC
+//   if (S_L>=0){
+//     Vector<Real> function = fluidFlux(u_iMinus1_nPlusHalf_R, d);
+//     for (int n = 0; n<=ENER_I; n++)
+//       {       
+//         flux[n] = function[n];
+//       }
+//   } else if (S_L<=0 && S_star>=0){
+//     Vector<Real> u_HLLC_L= get_u_HLLC(u_iMinus1_nPlusHalf_R, S_L, S_star, d);
+//     Vector<Real> function = fluidFlux(u_iMinus1_nPlusHalf_R, d);
+//     Vector<Real> diff;
+//     for (int n = 0; n<=ENER_I; n++)
+//       {
+//         diff.push_back(S_L*(u_HLLC_L[n]-u_iMinus1_nPlusHalf_R[n]));
+// 	flux[n] = function[n]+diff[n];
+//       }
+//   } else if (S_star<=0 && S_R>=0){
+//     Vector<Real> u_HLLC_R = get_u_HLLC(u_i_nPlusHalf_L, S_R, S_star, d);
+//     Vector<Real> function = fluidFlux(u_i_nPlusHalf_L, d);
+//     Vector<Real> diff;
+//     for (int n = 0; n<=ENER_I; n++)
+//       {
+//         diff.push_back(S_R*(u_HLLC_R[n]-u_i_nPlusHalf_L[n]));
+// 	flux[n] = function[n]+diff[n];
+//       }
+//   } else {    
+//     Vector<Real> function = fluidFlux(u_i_nPlusHalf_L, d);
+//     for (int n = 0; n<=ENER_I; n++)
+//       {
+//         flux[n] = function[n];
+//       }
+//   }
+
+//   return flux;
+// }
+//template <size_t nSlopes>
+Vector<Real> HLLC(Vector<Real> uL, Vector<Real> uR, int d)
+{
+  // speeds for approximate Riemann problem
+  Real S_R = get_S_K(uL, uR, d);
+  Real S_L = -S_R;
+  Real S_star = get_S_star(uL, uR, S_L, S_R, d);  
+
+  // flux depending on the speeds, defined in slides or Toro's book
+  Vector<Real> flux(uL.size(),0.0);
+  // HLLC
+  if (S_L>=0){
+    Vector<Real> function = fluidFlux(uL, d);
+    for (int n = 0; n<=ENER_I; n++)
+      {       
+        flux[n] = function[n];
+      }
+  } else if (S_L<=0 && S_star>=0){
+    Vector<Real> u_HLLC_L= get_u_HLLC(uL, S_L, S_star, d);
+    Vector<Real> function = fluidFlux(uL, d);
+    Vector<Real> diff;
+    for (int n = 0; n<=ENER_I; n++)
+      {
+        diff.push_back(S_L*(u_HLLC_L[n]-uL[n]));
+	flux[n] = function[n]+diff[n];
+      }
+  } else if (S_star<=0 && S_R>=0){
+    Vector<Real> u_HLLC_R = get_u_HLLC(uR, S_R, S_star, d);
+    Vector<Real> function = fluidFlux(uR, d);
+    Vector<Real> diff;
+    for (int n = 0; n<=ENER_I; n++)
+      {
+        diff.push_back(S_R*(u_HLLC_R[n]-uR[n]));
+	flux[n] = function[n]+diff[n];
+      }
+  } else {    
+    Vector<Real> function = fluidFlux(uR, d);
+    for (int n = 0; n<=ENER_I; n++)
+      {
+        flux[n] = function[n];
+      }
+  }
+
+  return flux;
+}
+Vector<Real> MUSCL_Hancock_WENOHLLC_flux(const Array4<Real>& arr, const Array4<Real>& slopes,
+					 int i, int j, int k, int iOffset, int jOffset, int kOffset,
+					 int start, int len,
+					 Real dx, Real dt, int d,
+					 std::function<Vector<Real> (const Vector<Real>&, int)> flux_function,
+					 std::function<Vector<Real> (Vector<Real>,Vector<Real>,int)> solver){
+//(const Array4<Real>& arr, int i, int j, int k, int iOffset, int jOffset, int kOffset, int start,
+//Real dx, Real dt, int d){
+//Vector<Real> u_iMinus3;
+//  Vector<Real> u_iMinus2;
+  Vector<Real> u_iMinus1;
+  Vector<Real> u_i;
+//Vector<Real> u_iPlus1;
+//Vector<Real> u_iPlus2;
+
+  Vector<Real> ux_iMinus1,uxx_iMinus1,ux_i,uxx_i;
+  
+#if (AMREX_SPACEDIM >= 2)
+  Vector<Real> uy_iMinus1,uyy_iMinus1,uy_i,uyy_i;
+  Vector<Real> uxy_iMinus1,uxy_i;
+#endif
+
+  int xOffset,yOffset;
+  if (d==0)
+    xOffset = 0, yOffset = 2*NUM_STATE_FLUID;
+  else if (d==1)
+    xOffset = 2*NUM_STATE_FLUID, yOffset = 0;
+  
+  for (int n = start; n<start+len; n++)
+    {
+      u_iMinus1.push_back(arr(i-iOffset,j-jOffset,k-kOffset,n));
+      u_i.push_back(arr(i,j,k,n));
+
+      // slopes in x-direction
+      ux_iMinus1.push_back(slopes(i-iOffset,j-jOffset,k-kOffset,n+xOffset));
+      uxx_iMinus1.push_back(slopes(i-iOffset,j-jOffset,k-kOffset,n+xOffset+NUM_STATE_FLUID));
+      ux_i.push_back(slopes(i,j,k,n+xOffset));
+      uxx_i.push_back(slopes(i,j,k,n+xOffset+NUM_STATE_FLUID));
+
+#if (AMREX_SPACEDIM >= 2)
+      uy_iMinus1.push_back(slopes(i-iOffset,j-jOffset,k-kOffset,n+yOffset));
+      uyy_iMinus1.push_back(slopes(i-iOffset,j-jOffset,k-kOffset,n+yOffset+NUM_STATE_FLUID));
+      uy_i.push_back(slopes(i,j,k,n+yOffset));
+      uyy_i.push_back(slopes(i,j,k,n+yOffset+NUM_STATE_FLUID));
+
+      uxy_iMinus1.push_back(slopes(i-iOffset,j-jOffset,k-kOffset,n+4*NUM_STATE_FLUID));
+      uxy_i.push_back(slopes(i,j,k,n+4*NUM_STATE_FLUID));
+#endif      
+    }
+
+  
+  Real x = 0.0, Lx, Lxx;
+  //std::array<Vector<Real>, 2> slopes_iMinus1 = WENO_slopes(u_iMinus3,u_iMinus2,u_iMinus1,u_i,u_iPlus1);
+  //std::array<Vector<Real>, 2> slopes_i = WENO_slopes(u_iMinus2,u_iMinus1,u_i,u_iPlus1,u_iPlus2);
+  // Cell boundary extrapolated values at the left and the right
+  Vector<Real> u_iMinus1L,u_iMinus1R,u_iL,u_iR;
+
+#if (AMREX_SPACEDIM >= 2)
+  Real y = 0.0, Ly, Lyy, Lxy;
+  Vector<Real> u_iMinus1L2,u_iMinus1R2,u_iL2,u_iR2;
+#endif
+  
+  for (int n = 0; n<u_i.size(); n++)
+    {
+      x = -0.5;
+      Lx = x, Lxx = x*x - 1.0/12.0;
+      u_iMinus1L.push_back(u_iMinus1[n] + ux_iMinus1[n]*Lx
+			   + uxx_iMinus1[n]*Lxx);
+      u_iL.push_back(u_i[n] + ux_i[n]*Lx + uxx_i[n]*Lxx);
+
+      x = 0.5;
+      Lx = x, Lxx = x*x - 1.0/12.0;
+      u_iMinus1R.push_back(u_iMinus1[n] + ux_iMinus1[n]*Lx
+			   + uxx_iMinus1[n]*Lxx);
+      u_iR.push_back(u_i[n] + ux_i[n]*Lx + uxx_i[n]*Lxx);
+
+#if (AMREX_SPACEDIM >= 2)
+      y = 1.0/(2.0*std::sqrt(3.0));
+      Ly = y, Lyy = y*y - 1.0/12.0;
+
+      x = -0.5;
+      Lx = x, Lxx = x*x - 1.0/12.0;
+      u_iMinus1L[n] +=  uy_iMinus1[n]*Ly + uyy_iMinus1[n]*Lyy + uxy_iMinus1[n]*Lx*Ly;
+      u_iL[n] +=  uy_i[n]*Ly + uyy_i[n]*Lyy + uxy_i[n]*Lx*Ly;
+
+      x = 0.5;
+      Lx = x, Lxx = x*x - 1.0/12.0;
+      u_iMinus1R[n] +=  uy_iMinus1[n]*Ly + uyy_iMinus1[n]*Lyy + uxy_iMinus1[n]*Lx*Ly;
+      u_iR[n] +=  uy_i[n]*Ly + uyy_i[n]*Lyy + uxy_i[n]*Lx*Ly;
+
+      // second quadrature point
+      y = -1.0/(2.0*std::sqrt(3.0));
+      Ly = y, Lyy = y*y - 1.0/12.0;     
+      x = -0.5;
+      Lx = x, Lxx = x*x - 1.0/12.0;
+      u_iMinus1L2.push_back(u_iMinus1[n] + ux_iMinus1[n]*Lx
+			     + uxx_iMinus1[n]*Lxx
+			     + uy_iMinus1[n]*Ly + uyy_iMinus1[n]*Lyy + uxy_iMinus1[n]*Lx*Ly);
+      u_iL2.push_back(u_i[n] + ux_i[n]*Lx + uxx_i[n]*Lxx
+		      + uy_i[n]*Ly + uyy_i[n]*Lyy + uxy_i[n]*Lx*Ly);
+
+      x = 0.5;
+      Lx = x, Lxx = x*x - 1.0/12.0;
+      u_iMinus1R2.push_back(u_iMinus1[n] + ux_iMinus1[n]*Lx
+			    + uxx_iMinus1[n]*Lxx
+			    + uy_iMinus1[n]*Ly + uyy_iMinus1[n]*Lyy + uxy_iMinus1[n]*Lx*Ly);
+      u_iR2.push_back(u_i[n] + ux_i[n]*Lx + uxx_i[n]*Lxx
+		      + uy_i[n]*Ly + uyy_i[n]*Lyy + uxy_i[n]*Lx*Ly);
+      
+#endif
+    }
+
+  // Reiamnn problem left state
+  Vector<Real> u_iMinus1_nPlusHalf_R = half_update_R(u_iMinus1L, u_iMinus1R, dx, dt, d, flux_function);
+  // Reiamnn problem right state
+  Vector<Real> u_i_nPlusHalf_L = half_update_L(u_iL, u_iR, dx, dt, d, flux_function);
+
+  Vector<Real> flux = solver(u_iMinus1_nPlusHalf_R,u_i_nPlusHalf_L,d);
+
+#if (AMREX_SPACEDIM >= 2)
+  Vector<Real> u_iMinus1_nPlusHalf_R2 = half_update_R(u_iMinus1L2, u_iMinus1R2, dx, dt, d, flux_function);
+  Vector<Real> u_i_nPlusHalf_L2 = half_update_L(u_iL2, u_iR2, dx, dt, d, flux_function);
+
+  Vector<Real> flux2 = solver(u_iMinus1_nPlusHalf_R2,u_i_nPlusHalf_L2,d);
+  for (int n = 0; n<u_i.size(); n++)
+    {
+      flux[n] += flux2[n];
+      flux[n] *= 0.5;
+    }
+#endif  
+  
+  return flux;
+}
+Vector<Real> Godunov(Vector<Real> uL, Vector<Real> uR, int d)
+{
+  Vector<Real> flux(NUM_STATE_MAXWELL,0.0);
+  
+  Real B_y_star = 0.5*(uR[BX_LOCAL+(1+d)%3]+uL[BX_LOCAL+(1+d)%3])
+    +0.5/c*(uR[EX_LOCAL+(2+d)%3]-uL[EX_LOCAL+(2+d)%3]);
+  Real B_z_star = 0.5*(uR[BX_LOCAL+(2+d)%3]+uL[BX_LOCAL+(2+d)%3])
+    -0.5/c*(uR[EX_LOCAL+(1+d)%3]-uL[EX_LOCAL+(1+d)%3]);
+  Real E_y_star = 0.5*(uR[EX_LOCAL+(1+d)%3]+uL[EX_LOCAL+(1+d)%3])
+    -0.5*c*(uR[BX_LOCAL+(2+d)%3]-uL[BX_LOCAL+(2+d)%3]);
+  Real E_z_star = 0.5*(uR[EX_LOCAL+(2+d)%3]+uL[EX_LOCAL+(2+d)%3])
+    +0.5*c*(uR[BX_LOCAL+(1+d)%3]-uL[BX_LOCAL+(1+d)%3]);  
+  
+  // EM HLLC states
+  flux[BX_LOCAL+d] = 0.0;
+  flux[BX_LOCAL+(1+d)%3] = -E_z_star;
+  flux[BX_LOCAL+(2+d)%3] = E_y_star;
+  flux[EX_LOCAL+d] = 0.0;
+  flux[EX_LOCAL+(1+d)%3] = c*c*B_z_star;
+  flux[EX_LOCAL+(2+d)%3] =  -c*c*B_y_star;
+
+  return flux;
+}
+//template <size_t nSlopes>
+Vector<Real> MUSCL_Hancock_WENOGodunov_flux(const Array4<Real>& arr, const Array4<Real>& slopes,
+					    int i, int j, int k, int iOffset, int jOffset, int kOffset,
+					    Real dx, Real dt, int d){
+//(const Array4<Real>& arr, int i, int j, int k, int iOffset, int jOffset, int kOffset,
+//					    Real dx, Real dt, int d){
+  //Vector<Real> u_iMinus3;
+  //Vector<Real> u_iMinus2;
+  Vector<Real> u_iMinus1;
+  Vector<Real> u_i;
+  //Vector<Real> u_iPlus1;
+  //Vector<Real> u_iPlus2;
+
+  Vector<Real> ux_iMinus1,uxx_iMinus1,ux_i,uxx_i;
+  
+  for (int n = NUM_STATE_FLUID; n<NUM_STATE; n++)
+    {
+      //u_iMinus3.push_back(arr(i-3*iOffset,j-3*jOffset,k-3*kOffset,n));
+      //u_iMinus2.push_back(arr(i-2*iOffset,j-2*jOffset,k-2*kOffset,n));
+      u_iMinus1.push_back(arr(i-iOffset,j-jOffset,k-kOffset,n));
+      u_i.push_back(arr(i,j,k,n));
+      //u_iPlus1.push_back(arr(i+iOffset,j+jOffset,k+kOffset,n));
+      //u_iPlus2.push_back(arr(i+2*iOffset,j+2*jOffset,k+2*kOffset,n));
+
+      ux_iMinus1.push_back(slopes(i-iOffset,j-jOffset,k-kOffset,n));
+      uxx_iMinus1.push_back(slopes(i-iOffset,j-jOffset,k-kOffset,n+NUM_STATE));
+      ux_i.push_back(slopes(i,j,k,n));
+      uxx_i.push_back(slopes(i,j,k,n+NUM_STATE));      
+    }
+
+  Real x = 0.0, Lx, Lxx;
+  //std::array<Vector<Real>, 2> slopes_iMinus1 = WENO_slopes(u_iMinus3,u_iMinus2,u_iMinus1,u_i,u_iPlus1);
+  //std::array<Vector<Real>, 2> slopes_i = WENO_slopes(u_iMinus2,u_iMinus1,u_i,u_iPlus1,u_iPlus2);
+  // Cell boundary extrapolated values at the left and the right
+  Vector<Real> u_iMinus1L,u_iMinus1R,u_iL,u_iR;
+  for (int n = 0; n<u_i.size(); n++)
+    {
+      x = -0.5;
+      Lx = x, Lxx = x*x - 1.0/12.0;
+      // u_iMinus1L.push_back(u_iMinus1[n] + slopes_iMinus1[0][n]*Lx
+      // 			   + slopes_iMinus1[1][n]*Lxx);
+      // u_iL.push_back(u_i[n] + slopes_i[0][n]*Lx + slopes_i[1][n]*Lxx);
+
+      // x = 0.5;
+      // Lx = x, Lxx = x*x - 1.0/12.0;
+      // u_iMinus1R.push_back(u_iMinus1[n] + slopes_iMinus1[0][n]*Lx
+      // 			   + slopes_iMinus1[1][n]*Lxx);
+      // u_iR.push_back(u_i[n] + slopes_i[0][n]*Lx + slopes_i[1][n]*Lxx);
+      u_iMinus1L.push_back(u_iMinus1[n] + ux_iMinus1[n]*Lx
+			   + uxx_iMinus1[n]*Lxx);
+      u_iL.push_back(u_i[n] + ux_i[n]*Lx + uxx_i[n]*Lxx);
+
+      x = 0.5;
+      Lx = x, Lxx = x*x - 1.0/12.0;
+      u_iMinus1R.push_back(u_iMinus1[n] + ux_iMinus1[n]*Lx
+			   + uxx_iMinus1[n]*Lxx);
+      u_iR.push_back(u_i[n] + ux_i[n]*Lx + uxx_i[n]*Lxx);      
+      
+    }
+
+  // Reiamnn problem left state
+  Vector<Real> u_iMinus1_nPlusHalf_R = half_update_R(u_iMinus1L, u_iMinus1R, dx, dt, d, &MaxwellFlux);
+  // Reiamnn problem right state
+  Vector<Real> u_i_nPlusHalf_L = half_update_L(u_iL, u_iR, dx, dt, d, &MaxwellFlux);
+    
+  Vector<Real> flux = Godunov(u_iMinus1_nPlusHalf_R, u_i_nPlusHalf_L, d);
+
+  return flux;
+}
+std::array<Vector<Real>, 2> WENO_slopes(const Array4<Real>& arr, int i, int j, int k, int iOffset, int jOffset, int kOffset)
+//(Vector<Real> u_iMinus2, Vector<Real> u_iMinus1,
+//Vector<Real> u_i, Vector<Real> u_iPlus1, Vector<Real> u_iPlus2)
+{
+  
+  Vector<Real> u_iMinus2;
+  Vector<Real> u_iMinus1;
+  Vector<Real> u_i;
+  Vector<Real> u_iPlus1;
+  Vector<Real> u_iPlus2;
+
+  for (int n = 0; n<NUM_STATE_FLUID; n++)
+    {
+      u_iMinus2.push_back(arr(i-2*iOffset,j-2*jOffset,k-2*kOffset,n));
+      u_iMinus1.push_back(arr(i-iOffset,j-jOffset,k-kOffset,n));
+      u_i.push_back(arr(i,j,k,n));
+      u_iPlus1.push_back(arr(i+iOffset,j+jOffset,k+kOffset,n));
+      u_iPlus2.push_back(arr(i+2*iOffset,j+2*jOffset,k+2*kOffset,n));
+    }
+
+  Vector<Real> ux1,uxx1,ux2,uxx2,ux3,uxx3;
+  Vector<Real> IS1,IS2,IS3;
+
+  for (int n = 0; n<u_i.size(); n++)
+    {      
+      // first stencil
+      ux1.push_back(-2.0*u_iMinus1[n] + u_iMinus2[n]/2.0 + 3.0*u_i[n]/2.0);
+      uxx1.push_back((u_iMinus2[n] - 2.0*u_iMinus1[n] + u_i[n])/2.0);
+      IS1.push_back(ux1[n]*ux1[n] + 13.0/3.0*uxx1[n]*uxx1[n]);
+
+      // second stencil
+      ux2.push_back((u_iPlus1[n]-u_iMinus1[n])/2.0);
+      uxx2.push_back((u_iMinus1[n] - 2.0*u_i[n] + u_iPlus1[n])/2.0);
+      IS2.push_back(ux2[n]*ux2[n] + 13.0/3.0*uxx2[n]*uxx2[n]);
+      
+      // third stencil
+      ux3.push_back(-3.0*u_i[n]/2.0 + 2.0*u_iPlus1[n] - u_iPlus2[n]/2.0);
+      uxx3.push_back((u_i[n]  - 2.0*u_iPlus1[n] + u_iPlus2[n])/2.0);
+      IS3.push_back(ux3[n]*ux3[n] + 13.0/3.0*uxx3[n]*uxx3[n]);
+    }  
+
+  Vector<Real> alpha1_i,alpha2_i,alpha3_i;
+  Real e = 1e-6, dLarge=100.0;
+  for (int n = 0; n<u_i.size(); n++)
+    {
+      Real d1 = 1.0/(dLarge+2.0), d2 = dLarge/(dLarge+2.0), d3 = 1.0/(dLarge+2.0);
+
+      alpha1_i.push_back(d1/((e+IS1[n])*(e+IS1[n])));
+      alpha2_i.push_back(d2/((e+IS2[n])*(e+IS2[n])));
+      alpha3_i.push_back(d3/((e+IS3[n])*(e+IS3[n])));
+    }
+
+  Vector<Real> alpha_i;
+  for (int n = 0; n<u_i.size(); n++)
+    {
+      alpha_i.push_back(alpha1_i[n] + alpha2_i[n] + alpha3_i[n]);      
+    }
+
+  Vector<Real> omega1_i,omega2_i,omega3_i;
+  for (int n = 0; n<u_i.size(); n++)
+    {
+      omega1_i.push_back(alpha1_i[n]/alpha_i[n]);
+      omega2_i.push_back(alpha2_i[n]/alpha_i[n]);
+      omega3_i.push_back(alpha3_i[n]/alpha_i[n]);
+    }
+  
+  // Cell boundary extrapolated values at the left and the right
+  Vector<Real> ux,uxx;
+  for (int n = 0; n<u_i.size(); n++)
+    {      
+      ux.push_back(omega1_i[n]*ux1[n] + omega2_i[n]*ux2[n] + omega3_i[n]*ux3[n]);
+      uxx.push_back(omega1_i[n]*uxx1[n] + omega2_i[n]*uxx2[n] + omega3_i[n]*uxx3[n]);     
+    }
+  std::array<Vector<Real>, 2> slopes = {ux, uxx};
+  return slopes;
+}
+//template <size_t nSlopes>
+Vector<Real> WENO_slopesCross(const Array4<Real>& arr, const Array4<Real>& slopes,
+			      int i, int j, int k, int iOffset, int jOffset, int kOffset)
+{
+  Vector<Real> ux;// = slopes[0];
+  Vector<Real> uxx;// = slopes[1];
+  Vector<Real> uy;// = slopes[2];
+  Vector<Real> uyy;// = slopes[3];
+  
+  Vector<Real> u_iMinus1jMinus1;
+  Vector<Real> u_iMinus1jPlus1;
+  Vector<Real> u_ij;
+  Vector<Real> u_iPlus1jMinus1;
+  Vector<Real> u_iPlus1jPlus1;
+
+  for (int n = 0; n<NUM_STATE_FLUID; n++)
+    {
+      u_iMinus1jMinus1.push_back(arr(i-iOffset,j-jOffset,k-kOffset,n));
+      u_iMinus1jPlus1.push_back(arr(i-iOffset,j+jOffset,k-kOffset,n));
+      u_ij.push_back(arr(i,j,k,n));
+      u_iPlus1jMinus1.push_back(arr(i+iOffset,j-jOffset,k+kOffset,n));
+      u_iPlus1jPlus1.push_back(arr(i+iOffset,j+jOffset,k+kOffset,n));
+
+      ux.push_back(slopes(i,j,k,n));
+      uxx.push_back(slopes(i,j,k,n+NUM_STATE_FLUID));
+      uy.push_back(slopes(i,j,k,n+2*NUM_STATE_FLUID));
+      uyy.push_back(slopes(i,j,k,n+3*NUM_STATE_FLUID));
+    }
+
+  Vector<Real> uxy1,uxy2,uxy3,uxy4;
+  Vector<Real> IS1,IS2,IS3,IS4;
+
+  for (int n = 0; n<u_ij.size(); n++)
+    {      
+      // first stencil
+      uxy1.push_back(u_iPlus1jPlus1[n] - u_ij[n] - ux[n] - uy[n] - uxx[n] - uyy[n]);
+      IS1.push_back(4.0*uxx[n]*uxx[n] + 4.0*uyy[n]*uyy[n] + uxy1[n]*uxy1[n]);
+      
+      // second stencil
+      uxy2.push_back(-u_iPlus1jMinus1[n] + u_ij[n] + ux[n] - uy[n] + uxx[n] + uyy[n]);
+      IS2.push_back(4.0*uxx[n]*uxx[n] + 4.0*uyy[n]*uyy[n] + uxy2[n]*uxy2[n]);
+      
+      // third stencil
+      uxy3.push_back(-u_iMinus1jMinus1[n] + u_ij[n] - ux[n] + uy[n] + uxx[n] + uyy[n]);
+      IS3.push_back(4.0*uxx[n]*uxx[n] + 4.0*uyy[n]*uyy[n] + uxy3[n]*uxy3[n]);
+
+      // fourth stencil
+      uxy4.push_back(u_iMinus1jMinus1[n] - u_ij[n] + ux[n] + uy[n] - uxx[n] - uyy[n]);
+      IS4.push_back(4.0*uxx[n]*uxx[n] + 4.0*uyy[n]*uyy[n] + uxy4[n]*uxy4[n]);
+    }  
+
+  Vector<Real> alpha1_i,alpha2_i,alpha3_i,alpha4_i;
+  Real e = 1e-6;
+  for (int n = 0; n<u_ij.size(); n++)
+    {
+      Real d = 0.25;
+
+      alpha1_i.push_back(d/((e+IS1[n])*(e+IS1[n])));
+      alpha2_i.push_back(d/((e+IS2[n])*(e+IS2[n])));
+      alpha3_i.push_back(d/((e+IS3[n])*(e+IS3[n])));
+      alpha4_i.push_back(d/((e+IS4[n])*(e+IS4[n])));
+    }
+
+  Vector<Real> alpha_i;
+  for (int n = 0; n<u_ij.size(); n++)
+    {
+      alpha_i.push_back(alpha1_i[n] + alpha2_i[n] + alpha3_i[n] + alpha4_i[n]);      
+    }
+
+  Vector<Real> omega1_i,omega2_i,omega3_i,omega4_i;
+  for (int n = 0; n<u_ij.size(); n++)
+    {
+      omega1_i.push_back(alpha1_i[n]/alpha_i[n]);
+      omega2_i.push_back(alpha2_i[n]/alpha_i[n]);
+      omega3_i.push_back(alpha3_i[n]/alpha_i[n]);
+      omega4_i.push_back(alpha4_i[n]/alpha_i[n]);
+    }
+  
+  // Cell boundary extrapolated values at the left and the right
+  Vector<Real> uxy;
+  for (int n = 0; n<u_ij.size(); n++)
+    {      
+      uxy.push_back(omega1_i[n]*uxy1[n] + omega2_i[n]*uxy2[n] + omega3_i[n]*uxy3[n] + omega4_i[n]*uxy4[n]);
+    }
+
+  return uxy;
+} 
+std::array<Real, 2> WENO_slope(Real u_iMinus2, Real u_iMinus1, Real u_i,
+				Real u_iPlus1, Real u_iPlus2)
+{
+  Real ux1 = -2.0*u_iMinus1 + u_iMinus2/2.0 + 3.0*u_i/2.0;
+  Real uxx1 = (u_iMinus2 - 2.0*u_iMinus1 + u_i)/2.0;
+  Real ux2 = (u_iPlus1-u_iMinus1)/2.0;
+  Real uxx2 = (u_iMinus1 - 2.0*u_i + u_iPlus1)/2.0;
+  Real ux3 = -3.0*u_i/2.0 + 2.0*u_iPlus1 - u_iPlus2/2.0;
+  Real uxx3 = (u_i  - 2.0*u_iPlus1 + u_iPlus2)/2.0;
+  Real IS1 = ux1*ux1 + 13.0/3.0*uxx1*uxx1;
+  Real IS2 = ux2*ux2 + 13.0/3.0*uxx2*uxx2;
+  Real IS3 = ux3*ux3 + 13.0/3.0*uxx3*uxx3;
+
+  Real e = 1e-6, dLarge=100.0;
+  Real d1 = 1.0/(dLarge+2.0), d2 = dLarge/(dLarge+2.0), d3 = 1.0/(dLarge+2.0);
+  Real alpha1_i = d1/((e+IS1)*(e+IS1));
+  Real alpha2_i = d2/((e+IS2)*(e+IS2));
+  Real alpha3_i = d3/((e+IS3)*(e+IS3));
+
+  Real alpha_i = alpha1_i + alpha2_i + alpha3_i;
+
+  Real omega1_i = alpha1_i/alpha_i;
+  Real omega2_i = alpha2_i/alpha_i;
+  Real omega3_i = alpha3_i/alpha_i;
+  
+  // Cell boundary extrapolated values at the left and the right
+  Real ux = omega1_i*ux1 + omega2_i*ux2 + omega3_i*ux3;
+  Real uxx = omega1_i*uxx1 + omega2_i*uxx2 + omega3_i*uxx3;
+
+  std::array<Real, 2> slopes = {ux, uxx};
+
+  return slopes;
+}
+Real WENO_slopeCross(std::array<Real, 5> arr, std::array<Real, 4> slopes)
+{
+  Real ux = slopes[0];
+  Real uxx = slopes[1];
+  Real uy = slopes[2];
+  Real uyy = slopes[3];
+  
+  Real u_iMinus1jMinus1 = arr[0];
+  Real u_iMinus1jPlus1 = arr[1];
+  Real u_ij = arr[2];
+  Real u_iPlus1jMinus1 = arr[3];
+  Real u_iPlus1jPlus1 = arr[4];
+
+  Real uxy1 = u_iPlus1jPlus1 - u_ij - ux - uy - uxx - uyy;
+  Real uxy2 = -u_iPlus1jMinus1 + u_ij + ux - uy + uxx + uyy;
+  Real uxy3 = -u_iMinus1jMinus1 + u_ij - ux + uy + uxx + uyy;
+  Real uxy4 = u_iMinus1jMinus1 - u_ij + ux + uy - uxx - uyy;
+  Real IS1 = 4.0*uxx*uxx + 4.0*uyy*uyy + uxy1*uxy1;
+  Real IS2 = 4.0*uxx*uxx + 4.0*uyy*uyy + uxy2*uxy2;
+  Real IS3 = 4.0*uxx*uxx + 4.0*uyy*uyy + uxy3*uxy3;
+  Real IS4 = 4.0*uxx*uxx + 4.0*uyy*uyy + uxy4*uxy4;
+
+
+  Real d = 0.25;
+  Real e = 1e-6;
+  Real alpha1_i = d/((e+IS1)*(e+IS1));
+  Real alpha2_i = d/((e+IS2)*(e+IS2));
+  Real alpha3_i = d/((e+IS3)*(e+IS3));
+  Real alpha4_i = d/((e+IS4)*(e+IS4));
+
+  Real alpha_i = alpha1_i + alpha2_i + alpha3_i + alpha4_i;
+
+  Real omega1_i = alpha1_i/alpha_i;
+  Real omega2_i = alpha2_i/alpha_i;
+  Real omega3_i = alpha3_i/alpha_i;
+  Real omega4_i = alpha4_i/alpha_i;
+  
+  // Cell boundary extrapolated values at the left and the right
+  Real uxy = omega1_i*uxy1 + omega2_i*uxy2 + omega3_i*uxy3 + omega4_i*uxy4;
+
+  return uxy;
+} 

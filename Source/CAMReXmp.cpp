@@ -16,7 +16,7 @@ Real     CAMReXmp::cfl             = 0.9; // Default value - can be overwritten 
 int      CAMReXmp::do_reflux       = 1;  
 
 int      CAMReXmp::NUM_STATE       = 16;  // Number of variables in the state
-int      CAMReXmp::NUM_GROW        = 2;  // number of ghost cells
+int      CAMReXmp::NUM_GROW        = 3;  // number of ghost cells
 
 int CAMReXmp::NUM_STATE_FLUID = 10;
 int CAMReXmp::NUM_STATE_MAXWELL = CAMReXmp::NUM_STATE - NUM_STATE_FLUID;
@@ -597,9 +597,6 @@ CAMReXmp::advance (Real time,
   // Define the appropriate size for the flux MultiFab.
   // Fluxes are defined at cell faces - this is taken care of by the
   // surroundingNodes(j) command, ensuring the size of the flux
-  // storage is increased by 1 cell in the direction of the flux.
-  // This is only needed if refluxing is happening, otherwise fluxes
-  // don't need to be stored, just used
   for (int j = 0; j < amrex::SpaceDim; j++)
   {
     BoxArray ba = S_new.boxArray();
@@ -635,8 +632,6 @@ CAMReXmp::advance (Real time,
 
   S_EM[0].define(convert(grids,IntVect{AMREX_D_DECL(1,0,0)}), dmap, 6, NUM_GROW);
   S_EM[1].define(convert(grids,IntVect{AMREX_D_DECL(0,1,0)}), dmap, 6, NUM_GROW);
-  //MultiFab S_EM_X(convert(grids,IntVect{AMREX_D_DECL(1,0,0)}), dmap, 6, 0);
-  //MultiFab S_EM_Y(convert(grids,IntVect{AMREX_D_DECL(0,1,0)}), dmap, 6, 0);
   FillPatch(*this, S_EM[0], NUM_GROW, time, EM_X_Type, 0, 6);
   FillPatch(*this, S_EM[1], NUM_GROW, time, EM_Y_Type, 0, 6);
   
@@ -644,7 +639,6 @@ CAMReXmp::advance (Real time,
   S_EM[1].FillBoundary(geom.periodicity());
 
   //std::cout << Sborder.ixType().cellCentered() << " " << S_EM[0].ixType().cellCentered() << " " << S_EM[1].ixType().cellCentered() << std::endl;
-  //std::cout << Sborder.ixType() << " " << S_EM[0].ixType() << " " << S_EM[1].ixType() << " " << fluxes[0].ixType() << " " << fluxes[1].ixType() << " " << fluxesEM.ixType() <<std::endl;
   
   // added by 2020D 
   // Fill non-periodic physical boundaries 
@@ -656,8 +650,6 @@ CAMReXmp::advance (Real time,
   //FillPatch(*this, SY, NUM_GROW, time, 3, 0, 2);
   //SY.FillBoundary(geom.periodicity());
   //FillDomainBoundary(SY, geom, bc3);
-
-  //amrex::Print() << SY.ixType() << std::endl;
   
   
   //FillPatcherFill(S_EM[1], 0, 6, NUM_GROW, time, EM_Y_Type, 0);
@@ -672,62 +664,62 @@ CAMReXmp::advance (Real time,
   FillDomainBoundary(S0, geom, bc);
 
 
-  //(this->*advanceWithChosenUpdateOrder)(Sborder,fluxes,dx,dt);
+  //Array<MultiFab,2> Slopes;
+  //for (int n = 0; n<nSlopes; n++)
+  //Slopes[n].define(grids, dmap, NUM_STATE, NUM_GROW);
+  MultiFab Slopes(grids, dmap, NUM_STATE_FLUID*nSlopes, NUM_GROW);
   
-  // // Compute transverse face-centred EM values from cell-centred  
-  // for (int d = 0; d < amrex::SpaceDim ; d++)   
-  // {
+  //(this->*advanceWithChosenUpdateOrder)(Sborder,fluxes,dx,dt);   
 
-  //   const int iOffset = ( d == 0 ? 1 : 0);
-  //   const int jOffset = ( d == 1 ? 1 : 0);
-  //   const int kOffset = ( d == 2 ? 1 : 0);
+  const int iOffset = 1;
+  const int jOffset = ( amrex::SpaceDim > 1 ? 1 : 0);
+  const int kOffset = ( amrex::SpaceDim == 3 ? 1 : 0);
 
-  //   // Loop over all the patches at this level
-  //   for (MFIter mfi(S_EM[d], TilingIfNotGPU()); mfi.isValid(); ++mfi)
-  //   {
-  //     const Box& bx = mfi.tilebox();
+  // Compute slopes for WENO reconstruction
+  for (MFIter mfi(Slopes, true); mfi.isValid(); ++mfi)
+    {
+      const Box& bx = mfi.tilebox();
 
-  //     const Dim3 lo = lbound(bx);
-  //     const Dim3 hi = ubound(bx);
+      const Dim3 lo = lbound(bx);
+      const Dim3 hi = ubound(bx);
+      
+      // Indexable arrays for the data, and the directional flux
+      // Based on the vertex-centred definition of the flux array, the
+      // data array runs from e.g. [0,N] and the flux array from [0,N+1]
+      const auto& arr = Sborder.array(mfi);
+      const auto& slopes = Slopes.array(mfi);
 
-  //     // Indexable arrays for the data, and the directional flux
-  //     // Based on the vertex-centred definition of the flux array, the
-  //     // data array runs from e.g. [0,N] and the flux array from [0,N+1]
-  //     const auto& arr = Sborder.array(mfi);
-  //     const auto& arrEM = S_EM[d].array(mfi);
-
-  //     for(int k = lo.z; k <= hi.z; k++)
-  //     {
-  // 	for(int j = lo.y; j <= hi.y; j++)
-  // 	{
-  // 	  for(int i = lo.x; i <= hi.x; i++)
-  // 	  {
-	    
-  // 	    // Calculate transverse facial components from cell-centred components
-  // 	    // transverse values, e.g. By, Bz, Ey and Ez for the x-face
-  // 	    Vector<Real> transverseEM = Maxwell_transverse_comp(arr, i, j, k, iOffset, jOffset, kOffset);	    
-  // 	    arrEM(i,j,k,BX_LOCAL+(1+d)%3) = transverseEM[BX_LOCAL+(1+d)%3];
-  // 	    arrEM(i,j,k,BX_LOCAL+(2+d)%3) = transverseEM[BX_LOCAL+(2+d)%3];
-  // 	    arrEM(i,j,k,EX_LOCAL+(1+d)%3) = transverseEM[EX_LOCAL+(1+d)%3];
-  // 	    arrEM(i,j,k,EX_LOCAL+(2+d)%3) = transverseEM[EX_LOCAL+(2+d)%3];	   
-	    	    
-  // 	  }
-  // 	}
-  //     }      
-  //   }
-  //   // We need to compute boundary conditions again after each update
-  //   S_EM[0].FillBoundary(geom.periodicity());
-  //   S_EM[1].FillBoundary(geom.periodicity());
-     
-  //   // added by 2020D 
-  //   // Fill non-periodic physical boundaries                          
-  //   FillDomainBoundary(S_EM[0], geom, bc_EM);    
-  //   FillDomainBoundary(S_EM[1], geom, bc_EM);  
-    
-  // }
+      for(int k = lo.z-kOffset; k <= hi.z+kOffset; k++)
+	{
+	  for(int j = lo.y-jOffset; j <= hi.y+jOffset; j++)
+	    {
+	      for(int i = lo.x-iOffset; i <= hi.x+iOffset; i++)
+		{		  
+		  std::array<Vector<Real>, 2> slopesX = WENO_slopes(arr, i, j, k, 1, 0, 0);
+		  for (int n = 0; n<NUM_STATE_FLUID; n++)
+		    {
+		      slopes(i,j,k,n) = slopesX[0][n];		      
+		      slopes(i,j,k,n+NUM_STATE_FLUID) = slopesX[1][n];
+		    }
+#if (AMREX_SPACEDIM >= 2)
+		  std::array<Vector<Real>, 2> slopesY = WENO_slopes(arr, i, j, k, 0, 1, 0); 
+		  for (int n = 0; n<NUM_STATE_FLUID; n++)
+		    {
+		      slopes(i,j,k,n+2*NUM_STATE_FLUID) = slopesY[0][n];
+		      slopes(i,j,k,n+3*NUM_STATE_FLUID) = slopesY[1][n];
+		    }
+		  Vector<Real> slopesCross = WENO_slopesCross(arr, slopes, i, j, k, 1, 1, 0);
+		  for (int n = 0; n<NUM_STATE_FLUID; n++)
+		    {
+		      slopes(i,j,k,n+4*NUM_STATE_FLUID) = slopesCross[n]; 
+		    }
+#endif
+		  
+		}
+	    }
+	}
+    }
   
-  
-
   // Update cell-centred fluid variables and z-components of EM fields
   for (int d = 0; d < amrex::SpaceDim ; d++)   
   {
@@ -750,6 +742,19 @@ CAMReXmp::advance (Real time,
       const auto& arr = Sborder.array(mfi);
       const auto& fluxArr = fluxes[d].array(mfi);
       const auto& arrEM = S_EM[d].array(mfi);      
+
+
+      const auto& slopes = Slopes.array(mfi);
+      //const auto& slopesxx = Slopes[1].array(mfi);
+#if (AMREX_SPACEDIM == 1)      
+      //const std::array<Array4<Real>, nSlopes> slopes = {slopesx,slopesxx};
+#endif
+#if (AMREX_SPACEDIM == 2)
+      //const auto& slopesy = Slopes[2].array(mfi);
+      //const auto& slopesyy = Slopes[3].array(mfi);
+      //const auto& slopesxy = Slopes[4].array(mfi);
+      //const std::array<Array4<Real>, nSlopes> slopes = {slopesx,slopesxx,slopesy,slopesyy,slopesxy};
+#endif
       
       for(int k = lo.z; k <= hi.z+kOffset; k++)
       {
@@ -757,18 +762,30 @@ CAMReXmp::advance (Real time,
 	{
 	  for(int i = lo.x; i <= hi.x+iOffset; i++)
 	  {
-	    Vector<Real> flux = MUSCL_Hancock_HLLC_flux(arr, i, j, k, iOffset, jOffset, kOffset, dx[d], dt, d);
+	    Vector<Real> flux_i = MUSCL_Hancock_WENOHLLC_flux(arr, slopes, i, j, k, iOffset, jOffset, kOffset,
+							      0, NUM_STATE_FLUID/2, dx[d], dt, d,
+							      fluidFlux, HLLC);
+	    Vector<Real> flux_e = MUSCL_Hancock_WENOHLLC_flux(arr, slopes, i, j, k, iOffset, jOffset, kOffset,
+							      NUM_STATE_FLUID/2, NUM_STATE_FLUID/2, dx[d], dt, d,
+							      fluidFlux, HLLC);	    
 	    //Vector<Real> flux = fluid_flux_HLLC(arr, i, j, k, iOffset, jOffset, kOffset, dx[d], dt, d);
 
-	    for(int n=0; n<NUM_STATE_FLUID; n++)
+	    for(int n=0; n<NUM_STATE_FLUID/2; n++)
 	      {		
-		fluxArr(i,j,k,n) = flux[n];		
+		fluxArr(i,j,k,n) = flux_i[n];
+		fluxArr(i,j,k,n+NUM_STATE_FLUID/2) = flux_e[n];
 	      }
-	    /*
+	    
 	    // Fluxes for the z-components of the EM fields because it is 2D code
-	    Vector<Real> fluxEM = Maxwell_flux_Godunov(arr, i, j, k, iOffset, jOffset, kOffset, dx[d], dt, d);
-	    fluxArr(i,j,k,BZ) = fluxEM[BZ_LOCAL];
-	    fluxArr(i,j,k,EZ) = fluxEM[EZ_LOCAL];
+	    //Vector<Real> fluxEM = Maxwell_flux_Godunov(arr, i, j, k, iOffset, jOffset, kOffset, dx[d], dt, d);
+	    //Vector<Real> fluxEM = MUSCL_Hancock_WENOGodunov_flux(arr, slopes, i, j, k, iOffset, jOffset, kOffset, dx[d], dt, d);
+	    /*Vector<Real> fluxEM = MUSCL_Hancock_WENOHLLC_flux(arr, slopes, i, j, k, iOffset, jOffset, kOffset,
+	    						      NUM_STATE_FLUID, NUM_STATE_MAXWELL, dx[d], dt, d,
+							      MaxwellFlux, Godunov);
+	    for(int n=NUM_STATE_FLUID; n<NUM_STATE; n++)
+	      {		
+		fluxArr(i,j,k,n) = fluxEM[n-NUM_STATE_FLUID];		
+	      }
 	    */
 	    /*
 	    // Calculate transverse facial components from cell-centred components
@@ -795,26 +812,27 @@ CAMReXmp::advance (Real time,
       
       for(int k = lo.z; k <= hi.z; k++)
       {
-	for(int j = lo.y; j <= hi.y; j++)
-	{
-	  for(int i = lo.x; i <= hi.x; i++)
-	  {
-	    // Update fluid variables
-	    for(int n=0; n<NUM_STATE_FLUID; n++)
+      	for(int j = lo.y; j <= hi.y; j++)
+      	{
+      	  for(int i = lo.x; i <= hi.x; i++)
+      	  {
+      	    // Update fluid variables
+      	    //for(int n=0; n<NUM_STATE; n++)
+      	    for(int n=0; n<NUM_STATE_FLUID; n++)
               {
-		// Conservative update formula
-		arr(i,j,k,n) = arr(i,j,k,n) - (dt / dx[d]) * (fluxArr(i+iOffset, j+jOffset, k+kOffset, n) - fluxArr(i,j,k,n));
+      		// Conservative update formula
+      		arr(i,j,k,n) = arr(i,j,k,n) - (dt / dx[d]) * (fluxArr(i+iOffset, j+jOffset, k+kOffset, n) - fluxArr(i,j,k,n));
               }
-	    /*
-	    // Update cell-centred z-components becuause it is 2D code
-	    arr(i,j,k,BZ) = arr(i,j,k,BZ) - (dt / dx[d]) * (fluxArr(i+iOffset, j+jOffset, k+kOffset, BZ) - fluxArr(i,j,k,BZ));
-	    arr(i,j,k,EZ) = arr(i,j,k,EZ) - (dt / dx[d]) * (fluxArr(i+iOffset, j+jOffset, k+kOffset, EZ) - fluxArr(i,j,k,EZ));
-	    */
-	    // Initialise to zero
-	    arr(i,j,k,DIVB) = 0.0;
-	    arr(i,j,k,DIVE) = 1.0/(lambda_d*lambda_d*l_r)*(r_i*arr(i,j,k,RHO_I) + r_e*arr(i,j,k,RHO_E));
-	  }
-	}
+      	    /*
+      	    // Update cell-centred z-components becuause it is 2D code
+      	    arr(i,j,k,BZ) = arr(i,j,k,BZ) - (dt / dx[d]) * (fluxArr(i+iOffset, j+jOffset, k+kOffset, BZ) - fluxArr(i,j,k,BZ));
+      	    arr(i,j,k,EZ) = arr(i,j,k,EZ) - (dt / dx[d]) * (fluxArr(i+iOffset, j+jOffset, k+kOffset, EZ) - fluxArr(i,j,k,EZ));
+      	    */
+      	    // Initialise to zero
+      	    arr(i,j,k,DIVB) = 0.0;
+      	    arr(i,j,k,DIVE) = 1.0/(lambda_d*lambda_d*l_r)*(r_i*arr(i,j,k,RHO_I) + r_e*arr(i,j,k,RHO_E));
+      	  }
+      	}
       }
     }
       
@@ -850,9 +868,9 @@ CAMReXmp::advance (Real time,
       fluxes[d].mult(scaleFactor, 0, NUM_STATE);
       }*/
   }
-
-  // Unsplit hyperbolic update
+  
   /*
+  // Unsplit hyperbolic update  
   for (int d = 0; d < amrex::SpaceDim ; d++)   
   {
 
@@ -895,8 +913,8 @@ CAMReXmp::advance (Real time,
 		arr(i,j,k,n) = arr(i,j,k,n) - (dt / dx[d]) * (fluxArr(i+iOffset, j+jOffset, k+kOffset, n) - fluxArr(i,j,k,n));
               }
 	    // Update cell-centred z-components becuause it is 2D code
-	    arr(i,j,k,BZ) = arr(i,j,k,BZ) - (dt / dx[d]) * (fluxArr(i+iOffset, j+jOffset, k+kOffset, BZ) - fluxArr(i,j,k,BZ));
-	    arr(i,j,k,EZ) = arr(i,j,k,EZ) - (dt / dx[d]) * (fluxArr(i+iOffset, j+jOffset, k+kOffset, EZ) - fluxArr(i,j,k,EZ));
+	    //arr(i,j,k,BZ) = arr(i,j,k,BZ) - (dt / dx[d]) * (fluxArr(i+iOffset, j+jOffset, k+kOffset, BZ) - fluxArr(i,j,k,BZ));
+	    //arr(i,j,k,EZ) = arr(i,j,k,EZ) - (dt / dx[d]) * (fluxArr(i+iOffset, j+jOffset, k+kOffset, EZ) - fluxArr(i,j,k,EZ));
 	    
 	    // Initialise to zero
 	    arr(i,j,k,DIVB) = 0.0;
@@ -913,7 +931,7 @@ CAMReXmp::advance (Real time,
     // Fill non-periodic physical boundaries                      
     FillDomainBoundary(Sborder, geom, bc);
   }  
-  */
+  */  
 
 
   // At this point the current at the faces are updated in fluxes
@@ -941,7 +959,7 @@ CAMReXmp::advance (Real time,
   hyperbolicMaxwellSolverDivFreeIneff(S_EM,fluxesEM,Sborder,fluxes,S0,fluxes0,dx,dt);
   */
 
-  // Compute cell-centred EM fields from face-centred
+  // // Compute cell-centred EM fields from face-centred
   // for (MFIter mfi(Sborder, true); mfi.isValid(); ++mfi)
   //   {
   //     const Box& bx = mfi.tilebox();
@@ -1001,7 +1019,7 @@ CAMReXmp::advance (Real time,
   // divergence free update and reconstruction including the source terms for the electric field
   // also includes computation of cell-centred EM fields from face-centred by using coeff. that give higher order
   //hyperbolicMaxwellSolverDivFreeBalsara(S_EM,fluxesEM,Sborder,fluxes,S0,dx,dt);
-  MaxwellSolverDivFree(S_EM,fluxesEM,Sborder,fluxes,S0,dx,dt);
+  MaxwellSolverDivFreeWENO(S_EM,fluxesEM,Sborder,fluxes,S0,dx,dt);
 
   // Source term update
   // Loop over all the patches at this level         

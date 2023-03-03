@@ -260,8 +260,8 @@ CAMReXmp::initData ()
 	    } else{
 	      rho = rho_R, v_x = v_x_R, v_y = v_y_R, v_z = v_z_R, p = p_R, B_x = B_x_R, B_y = B_y_R, B_z = B_z_R;
 	    }
-	    
-	    /*if (y<=(geom.ProbLo()[1]+geom.ProbHi()[1])/2.0){
+	    /*
+	    if (y<=(geom.ProbLo()[1]+geom.ProbHi()[1])/2.0){
               rho = rho_L, v_x = v_y_L, v_y = v_x_L, v_z = v_z_L, p = p_L, B_x = B_y_L, B_y = B_x_L, B_z = B_z_L;                           
             } else{                                                                                                       
               rho = rho_R, v_x = v_y_R, v_y = v_x_R, v_z = v_z_R, p = p_R, B_x = B_y_R, B_y = B_x_R, B_z = B_z_R;   
@@ -286,11 +286,15 @@ CAMReXmp::initData ()
 	    Vector<Real> w_e{arr(i,j,k,RHO_E), v_x, v_y, v_z, p};
 	    arr(i,j,k,ENER_E) = get_energy(w_e);
 
-	    arr(i,j,k,BX) = 0.5*(arrEMX(i,j,k,BX_LOCAL)+arrEMX(i+1,j,k,BX_LOCAL));
-	    arr(i,j,k,BY) = 0.5*(arrEMY(i,j,k,BY_LOCAL)+arrEMY(i,j+1,k,BY_LOCAL));
+	    //arr(i,j,k,BX) = 0.5*(arrEMX(i,j,k,BX_LOCAL)+arrEMX(i+1,j,k,BX_LOCAL));
+	    //arr(i,j,k,BY) = 0.5*(arrEMY(i,j,k,BY_LOCAL)+arrEMY(i,j+1,k,BY_LOCAL));
+	    arr(i,j,k,BX) = B_x;
+	    arr(i,j,k,BY) = B_y;
 	    arr(i,j,k,BZ) = B_z;
-	    arr(i,j,k,EX) = 0.5*(arrEMX(i,j,k,EX_LOCAL)+arrEMX(i+1,j,k,EX_LOCAL));
-	    arr(i,j,k,EY) = 0.5*(arrEMY(i,j,k,EY_LOCAL)+arrEMY(i,j+1,k,EY_LOCAL));
+	    //arr(i,j,k,EX) = 0.5*(arrEMX(i,j,k,EX_LOCAL)+arrEMX(i+1,j,k,EX_LOCAL));
+	    //arr(i,j,k,EY) = 0.5*(arrEMY(i,j,k,EY_LOCAL)+arrEMY(i,j+1,k,EY_LOCAL));
+	    arr(i,j,k,EX) = 0.0;
+	    arr(i,j,k,EY) = 0.0;	    
 	    arr(i,j,k,EZ) = 0.0;	   
 	    arr(i,j,k,DIVB) = 0.0;
 	    arr(i,j,k,DIVE) = 0.0;	    
