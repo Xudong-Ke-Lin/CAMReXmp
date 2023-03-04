@@ -4241,44 +4241,27 @@ void CAMReXmp::MaxwellSolverDivFreeWENO(Array<MultiFab,AMREX_SPACEDIM>& S_EM, Mu
 	    {
 	      for(int i = lo.x-1; i <= hi.x+1; i++)
 		{
-		  Real u_iMinus2 = (r_i*arr(i-2,j,k,RHO_I)
-				    + r_e*arr(i-2,j,k,RHO_E))/(lambda_d*lambda_d*l_r);
-		  Real u_iMinus1 = (r_i*arr(i-1,j,k,RHO_I)
-				    + r_e*arr(i-1,j,k,RHO_E))/(lambda_d*lambda_d*l_r);
-		  Real u_i = (r_i*arr(i,j,k,RHO_I) + r_e*arr(i,j,k,RHO_E))/(lambda_d*lambda_d*l_r);
-		  Real u_iPlus1 = (r_i*arr(i+1,j,k,RHO_I)
-				   + r_e*arr(i+1,j,k,RHO_E))/(lambda_d*lambda_d*l_r);
-		  Real u_iPlus2 = (r_i*arr(i+2,j,k,RHO_I)
-				   + r_e*arr(i+2,j,k,RHO_E))/(lambda_d*lambda_d*l_r);
-		  
-		  // slopes for the current
-		  std::array<Real, 2> slopesX = WENO_slope(u_iMinus2,u_iMinus1,u_i,u_iPlus1,u_iPlus2);
+		  Vector<Real> data_i = WENO_data(arr, i, j, k, 2, 0, 0, RHO_I);
+		  Vector<Real> data_e = WENO_data(arr, i, j, k, 2, 0, 0, RHO_E);
+		  Vector<Real> data_charge = get_charge_scaled(data_i,data_e);
+		  std::array<Real, 2> slopesX = WENO3_slope(data_charge);
 		  slopes(i,j,k,X) = slopesX[0];
 		  slopes(i,j,k,XX) = slopesX[1];
 
-		  Real u_jMinus2 = (r_i*arr(i,j-2,k,RHO_I)
-				    + r_e*arr(i,j-2,k,RHO_E))/(lambda_d*lambda_d*l_r);
-		  Real u_jMinus1 = (r_i*arr(i,j-1,k,RHO_I)
-				    + r_e*arr(i,j-1,k,RHO_E))/(lambda_d*lambda_d*l_r);
-		  Real u_jPlus1 = (r_i*arr(i,j+1,k,RHO_I)
-				   + r_e*arr(i,j+1,k,RHO_E))/(lambda_d*lambda_d*l_r);
-		  Real u_jPlus2 = (r_i*arr(i,j+2,k,RHO_I)
-				   + r_e*arr(i,j+2,k,RHO_E))/(lambda_d*lambda_d*l_r);
-		  std::array<Real, 2> slopesY = WENO_slope(u_jMinus2,u_jMinus1,u_i,u_jPlus1,u_jPlus2);
+		  data_i = WENO_data(arr, i, j, k, 0, 2, 0, RHO_I);
+		  data_e = WENO_data(arr, i, j, k, 0, 2, 0, RHO_E);
+		  data_charge = get_charge_scaled(data_i,data_e);
+		  std::array<Real, 2> slopesY = WENO3_slope(data_charge);
 		  slopes(i,j,k,Y) = slopesY[0];
 		  slopes(i,j,k,YY) = slopesY[1];
 
-		  Real u_iMinus1jMinus1 = (r_i*arr(i-1,j-1,k,RHO_I)
-					   + r_e*arr(i-1,j-1,k,RHO_E))/(lambda_d*lambda_d*l_r);
-		  Real u_iMinus1jPlus1 = (r_i*arr(i-1,j+1,k,RHO_I)
-					   + r_e*arr(i-1,j+1,k,RHO_E))/(lambda_d*lambda_d*l_r);
-		  Real u_iPlus1jMinus1 = (r_i*arr(i+1,j-1,k,RHO_I)
-					  + r_e*arr(i+1,j-1,k,RHO_E))/(lambda_d*lambda_d*l_r);
-		  Real u_iPlus1jPlus1 = (r_i*arr(i+1,j+1,k,RHO_I)
-					 + r_e*arr(i+1,j+1,k,RHO_E))/(lambda_d*lambda_d*l_r);
-		  slopes(i,j,k,XY) = WENO_slopeCross({u_iMinus1jMinus1,u_iMinus1jPlus1,u_i,
-						      u_iPlus1jMinus1,u_iPlus1jPlus1},
-		    {slopes(i,j,k,X),slopes(i,j,k,XX),slopes(i,j,k,Y),slopes(i,j,k,YY)});
+		  data_i = WENO_data(arr, i, j, k, 1, 1, 0, RHO_I);
+		  data_e = WENO_data(arr, i, j, k, 1, 1, 0, RHO_E);
+		  data_charge = get_charge_scaled(data_i,data_e);
+		  Real slopesCross = WENO3_slopeCross(data_charge,
+						      {slopes(i,j,k,X),slopes(i,j,k,XX),slopes(i,j,k,Y),slopes(i,j,k,YY)});
+		  slopes(i,j,k,XY) = slopesCross;
+		  
 		}
 	    }
 	}      
@@ -4310,61 +4293,37 @@ void CAMReXmp::MaxwellSolverDivFreeWENO(Array<MultiFab,AMREX_SPACEDIM>& S_EM, Mu
 		{
 		  for(int i = lo.x-1; i <= hi.x+1; i++)
 		    {
-		      int iOffset = 1, jOffset = 0, kOffset = 0;
-		      Real u_iMinus2 = arr(i-2*iOffset,j-2*jOffset,k-2*kOffset,BZ);
-		      Real u_iMinus1 = arr(i-iOffset,j-jOffset,k-kOffset,BZ);
-		      Real u_i = arr(i,j,k,BZ);
-		      Real u_iPlus1 = arr(i+iOffset,j+jOffset,k+kOffset,BZ);
-		      Real u_iPlus2 = arr(i+2*iOffset,j+2*jOffset,k+2*kOffset,BZ);
-		      std::array<Real, 2> slopesX = WENO_slope(u_iMinus2,u_iMinus1,u_i,u_iPlus1,u_iPlus2);
+		      Vector<Real> dataX = WENO_data(arr, i, j, k, 2, 0, 0, BZ);
+		      std::array<Real, 2> slopesX = WENO3_slope(dataX);
 		      slopesBZ(i,j,k,X) = slopesX[0];
 		      slopesBZ(i,j,k,XX) = slopesX[1];
 
-		      u_iMinus2 = arr(i-2*iOffset,j-2*jOffset,k-2*kOffset,EZ);
-		      u_iMinus1 = arr(i-iOffset,j-jOffset,k-kOffset,EZ);
-		      u_i = arr(i,j,k,EZ);
-		      u_iPlus1 = arr(i+iOffset,j+jOffset,k+kOffset,EZ);
-		      u_iPlus2 = arr(i+2*iOffset,j+2*jOffset,k+2*kOffset,EZ);
-		      slopesX = WENO_slope(u_iMinus2,u_iMinus1,u_i,u_iPlus1,u_iPlus2);
+		      dataX = WENO_data(arr, i, j, k, 2, 0, 0, EZ);
+		      slopesX = WENO3_slope(dataX);
 		      slopesEZ(i,j,k,X) = slopesX[0];
 		      slopesEZ(i,j,k,XX) = slopesX[1];
 
 		      // y slopes
-		      iOffset = 0, jOffset = 1, kOffset = 0;
-		      u_iMinus2 = arr(i-2*iOffset,j-2*jOffset,k-2*kOffset,BZ);
-		      u_iMinus1 = arr(i-iOffset,j-jOffset,k-kOffset,BZ);
-		      u_i = arr(i,j,k,BZ);
-		      u_iPlus1 = arr(i+iOffset,j+jOffset,k+kOffset,BZ);
-		      u_iPlus2 = arr(i+2*iOffset,j+2*jOffset,k+2*kOffset,BZ);
-		      slopesX = WENO_slope(u_iMinus2,u_iMinus1,u_i,u_iPlus1,u_iPlus2);
+		      dataX = WENO_data(arr, i, j, k, 0, 2, 0, BZ);
+		      slopesX = WENO3_slope(dataX);
 		      slopesBZ(i,j,k,Y) = slopesX[0];
 		      slopesBZ(i,j,k,YY) = slopesX[1];
 
-		      u_iMinus2 = arr(i-2*iOffset,j-2*jOffset,k-2*kOffset,EZ);
-		      u_iMinus1 = arr(i-iOffset,j-jOffset,k-kOffset,EZ);
-		      u_i = arr(i,j,k,EZ);
-		      u_iPlus1 = arr(i+iOffset,j+jOffset,k+kOffset,EZ);
-		      u_iPlus2 = arr(i+2*iOffset,j+2*jOffset,k+2*kOffset,EZ);
-		      slopesX = WENO_slope(u_iMinus2,u_iMinus1,u_i,u_iPlus1,u_iPlus2);
+		      dataX = WENO_data(arr, i, j, k, 0, 2, 0, EZ);
+		      slopesX = WENO3_slope(dataX);
 		      slopesEZ(i,j,k,Y) = slopesX[0];
 		      slopesEZ(i,j,k,YY) = slopesX[1];
 
 		      // cross slopes
-		      Real u_iMinus1jMinus1 = r_i*arr(i-1,j-1,k,BZ);
-		      Real u_iMinus1jPlus1 = r_i*arr(i-1,j+1,k,BZ);
-		      Real u_iPlus1jMinus1 = r_i*arr(i+1,j-1,k,BZ);
-		      Real u_iPlus1jPlus1 = r_i*arr(i+1,j+1,k,BZ);
-		      slopesBZ(i,j,k,XY) = WENO_slopeCross({u_iMinus1jMinus1,u_iMinus1jPlus1,u_i,
-							    u_iPlus1jMinus1,u_iPlus1jPlus1},
-			{slopesBZ(i,j,k,X),slopesBZ(i,j,k,XX),slopesBZ(i,j,k,Y),slopesBZ(i,j,k,YY)});
+		      Vector<Real> dataXY = WENO_data(arr, i, j, k, 1, 1, 0, BZ);
+		      Real slopesCross = WENO3_slopeCross(dataXY,
+							  {slopesBZ(i,j,k,X),slopesBZ(i,j,k,XX),slopesBZ(i,j,k,Y),slopesBZ(i,j,k,YY)});
+		      slopesBZ(i,j,k,XY) = slopesCross;
 
-		      u_iMinus1jMinus1 = r_i*arr(i-1,j-1,k,EZ);
-		      u_iMinus1jPlus1 = r_i*arr(i-1,j+1,k,EZ);
-		      u_iPlus1jMinus1 = r_i*arr(i+1,j-1,k,EZ);
-		      u_iPlus1jPlus1 = r_i*arr(i+1,j+1,k,EZ);
-		      slopesEZ(i,j,k,XY) = WENO_slopeCross({u_iMinus1jMinus1,u_iMinus1jPlus1,u_i,
-							    u_iPlus1jMinus1,u_iPlus1jPlus1},
-			{slopesEZ(i,j,k,X),slopesEZ(i,j,k,XX),slopesEZ(i,j,k,Y),slopesEZ(i,j,k,YY)});
+		      dataXY = WENO_data(arr, i, j, k, 1, 1, 0, EZ);
+		      slopesCross = WENO3_slopeCross(dataXY,
+						     {slopesEZ(i,j,k,X),slopesEZ(i,j,k,XX),slopesEZ(i,j,k,Y),slopesEZ(i,j,k,YY)});
+		      slopesEZ(i,j,k,XY) = slopesCross;
 		    }
 		}
 	    }      
@@ -4389,21 +4348,13 @@ void CAMReXmp::MaxwellSolverDivFreeWENO(Array<MultiFab,AMREX_SPACEDIM>& S_EM, Mu
 	    {
 	      for(int i = lo.x-1; i <= hi.x+1; i++)
 		{
-		  Real u_iMinus2 = arr(i-2,j,k,BY_LOCAL);
-		  Real u_iMinus1 = arr(i-1,j,k,BY_LOCAL);
-		  Real u_i = arr(i,j,k,BY_LOCAL);		    
-		  Real u_iPlus1 = arr(i+1,j,k,BY_LOCAL);
-		  Real u_iPlus2 = arr(i+2,j,k,BY_LOCAL);
-		  std::array<Real, 2> slopesX = WENO_slope(u_iMinus2,u_iMinus1,u_i,u_iPlus1,u_iPlus2);
+		  Vector<Real> dataX = WENO_data(arr, i, j, k, 2, 0, 0, BY_LOCAL);
+		  std::array<Real, 2> slopesX = WENO3_slope(dataX);
 		  slopesBY(i,j,k,X) = slopesX[0];
 		  slopesBY(i,j,k,XX) = slopesX[1];
 
-		  u_iMinus2 = arr(i-2,j,k,EY_LOCAL);
-		  u_iMinus1 = arr(i-1,j,k,EY_LOCAL);
-		  u_i = arr(i,j,k,EY_LOCAL);		    
-		  u_iPlus1 = arr(i+1,j,k,EY_LOCAL);
-		  u_iPlus2 = arr(i+2,j,k,EY_LOCAL);
-		  slopesX = WENO_slope(u_iMinus2,u_iMinus1,u_i,u_iPlus1,u_iPlus2);		  
+		  dataX = WENO_data(arr, i, j, k, 2, 0, 0, EY_LOCAL);
+		  slopesX = WENO3_slope(dataX);
 		  slopesEY(i,j,k,X) = slopesX[0];
 		  slopesEY(i,j,k,XX) = slopesX[1];
 
@@ -4429,24 +4380,15 @@ void CAMReXmp::MaxwellSolverDivFreeWENO(Array<MultiFab,AMREX_SPACEDIM>& S_EM, Mu
 	    {
 	      for(int i = lo.x-1; i <= hi.x+1; i++)
 		{
-		  Real u_iMinus2 = arr(i,j-2,k,BX_LOCAL);
-		  Real u_iMinus1 = arr(i,j-1,k,BX_LOCAL);
-		  Real u_i = arr(i,j,k,BX_LOCAL);		    
-		  Real u_iPlus1 = arr(i,j+1,k,BX_LOCAL);
-		  Real u_iPlus2 = arr(i,j+2,k,BX_LOCAL);
-		  std::array<Real, 2> slopesX = WENO_slope(u_iMinus2,u_iMinus1,u_i,u_iPlus1,u_iPlus2);
+		  Vector<Real> dataX = WENO_data(arr, i, j, k, 0, 2, 0, BX_LOCAL);
+		  std::array<Real, 2> slopesX = WENO3_slope(dataX);
 		  slopesBX(i,j,k,Y) = slopesX[0];
 		  slopesBX(i,j,k,YY) = slopesX[1];
 
-		  u_iMinus2 = arr(i,j-2,k,EX_LOCAL);
-		  u_iMinus1 = arr(i,j-1,k,EX_LOCAL);
-		  u_i = arr(i,j,k,EX_LOCAL);		    
-		  u_iPlus1 = arr(i,j+1,k,EX_LOCAL);
-		  u_iPlus2 = arr(i,j+2,k,EX_LOCAL);
-		  slopesX = WENO_slope(u_iMinus2,u_iMinus1,u_i,u_iPlus1,u_iPlus2);
+		  dataX = WENO_data(arr, i, j, k, 0, 2, 0, EX_LOCAL);
+		  slopesX = WENO3_slope(dataX);
 		  slopesEX(i,j,k,Y) = slopesX[0];
 		  slopesEX(i,j,k,YY) = slopesX[1];
-
 		}
 	    }
 	}      

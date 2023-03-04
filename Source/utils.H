@@ -143,26 +143,18 @@ Vector<Real> MUSCL_Hancock_HLLC_flux(const Array4<Real>& arr, int i, int j, int 
 
 Vector<Real> HLLC(Vector<Real> uL, Vector<Real> uR, int d);
 Vector<Real> Godunov(Vector<Real> uL, Vector<Real> uR, int d);
-//template <size_t nSlopes>
-Vector<Real> MUSCL_Hancock_WENOHLLC_flux(const Array4<Real>& arr, const Array4<Real>& slopes,
-					 int i, int j, int k, int iOffset, int jOffset, int kOffset,
-					 int start, int len,
-					 Real dx, Real dt, int d,
-					 std::function<Vector<Real> (const Vector<Real>&, int)> flux_function,
-					 std::function<Vector<Real> (Vector<Real>,Vector<Real>,int)> solver);
-//template <size_t nSlopes>
-Vector<Real> MUSCL_Hancock_WENOGodunov_flux(const Array4<Real>& arr, const Array4<Real>& slopes,
-					    int i, int j, int k, int iOffset, int jOffset, int kOffset,
-					    Real dx, Real dt, int d);
-std::array<Vector<Real>, 2> WENO_slopes(const Array4<Real>& arr, int i, int j, int k, int iOffset, int jOffset, int kOffset);
-//(Vector<Real> u_iMinus2, Vector<Real> u_iMinus1,
-//					Vector<Real> u_i, Vector<Real> u_iPlus1, Vector<Real> u_iPlus2);
-//template <size_t nSlopes>
-Vector<Real> WENO_slopesCross(const Array4<Real>& arr, const Array4<Real>& slopes,
-			      int i, int j, int k, int iOffset, int jOffset, int kOffset);
-std::array<Real, 2> WENO_slope(Real u_iMinus2, Real u_iMinus1, Real u_i,
-			       Real u_iPlus1, Real u_iPlus2);
-Real WENO_slopeCross(std::array<Real, 5> arr, std::array<Real, 4> slopes);
+Vector<Real> MUSCL_Hancock_WENO_flux(const Array4<Real>& arr, const Array4<Real>& slopes,
+				     int i, int j, int k, int iOffset, int jOffset, int kOffset,
+				     int start, int len,
+				     Real dx, Real dt, int d,
+				     std::function<Vector<Real> (const Vector<Real>&, int)> flux_function,
+				     std::function<Vector<Real> (Vector<Real>,Vector<Real>,int)> solver);
+Vector<Real> WENO_flux(const Array4<Real>& arr, const Array4<Real>& slopes,
+		       int i, int j, int k, int iOffset, int jOffset, int kOffset,
+		       int start, int len,
+		       Real dx, Real dt, int d,
+		       std::function<Vector<Real> (const Vector<Real>&, int)> flux_function,
+		       std::function<Vector<Real> (Vector<Real>,Vector<Real>,int)> solver);
 Vector<Real> Maxwell_transverse_comp(const Array4<Real>& arr, int i, int j, int k, int iOffset, int jOffset, int kOffset);
 Vector<Real> Maxwell_corner(const Array4<Real>& arr, int i, int j, int k, int iOffset, int jOffset, int kOffset, Real dx, Real dt, int d);
 std::array<Vector<Real>, 2> MUSCL_Hancock_Godunov_Maxwell_and_transverse(const Array4<Real>& arr, int i, int j, int k, int iOffset, int jOffset, int kOffset, 
@@ -173,3 +165,7 @@ Vector<Real> EM_linearFunc(const Array4<Real>& Bc, const Array4<Real>& Ec,  int 
 			   const Real* dx);
 Vector<Real> EM_quadraticFunc(const Array4<Real>& Bc, const Array4<Real>& Ec,  int i, int j, int k, Real x, Real y, Real z,
 			   const Real* dx);
+Vector<Real> WENO_data(const Array4<Real>& arr, int i, int j, int k, int iOffset, int jOffset, int kOffset, int n);
+std::array<Real, 2> WENO3_slope(Vector<Real> u);
+Real WENO3_slopeCross(Vector<Real> u, Vector<Real> slopes);
+Vector<Real> get_charge_scaled(Vector<Real> u_i, Vector<Real> u_e);

@@ -694,24 +694,29 @@ CAMReXmp::advance (Real time,
 	  for(int j = lo.y-jOffset; j <= hi.y+jOffset; j++)
 	    {
 	      for(int i = lo.x-iOffset; i <= hi.x+iOffset; i++)
-		{		  
-		  std::array<Vector<Real>, 2> slopesX = WENO_slopes(arr, i, j, k, 1, 0, 0);
+		{
 		  for (int n = 0; n<NUM_STATE_FLUID; n++)
 		    {
-		      slopes(i,j,k,n) = slopesX[0][n];		      
-		      slopes(i,j,k,n+NUM_STATE_FLUID) = slopesX[1][n];
+		      Vector<Real> dataX = WENO_data(arr, i, j, k, 2, 0, 0, n);
+		      std::array<Real, 2> slopesX = WENO3_slope(dataX);
+		      slopes(i,j,k,n) = slopesX[0];		      
+		      slopes(i,j,k,n+NUM_STATE_FLUID) = slopesX[1];
 		    }
 #if (AMREX_SPACEDIM >= 2)
-		  std::array<Vector<Real>, 2> slopesY = WENO_slopes(arr, i, j, k, 0, 1, 0); 
 		  for (int n = 0; n<NUM_STATE_FLUID; n++)
 		    {
-		      slopes(i,j,k,n+2*NUM_STATE_FLUID) = slopesY[0][n];
-		      slopes(i,j,k,n+3*NUM_STATE_FLUID) = slopesY[1][n];
+		      Vector<Real> dataY = WENO_data(arr, i, j, k, 0, 2, 0, n);
+		      std::array<Real, 2> slopesY = WENO3_slope(dataY);
+		      slopes(i,j,k,n+2*NUM_STATE_FLUID) = slopesY[0];
+		      slopes(i,j,k,n+3*NUM_STATE_FLUID) = slopesY[1];		      
 		    }
-		  Vector<Real> slopesCross = WENO_slopesCross(arr, slopes, i, j, k, 1, 1, 0);
+
 		  for (int n = 0; n<NUM_STATE_FLUID; n++)
 		    {
-		      slopes(i,j,k,n+4*NUM_STATE_FLUID) = slopesCross[n]; 
+		      Vector<Real> dataXY = WENO_data(arr, i, j, k, 1, 1, 0, n);
+		      Real slopesCross = WENO3_slopeCross(dataXY, {slopes(i,j,k,n),slopes(i,j,k,n+NUM_STATE_FLUID),
+								   slopes(i,j,k,n+2*NUM_STATE_FLUID),slopes(i,j,k,n+3*NUM_STATE_FLUID)});
+		      slopes(i,j,k,n+4*NUM_STATE_FLUID) = slopesCross;
 		    }
 #endif
 		  
@@ -719,11 +724,11 @@ CAMReXmp::advance (Real time,
 	    }
 	}
     }
-  
+
   // Update cell-centred fluid variables and z-components of EM fields
   for (int d = 0; d < amrex::SpaceDim ; d++)   
   {
-
+    
     const int iOffset = ( d == 0 ? 1 : 0);
     const int jOffset = ( d == 1 ? 1 : 0);
     const int kOffset = ( d == 2 ? 1 : 0);
@@ -745,16 +750,6 @@ CAMReXmp::advance (Real time,
 
 
       const auto& slopes = Slopes.array(mfi);
-      //const auto& slopesxx = Slopes[1].array(mfi);
-#if (AMREX_SPACEDIM == 1)      
-      //const std::array<Array4<Real>, nSlopes> slopes = {slopesx,slopesxx};
-#endif
-#if (AMREX_SPACEDIM == 2)
-      //const auto& slopesy = Slopes[2].array(mfi);
-      //const auto& slopesyy = Slopes[3].array(mfi);
-      //const auto& slopesxy = Slopes[4].array(mfi);
-      //const std::array<Array4<Real>, nSlopes> slopes = {slopesx,slopesxx,slopesy,slopesyy,slopesxy};
-#endif
       
       for(int k = lo.z; k <= hi.z+kOffset; k++)
       {
@@ -762,50 +757,19 @@ CAMReXmp::advance (Real time,
 	{
 	  for(int i = lo.x; i <= hi.x+iOffset; i++)
 	  {
-	    Vector<Real> flux_i = MUSCL_Hancock_WENOHLLC_flux(arr, slopes, i, j, k, iOffset, jOffset, kOffset,
-							      0, NUM_STATE_FLUID/2, dx[d], dt, d,
-							      fluidFlux, HLLC);
-	    Vector<Real> flux_e = MUSCL_Hancock_WENOHLLC_flux(arr, slopes, i, j, k, iOffset, jOffset, kOffset,
-							      NUM_STATE_FLUID/2, NUM_STATE_FLUID/2, dx[d], dt, d,
-							      fluidFlux, HLLC);	    
+	    Vector<Real> flux_i = MUSCL_Hancock_WENO_flux(arr, slopes, i, j, k, iOffset, jOffset, kOffset,
+							  0, NUM_STATE_FLUID/2, dx[d], dt, d,
+							  fluidFlux, HLLC);
+	    Vector<Real> flux_e = MUSCL_Hancock_WENO_flux(arr, slopes, i, j, k, iOffset, jOffset, kOffset,
+							  NUM_STATE_FLUID/2, NUM_STATE_FLUID/2, dx[d], dt, d,
+							  fluidFlux, HLLC);	    
 	    //Vector<Real> flux = fluid_flux_HLLC(arr, i, j, k, iOffset, jOffset, kOffset, dx[d], dt, d);
 
 	    for(int n=0; n<NUM_STATE_FLUID/2; n++)
 	      {		
 		fluxArr(i,j,k,n) = flux_i[n];
 		fluxArr(i,j,k,n+NUM_STATE_FLUID/2) = flux_e[n];
-	      }
-	    
-	    // Fluxes for the z-components of the EM fields because it is 2D code
-	    //Vector<Real> fluxEM = Maxwell_flux_Godunov(arr, i, j, k, iOffset, jOffset, kOffset, dx[d], dt, d);
-	    //Vector<Real> fluxEM = MUSCL_Hancock_WENOGodunov_flux(arr, slopes, i, j, k, iOffset, jOffset, kOffset, dx[d], dt, d);
-	    /*Vector<Real> fluxEM = MUSCL_Hancock_WENOHLLC_flux(arr, slopes, i, j, k, iOffset, jOffset, kOffset,
-	    						      NUM_STATE_FLUID, NUM_STATE_MAXWELL, dx[d], dt, d,
-							      MaxwellFlux, Godunov);
-	    for(int n=NUM_STATE_FLUID; n<NUM_STATE; n++)
-	      {		
-		fluxArr(i,j,k,n) = fluxEM[n-NUM_STATE_FLUID];		
-	      }
-	    */
-	    /*
-	    // Calculate transverse facial components from cell-centred components
-	    // transverse values, e.g. By, Bz, Ey and Ez for the x-face
-	    Vector<Real> transverseEM = Maxwell_transverse_comp(arr, i, j, k, iOffset, jOffset, kOffset);	    
-	    arrEM(i,j,k,BX_LOCAL+(1+d)%3) = transverseEM[BX_LOCAL+(1+d)%3];
-	    arrEM(i,j,k,BX_LOCAL+(2+d)%3) = transverseEM[BX_LOCAL+(2+d)%3];
-	    arrEM(i,j,k,EX_LOCAL+(1+d)%3) = transverseEM[EX_LOCAL+(1+d)%3];
-	    arrEM(i,j,k,EX_LOCAL+(2+d)%3) = transverseEM[EX_LOCAL+(2+d)%3];	   
-	    */
-	    /*
-	    std::array<Vector<Real>, 2> flux_and_transverse = MUSCL_Hancock_Godunov_Maxwell_and_transverse(arr, i, j, k, iOffset, jOffset, kOffset, dx[d], dt, d);
-	    fluxArr(i,j,k,BZ) = flux_and_transverse[0][BZ_LOCAL];
-	    fluxArr(i,j,k,EZ) = flux_and_transverse[0][EZ_LOCAL];
-
-	    arrEM(i,j,k,BX_LOCAL+(1+d)%3) = flux_and_transverse[1][BX_LOCAL+(1+d)%3];
-	    arrEM(i,j,k,BX_LOCAL+(2+d)%3) = flux_and_transverse[1][BX_LOCAL+(2+d)%3];
-	    arrEM(i,j,k,EX_LOCAL+(1+d)%3) = flux_and_transverse[1][EX_LOCAL+(1+d)%3];
-	    arrEM(i,j,k,EX_LOCAL+(2+d)%3) = flux_and_transverse[1][EX_LOCAL+(2+d)%3];
-	    */	
+	      }	    
 	  }
 	}
       }
@@ -823,11 +787,6 @@ CAMReXmp::advance (Real time,
       		// Conservative update formula
       		arr(i,j,k,n) = arr(i,j,k,n) - (dt / dx[d]) * (fluxArr(i+iOffset, j+jOffset, k+kOffset, n) - fluxArr(i,j,k,n));
               }
-      	    /*
-      	    // Update cell-centred z-components becuause it is 2D code
-      	    arr(i,j,k,BZ) = arr(i,j,k,BZ) - (dt / dx[d]) * (fluxArr(i+iOffset, j+jOffset, k+kOffset, BZ) - fluxArr(i,j,k,BZ));
-      	    arr(i,j,k,EZ) = arr(i,j,k,EZ) - (dt / dx[d]) * (fluxArr(i+iOffset, j+jOffset, k+kOffset, EZ) - fluxArr(i,j,k,EZ));
-      	    */
       	    // Initialise to zero
       	    arr(i,j,k,DIVB) = 0.0;
       	    arr(i,j,k,DIVE) = 1.0/(lambda_d*lambda_d*l_r)*(r_i*arr(i,j,k,RHO_I) + r_e*arr(i,j,k,RHO_E));
@@ -838,14 +797,10 @@ CAMReXmp::advance (Real time,
       
     // We need to compute boundary conditions again after each update
     Sborder.FillBoundary(geom.periodicity());
-    //S_EM[0].FillBoundary(geom.periodicity());
-    //S_EM[1].FillBoundary(geom.periodicity());
      
     // added by 2020D 
     // Fill non-periodic physical boundaries
     FillDomainBoundary(Sborder, geom, bc);
-    //FillDomainBoundary(S_EM[0], geom, bc_EM);
-    //FillDomainBoundary(S_EM[1], geom, bc_EM);
     
     // The fluxes now need scaling for the reflux command.
     // This scaling is by the size of the boundary through which the flux passes, e.g. the x-flux needs scaling by the dy, dz and dt
@@ -1031,7 +986,7 @@ CAMReXmp::advance (Real time,
       const Dim3 hi = ubound(bx);
 
       Array4<Real> arr = Sborder.array(mfi);
-
+      
       for(int k = lo.z; k <= hi.z; k++)
       {
         for(int j = lo.y; j <= hi.y; j++)
