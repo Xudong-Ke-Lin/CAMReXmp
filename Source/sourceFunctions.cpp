@@ -35,6 +35,7 @@ void CAMReXmp::sourceUpdate(MultiFab& Sborder, MultiFab (&fluxes)[AMREX_SPACEDIM
 	      for(int i = lo.x; i <= hi.x; i++)
 		{
 		  (this->*sourceUpdateWithChosenMethod)(arr,i,j,k,dt);
+		  /*
 		  if (geom.Coord()==1)		  
 		    {
 		      //Real x = geom.ProbLo()[0]+(double(i)+0.5)*dx[0];
@@ -44,6 +45,8 @@ void CAMReXmp::sourceUpdate(MultiFab& Sborder, MultiFab (&fluxes)[AMREX_SPACEDIM
 		      //amrex::Print() << x << " ";
 		      cylSourceUpdate(arr,i,j,k,dt,y);
 		    }
+		  */
+		  //sourceUpdateANEX(arr, i, j, k, dt);		  
 		}
 	    }
 	}      

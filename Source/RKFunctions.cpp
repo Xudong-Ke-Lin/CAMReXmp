@@ -79,9 +79,9 @@ void CAMReXmp::linearCombination(MultiFab& S_new, MultiFab& S1, Real a1, MultiFa
 	}      
     }
   // We need to compute boundary conditions again after each update
-  S_new.FillBoundary(geom.periodicity());
+  //S_new.FillBoundary(geom.periodicity());
   
   // Fill non-periodic physical boundaries  
-  FillDomainBoundary(S_new, geom, bc);
+  //FillDomainBoundary(S_new, geom, bc);
 
 }

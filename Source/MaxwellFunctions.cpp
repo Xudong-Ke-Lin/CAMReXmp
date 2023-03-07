@@ -4188,7 +4188,7 @@ void CAMReXmp::MaxwellSolverDivFree(Array<MultiFab,AMREX_SPACEDIM>& S_EM, MultiF
   	}
     }    
 }
-void CAMReXmp::MaxwellSolverDivFreeWENO(Array<MultiFab,AMREX_SPACEDIM>& S_EM, MultiFab& fluxesEM, MultiFab& Sborder, MultiFab (&fluxes)[AMREX_SPACEDIM], MultiFab& S0, const Real* dx, Real dt)
+void CAMReXmp::MaxwellSolverDivFreeWENO(Array<MultiFab,AMREX_SPACEDIM>& S_EM_dest, Array<MultiFab,AMREX_SPACEDIM>& S_EM_source, MultiFab& fluxesEM, MultiFab& S_dest, MultiFab& S_source, MultiFab (&fluxes)[AMREX_SPACEDIM], const Real* dx, Real dt)
 {
 
   // Note that fluxesEM and fluxes are different definitions
@@ -4232,7 +4232,7 @@ void CAMReXmp::MaxwellSolverDivFreeWENO(Array<MultiFab,AMREX_SPACEDIM>& S_EM, Mu
       const Dim3 hi = ubound(bx);
 
       // uses old charge
-      const Array4<Real> arr = S0.array(mfi);
+      const Array4<Real> arr = S_source.array(mfi);
       Array4<Real> slopes = slopesCharge.array(mfi);
       
       for(int k = lo.z; k <= hi.z; k++)
@@ -4283,7 +4283,7 @@ void CAMReXmp::MaxwellSolverDivFreeWENO(Array<MultiFab,AMREX_SPACEDIM>& S_EM, Mu
 	  const Dim3 lo = lbound(bx);
 	  const Dim3 hi = ubound(bx);
 
-	  const Array4<Real> arr = Sborder.array(mfi);
+	  const Array4<Real> arr = S_source.array(mfi);
 	  Array4<Real> slopesBZ = slopes[BZ_LOCAL].array(mfi);
 	  Array4<Real> slopesEZ = slopes[EZ_LOCAL].array(mfi);
       
@@ -4338,7 +4338,7 @@ void CAMReXmp::MaxwellSolverDivFreeWENO(Array<MultiFab,AMREX_SPACEDIM>& S_EM, Mu
       const Dim3 lo = lbound(bx);
       const Dim3 hi = ubound(bx);
 
-      const Array4<Real> arr = S_EM[1].array(mfi);
+      const Array4<Real> arr = S_EM_source[1].array(mfi);
       Array4<Real> slopesBY = slopes[BY_LOCAL].array(mfi);
       Array4<Real> slopesEY = slopes[EY_LOCAL].array(mfi);
       
@@ -4370,7 +4370,7 @@ void CAMReXmp::MaxwellSolverDivFreeWENO(Array<MultiFab,AMREX_SPACEDIM>& S_EM, Mu
       const Dim3 lo = lbound(bx);
       const Dim3 hi = ubound(bx);
 
-      const Array4<Real> arr = S_EM[0].array(mfi);
+      const Array4<Real> arr = S_EM_source[0].array(mfi);
       Array4<Real> slopesBX = slopes[BX_LOCAL].array(mfi);
       Array4<Real> slopesEX = slopes[EX_LOCAL].array(mfi);
       
@@ -4418,9 +4418,9 @@ void CAMReXmp::MaxwellSolverDivFreeWENO(Array<MultiFab,AMREX_SPACEDIM>& S_EM, Mu
       const auto& Ec = Ecoeff.array(mfi);
       
       // data
-      const auto& arr = S0.array(mfi);
-      const auto& arrEM_X = S_EM[0].array(mfi);
-      const auto& arrEM_Y = S_EM[1].array(mfi);       
+      const auto& arr = S_source.array(mfi);
+      const auto& arrEM_X = S_EM_source[0].array(mfi);
+      const auto& arrEM_Y = S_EM_source[1].array(mfi);       
 
       // slopes
       const auto& slopesBX = slopes[BX_LOCAL].array(mfi);
@@ -4552,11 +4552,11 @@ void CAMReXmp::MaxwellSolverDivFreeWENO(Array<MultiFab,AMREX_SPACEDIM>& S_EM, Mu
       
       const Dim3 lo = lbound(box);
       const Dim3 hi = ubound(box);
-      // use old array, Sborder should also work
-      //const auto& arr = Sborder.array(mfi);
-      const auto& arr = S0.array(mfi);
-      const auto& arrEM_X = S_EM[0].array(mfi);
-      const auto& arrEM_Y = S_EM[1].array(mfi); 
+      // use old array, S_source should also work
+      //const auto& arr = S_source.array(mfi);
+      const auto& arr = S_source.array(mfi);
+      const auto& arrEM_X = S_EM_source[0].array(mfi);
+      const auto& arrEM_Y = S_EM_source[1].array(mfi); 
       const auto& fluxArrEM = fluxesEM.array(mfi);
 
       const auto& Bc = Bcoeff.array(mfi);
@@ -4626,7 +4626,7 @@ void CAMReXmp::MaxwellSolverDivFreeWENO(Array<MultiFab,AMREX_SPACEDIM>& S_EM, Mu
       int d_EM = (d==0) ? 1 : 0;
     
       // Loop over all the patches at this level
-      for (MFIter mfi(S_EM[d_EM], true); mfi.isValid(); ++mfi)
+      for (MFIter mfi(S_EM_dest[d_EM], true); mfi.isValid(); ++mfi)
 	{
 	  const Box& bx = mfi.tilebox();
 
@@ -4636,9 +4636,10 @@ void CAMReXmp::MaxwellSolverDivFreeWENO(Array<MultiFab,AMREX_SPACEDIM>& S_EM, Mu
 	  // Indexable arrays for the data, and the directional flux
 	  // Based on the corner-centred definition of the flux array, the
 	  // data array runs from e.g. [0,N+1] and the flux array from [-1,N+1]
-	  //const auto& arr = Sborder.array(mfi);
-	  const auto& arrEM = S_EM[d_EM].array(mfi);
-	  //const auto& arrEMother = S_EM[d].array(mfi);
+	  //const auto& arr = S_source.array(mfi);
+	  const auto& arrEM = S_EM_dest[d_EM].array(mfi);
+	  const auto& arrEMOld = S_EM_source[d_EM].array(mfi);
+	  //const auto& arrEMother = S_EM_source[d].array(mfi);
 	  const auto& fluxArrEM = fluxesEM.array(mfi);
 	  const auto& fluxArr = fluxes[d_EM].array(mfi);
 
@@ -4651,9 +4652,9 @@ void CAMReXmp::MaxwellSolverDivFreeWENO(Array<MultiFab,AMREX_SPACEDIM>& S_EM, Mu
 		  for(int i = lo.x; i <= hi.x; i++)
 		    {
 		      // 2D code; z-component updated using cell-centred scheme
-		      arrEM(i,j,k,BX_LOCAL+d_EM) += std::pow(-1,d)*(dt / dx[d]) * (fluxArrEM(i+iOffset, j+jOffset, k+kOffset, EZ_LOCAL) - fluxArrEM(i,j,k,EZ_LOCAL));
-		      arrEM(i,j,k,EX_LOCAL+d_EM) -= std::pow(-1,d)*c*c*(dt / dx[d]) * (fluxArrEM(i+iOffset, j+jOffset, k+kOffset, BZ_LOCAL) - fluxArrEM(i,j,k,BZ_LOCAL));
-
+		      arrEM(i,j,k,BX_LOCAL+d_EM) = arrEMOld(i,j,k,BX_LOCAL+d_EM) + std::pow(-1,d)*(dt / dx[d]) * (fluxArrEM(i+iOffset, j+jOffset, k+kOffset, EZ_LOCAL) - fluxArrEM(i,j,k,EZ_LOCAL));
+		      arrEM(i,j,k,EX_LOCAL+d_EM) = arrEMOld(i,j,k,EX_LOCAL+d_EM) - std::pow(-1,d)*c*c*(dt / dx[d]) * (fluxArrEM(i+iOffset, j+jOffset, k+kOffset, BZ_LOCAL) - fluxArrEM(i,j,k,BZ_LOCAL));
+		  
 		      // 3D code
 		      /*arrEM(i,j,k,BX_LOCAL+(1+d)%3) += (dt / dx[d]) * (fluxArrEM(i+iOffset, j+jOffset, k+kOffset, EX_LOCAL+(2+d)%3) - fluxArrEM(i,j,k,EX_LOCAL+(2+d)%3));
 			arrEM(i,j,k,BX_LOCAL+(2+d)%3) -= (dt / dx[d]) * (fluxArrEM(i+iOffset, j+jOffset, k+kOffset, EX_LOCAL+(1+d)%3) - fluxArrEM(i,j,k,EX_LOCAL+(1+d)%3));
@@ -4668,21 +4669,20 @@ void CAMReXmp::MaxwellSolverDivFreeWENO(Array<MultiFab,AMREX_SPACEDIM>& S_EM, Mu
 		    }
 		}
 	    }      
-	}
-    
-      // We need to compute boundary conditions again after each update
-      S_EM[0].FillBoundary(geom.periodicity());
-      S_EM[1].FillBoundary(geom.periodicity());
-     
-      // added by 2020D 
-      // Fill non-periodic physical boundaries                          
-      FillDomainBoundary(S_EM[0], geom, bc_EM);    
-      FillDomainBoundary(S_EM[1], geom, bc_EM);  
-      
+	}          
     }
 
+  // We need to compute boundary conditions again after each update
+  S_EM_dest[0].FillBoundary(geom.periodicity());
+  S_EM_dest[1].FillBoundary(geom.periodicity());
+     
+  // added by 2020D 
+  // Fill non-periodic physical boundaries                          
+  FillDomainBoundary(S_EM_dest[0], geom, bc_EM);    
+  FillDomainBoundary(S_EM_dest[1], geom, bc_EM);    
+
   // Compute cell-centred EM fields from face-centred
-  for (MFIter mfi(Sborder, true); mfi.isValid(); ++mfi)
+  for (MFIter mfi(S_dest, true); mfi.isValid(); ++mfi)
     {
       const Box& box = mfi.tilebox();
       
@@ -4692,9 +4692,9 @@ void CAMReXmp::MaxwellSolverDivFreeWENO(Array<MultiFab,AMREX_SPACEDIM>& S_EM, Mu
       // Indexable arrays for the data, and the directional flux
       // Based on the corner-centred definition of the flux array, the
       // data array runs from e.g. [0,N+1] and the flux array from [-1,N+1]
-      const auto& arr = Sborder.array(mfi);
-      const auto& arrEM_X = S_EM[0].array(mfi);
-      const auto& arrEM_Y = S_EM[1].array(mfi); 
+      const auto& arr = S_dest.array(mfi);
+      const auto& arrEM_X = S_EM_dest[0].array(mfi);
+      const auto& arrEM_Y = S_EM_dest[1].array(mfi); 
 
       const auto& Bc = Bcoeff.array(mfi);
       const auto& Ec = Ecoeff.array(mfi);
@@ -4706,10 +4706,10 @@ void CAMReXmp::MaxwellSolverDivFreeWENO(Array<MultiFab,AMREX_SPACEDIM>& S_EM, Mu
   	      for(int i = lo.x; i <= hi.x; i++)
   		{		 
 
-  		  arr(i,j,k,BX) = (arrEM_X(i+1,j,k,BX_LOCAL)+arrEM_X(i,j,k,BX_LOCAL))/2.0 - Bc(i,j,k,axx)/6.0;
-  		  arr(i,j,k,BY) = (arrEM_Y(i,j+1,k,BY_LOCAL)+arrEM_Y(i,j,k,BY_LOCAL))/2.0 - Bc(i,j,k,byy)/6.0;
-  		  arr(i,j,k,EX) = (arrEM_X(i+1,j,k,EX_LOCAL)+arrEM_X(i,j,k,EX_LOCAL))/2.0 - Ec(i,j,k,axx)/6.0;
-  		  arr(i,j,k,EY) = (arrEM_Y(i,j+1,k,EY_LOCAL)+arrEM_Y(i,j,k,EY_LOCAL))/2.0 - Ec(i,j,k,byy)/6.0;
+  		  arr(i,j,k,BX) = (arrEM_X(i+1,j,k,BX_LOCAL)+arrEM_X(i,j,k,BX_LOCAL))/2.0;// - Bc(i,j,k,axx)/6.0;
+  		  arr(i,j,k,BY) = (arrEM_Y(i,j+1,k,BY_LOCAL)+arrEM_Y(i,j,k,BY_LOCAL))/2.0;// - Bc(i,j,k,byy)/6.0;
+  		  arr(i,j,k,EX) = (arrEM_X(i+1,j,k,EX_LOCAL)+arrEM_X(i,j,k,EX_LOCAL))/2.0;// - Ec(i,j,k,axx)/6.0;
+  		  arr(i,j,k,EY) = (arrEM_Y(i,j+1,k,EY_LOCAL)+arrEM_Y(i,j,k,EY_LOCAL))/2.0;// - Ec(i,j,k,byy)/6.0;
 		  
   		}
   	    }
@@ -4725,14 +4725,7 @@ void CAMReXmp::MaxwellSolverDivFreeWENO(Array<MultiFab,AMREX_SPACEDIM>& S_EM, Mu
       const Dim3 lo = lbound(box);
       const Dim3 hi = ubound(box);
       
-      // use old data
-      //const auto& arr = Sborder.array(mfi);
-      const auto& arr = S0.array(mfi);
-      const auto& arrEM_X = S_EM[0].array(mfi);
-      const auto& arrEM_Y = S_EM[1].array(mfi); 
-      //const auto& fluxArrEM = fluxesEM.array(mfi);
       const auto& fluxArrX = fluxes[0].array(mfi);
-      //const auto& fluxArrY = fluxes[1].array(mfi);
 
       const auto& Bc = Bcoeff.array(mfi);
       const auto& Ec = Ecoeff.array(mfi);
@@ -4780,13 +4773,6 @@ void CAMReXmp::MaxwellSolverDivFreeWENO(Array<MultiFab,AMREX_SPACEDIM>& S_EM, Mu
       const Dim3 lo = lbound(box);
       const Dim3 hi = ubound(box);
 
-      // use old data
-      //const auto& arr = Sborder.array(mfi);
-      const auto& arr = S0.array(mfi);
-      const auto& arrEM_X = S_EM[0].array(mfi);
-      const auto& arrEM_Y = S_EM[1].array(mfi); 
-      //const auto& fluxArrEM = fluxesEM.array(mfi);
-      //const auto& fluxArrX = fluxes[0].array(mfi);
       const auto& fluxArrY = fluxes[1].array(mfi);
 
       const auto& Bc = Bcoeff.array(mfi);
@@ -4827,7 +4813,7 @@ void CAMReXmp::MaxwellSolverDivFreeWENO(Array<MultiFab,AMREX_SPACEDIM>& S_EM, Mu
     }
 
   // Update cell-centred z-components of EM fields
-  for (MFIter mfi(Sborder, true); mfi.isValid(); ++mfi)
+  for (MFIter mfi(S_dest, true); mfi.isValid(); ++mfi)
     {
       const Box& bx = mfi.tilebox();
 
@@ -4837,7 +4823,8 @@ void CAMReXmp::MaxwellSolverDivFreeWENO(Array<MultiFab,AMREX_SPACEDIM>& S_EM, Mu
       // Indexable arrays for the data, and the directional flux
       // Based on the vertex-centred definition of the flux array, the
       // data array runs from e.g. [0,N] and the flux array from [0,N+1]
-      const auto& arr = Sborder.array(mfi);
+      const auto& arr = S_dest.array(mfi);
+      const auto& arrOld = S_source.array(mfi);
       const auto& fluxArrX = fluxes[0].array(mfi);
       const auto& fluxArrY = fluxes[1].array(mfi);
 	        
@@ -4848,13 +4835,20 @@ void CAMReXmp::MaxwellSolverDivFreeWENO(Array<MultiFab,AMREX_SPACEDIM>& S_EM, Mu
   	      for(int i = lo.x; i <= hi.x; i++)
   		{
   		  // Update cell-centred z-components becuause it is 2D code
-  		  arr(i,j,k,BZ) = arr(i,j,k,BZ) - (dt / dx[0]) * (fluxArrX(i+1,j,k,EY) - fluxArrX(i,j,k,EY)) + (dt / dx[1]) * (fluxArrY(i,j+1,k,EX) - fluxArrY(i,j,k,EX));
-  		  arr(i,j,k,EZ) = arr(i,j,k,EZ) + c*c*(dt / dx[0]) * (fluxArrX(i+1,j,k,BY) - fluxArrX(i,j,k,BY)) - c*c*(dt / dx[1]) * (fluxArrY(i,j+1,k,BX) - fluxArrY(i,j,k,BX));		  
+  		  arr(i,j,k,BZ) = arrOld(i,j,k,BZ) - (dt / dx[0]) * (fluxArrX(i+1,j,k,EY) - fluxArrX(i,j,k,EY)) + (dt / dx[1]) * (fluxArrY(i,j+1,k,EX) - fluxArrY(i,j,k,EX));
+  		  arr(i,j,k,EZ) = arrOld(i,j,k,EZ) + c*c*(dt / dx[0]) * (fluxArrX(i+1,j,k,BY) - fluxArrX(i,j,k,BY)) - c*c*(dt / dx[1]) * (fluxArrY(i,j+1,k,BX) - fluxArrY(i,j,k,BX));		  
 
   		  // source terms
   		  arr(i,j,k,EZ) = arr(i,j,k,EZ) - dt*1.0/(lambda_d*lambda_d*l_r)*(r_i*arr(i,j,k,MOMZ_I) + r_e*arr(i,j,k,MOMZ_E));
   		}
   	    }
   	}
-    }    
+    }
+  // We need to compute boundary conditions again after each update
+  S_dest.FillBoundary(geom.periodicity());
+     
+  // added by 2020D 
+  // Fill non-periodic physical boundaries                      
+  FillDomainBoundary(S_dest, geom, bc);  
+
 }
