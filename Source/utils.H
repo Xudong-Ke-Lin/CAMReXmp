@@ -46,6 +46,7 @@ Real v_exact_dir(Real B_squared, Real B, Real B_three_halves, Real EdotB, Real v
                  Real B_i, Real t, Real factor);
 Vector<Real> cross_product(Vector<Real>, Vector<Real>);
 Real dot_product(Vector<Real>, Vector<Real>);
+Real dotProduct(Vector<Real> a, Vector<Real> b);
 
 // select the method for slope limiter
 // epsilon is the slope limiter
@@ -143,29 +144,51 @@ Vector<Real> MUSCL_Hancock_HLLC_flux(const Array4<Real>& arr, int i, int j, int 
 
 Vector<Real> HLLC(Vector<Real> uL, Vector<Real> uR, int d);
 Vector<Real> Godunov(Vector<Real> uL, Vector<Real> uR, int d);
+Vector<Real> MUSCL_Hancock_TVD_flux(const Array4<Real>& arr, const Array4<Real>& slopes,
+				    int i, int j, int k, int iOffset, int jOffset, int kOffset,
+				    int start, int len,
+				    Real dx, Real dt, int d,
+				    std::function<Vector<Real> (const Vector<Real>&, int)> flux_function,
+				    std::function<Vector<Real> (Vector<Real>,Vector<Real>,int)> solver);
 Vector<Real> MUSCL_Hancock_WENO_flux(const Array4<Real>& arr, const Array4<Real>& slopes,
 				     int i, int j, int k, int iOffset, int jOffset, int kOffset,
 				     int start, int len,
 				     Real dx, Real dt, int d,
 				     std::function<Vector<Real> (const Vector<Real>&, int)> flux_function,
 				     std::function<Vector<Real> (Vector<Real>,Vector<Real>,int)> solver);
+Vector<Real> TVD_flux(const Array4<Real>& arr, const Array4<Real>& slopes,
+		       int i, int j, int k, int iOffset, int jOffset, int kOffset,
+		       int start, int len,
+		       Real dx, Real dt, int d,
+		       std::function<Vector<Real> (Vector<Real>,Vector<Real>,int)> solver);
 Vector<Real> WENO_flux(const Array4<Real>& arr, const Array4<Real>& slopes,
 		       int i, int j, int k, int iOffset, int jOffset, int kOffset,
 		       int start, int len,
 		       Real dx, Real dt, int d,
-		       std::function<Vector<Real> (const Vector<Real>&, int)> flux_function,
 		       std::function<Vector<Real> (Vector<Real>,Vector<Real>,int)> solver);
+Vector<Real> WENO_flux_flat(const Array4<Real>& arr, const Array4<Real>& slopes, const Array4<Real>& tau,
+			    int i, int j, int k, int iOffset, int jOffset, int kOffset,
+			    int start, int len,
+			    Real dx, Real dt, int d,
+			    std::function<Vector<Real> (Vector<Real>,Vector<Real>,int)> solver);
 Vector<Real> Maxwell_transverse_comp(const Array4<Real>& arr, int i, int j, int k, int iOffset, int jOffset, int kOffset);
 Vector<Real> Maxwell_corner(const Array4<Real>& arr, int i, int j, int k, int iOffset, int jOffset, int kOffset, Real dx, Real dt, int d);
 std::array<Vector<Real>, 2> MUSCL_Hancock_Godunov_Maxwell_and_transverse(const Array4<Real>& arr, int i, int j, int k, int iOffset, int jOffset, int kOffset, 
 									 Real dx, Real dt, int d);
-Vector<Real> MUSCL_Hancock_exact_flux(const Array4<Real>& arr, int i, int j, int k, int iOffset, int jOffset, int kOffset,
-				     Real dx, Real dt, int d);
+// Vector<Real> MUSCL_Hancock_exact_flux(const Array4<Real>& arr, int i, int j, int k, int iOffset, int jOffset, int kOffset,
+// 				     Real dx, Real dt, int d);
+Vector<Real> exact_flux(const Array4<Real>& arr, int i, int j, int k, int iOffset, int jOffset, int kOffset,
+ 			int start, int length, Real dx, Real dt, int d);
 Vector<Real> EM_linearFunc(const Array4<Real>& Bc, const Array4<Real>& Ec,  int i, int j, int k, Real x, Real y, Real z,
 			   const Real* dx);
 Vector<Real> EM_quadraticFunc(const Array4<Real>& Bc, const Array4<Real>& Ec,  int i, int j, int k, Real x, Real y, Real z,
 			   const Real* dx);
-Vector<Real> WENO_data(const Array4<Real>& arr, int i, int j, int k, int iOffset, int jOffset, int kOffset, int n);
+Vector<Real> get_data_zone(const Array4<Real>& arr, int i, int j, int k, int start, int length);
+Vector<Real> get_data_stencil(const Array4<Real>& arr, int i, int j, int k, int iOffset, int jOffset, int kOffset, int n);
+Real TVD_slope(Vector<Real> u, Vector<Real> limiter);
 std::array<Real, 2> WENO3_slope(Vector<Real> u);
 Real WENO3_slopeCross(Vector<Real> u, Vector<Real> slopes);
 Vector<Real> get_charge_scaled(Vector<Real> u_i, Vector<Real> u_e);
+void WENOcharacteristic(const Array4<Real>& arr, const Array4<Real>& slopes,
+			int i, int j, int k, int iOffset, int jOffset, int kOffset,
+			int start, int len, int d);

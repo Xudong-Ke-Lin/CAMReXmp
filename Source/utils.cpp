@@ -226,27 +226,34 @@ Vector<Real> cross_product(Vector<Real> a, Vector<Real> b){
 Real dot_product(Vector<Real> a, Vector<Real> b){
   return a[0]*b[0] + a[1]*b[1] + a[2]*b[2];
 }
+Real dotProduct(Vector<Real> a, Vector<Real> b){
+  Real res = 0.0;
+  for (int n=0; n<a.size(); n++)
+    res += a[n]*b[n];
+
+  return res;
+}
 // select the method for slope limiter
 // epsilon is the slope limiter
 // r is the slope ratio
 Real get_epsilon(Real r){
   // MIMBEE
-  if (r <= 0){
+  /*if (r <= 0){
     return 0.0;
   } else if (r>0 && r<=1.0){
     return r;
   } else{
     Real epsilon_R = 2.0/(1.0+r);
     return std::min(1.0, epsilon_R);
-    }
+    }*/
   // Van-Leer
-  /*if (r <= 0){
+  if (r <= 0){
     return 0.0;
   } else{
     Real epsilon_R = 2.0/(1.0+r);
     Real epsilon_L = 2.0*r/(1.0+r);
     return std::min(epsilon_L, epsilon_R);
-    }*/
+  }
   // Superbee
   /*if (r <= 0){
     return 0.0;
@@ -1795,6 +1802,103 @@ Vector<Real> MUSCL_Hancock_HLLC_flux(const Array4<Real>& arr, int i, int j, int 
 
   return flux;
 }
+Vector<Real> TVD_flux(const Array4<Real>& arr, const Array4<Real>& slopes,
+		      int i, int j, int k, int iOffset, int jOffset, int kOffset,
+		      int start, int len,
+		      Real dx, Real dt, int d,
+		      std::function<Vector<Real> (Vector<Real>,Vector<Real>,int)> solver){
+
+  Vector<Real> u_iMinus1, u_i;
+
+  Vector<Real> slopes_iMinus1, slopes_i;
+
+  int offset;
+  if (d==0)
+    offset = 0;
+  else if (d==1)
+    offset = NUM_STATE_FLUID;
+  
+  for (int n = start; n<start+len; n++)
+    {
+      //ui_iMinus2.push_back(arr(i-2*iOffset,j-2*jOffset,k-2*kOffset,n));
+      u_iMinus1.push_back(arr(i-iOffset,j-jOffset,k-kOffset,n));
+      u_i.push_back(arr(i,j,k,n));
+      //ui_iPlus1.push_back(arr(i+iOffset,j+jOffset,k+kOffset,n));
+
+      slopes_iMinus1.push_back(slopes(i-iOffset,j-jOffset,k-kOffset,n+offset));
+      slopes_i.push_back(slopes(i,j,k,n+offset)); 
+    }
+
+  // Slope limiting variable index
+  //Vector<int> limiting_idx(NUM_STATE_FLUID/2, NUM_STATE_FLUID/2-1);
+  
+  // Cell boundary extrapolated values at the left and the right for the ion
+  //Vector<Real> slopes_iMinus1_i = TVD_slopes(ui_iMinus2, ui_iMinus1, ui_i, limiting_idx);
+  //Vector<Real> slopes_i_i = TVD_slopes(ui_iMinus1, ui_i, ui_iPlus1, limiting_idx);
+  Vector<Real> u_iMinus1R,u_iL;
+  for (int n = 0; n<NUM_STATE_FLUID/2; n++)
+    {
+      u_iMinus1R.push_back(u_iMinus1[n] + 0.5*slopes_iMinus1[n]);
+      u_iL.push_back(u_i[n] - 0.5*slopes_i[n]);
+    }
+
+  // flux depending on the speeds, defined in slides or Toro's book
+  Vector<Real> flux = solver(u_iMinus1R,u_iL,d);
+
+  return flux;
+}
+Vector<Real> MUSCL_Hancock_TVD_flux(const Array4<Real>& arr, const Array4<Real>& slopes,
+				    int i, int j, int k, int iOffset, int jOffset, int kOffset,
+				    int start, int len,
+				    Real dx, Real dt, int d,
+				    std::function<Vector<Real> (const Vector<Real>&, int)> flux_function,
+				    std::function<Vector<Real> (Vector<Real>,Vector<Real>,int)> solver){
+
+  Vector<Real> u_iMinus1, u_i;
+
+  Vector<Real> slopes_iMinus1, slopes_i;
+
+  int offset;
+  if (d==0)
+    offset = 0;
+  else if (d==1)
+    offset = NUM_STATE_FLUID;
+  
+  for (int n = start; n<start+len; n++)
+    {
+      //ui_iMinus2.push_back(arr(i-2*iOffset,j-2*jOffset,k-2*kOffset,n));
+      u_iMinus1.push_back(arr(i-iOffset,j-jOffset,k-kOffset,n));
+      u_i.push_back(arr(i,j,k,n));
+      //ui_iPlus1.push_back(arr(i+iOffset,j+jOffset,k+kOffset,n));
+
+      slopes_iMinus1.push_back(slopes(i-iOffset,j-jOffset,k-kOffset,n+offset));
+      slopes_i.push_back(slopes(i,j,k,n+offset)); 
+    }
+
+  // Slope limiting variable index
+  //Vector<int> limiting_idx(NUM_STATE_FLUID/2, NUM_STATE_FLUID/2-1);
+  
+  // Cell boundary extrapolated values at the left and the right for the ion
+  //Vector<Real> slopes_iMinus1_i = TVD_slopes(ui_iMinus2, ui_iMinus1, ui_i, limiting_idx);
+  //Vector<Real> slopes_i_i = TVD_slopes(ui_iMinus1, ui_i, ui_iPlus1, limiting_idx);
+  Vector<Real> u_iMinus1L,u_iMinus1R,u_iL,u_iR;
+  for (int n = 0; n<NUM_STATE_FLUID/2; n++)
+    {
+      u_iMinus1L.push_back(u_iMinus1[n] - 0.5*slopes_iMinus1[n]);
+      u_iMinus1R.push_back(u_iMinus1[n] + 0.5*slopes_iMinus1[n]);
+      u_iL.push_back(u_i[n] - 0.5*slopes_i[n]);
+      u_iR.push_back(u_i[n] + 0.5*slopes_i[n]);
+    }
+
+  // Reiamnn problem left state
+  Vector<Real> u_iMinus1_nPlusHalf_R = half_update_R(u_iMinus1L, u_iMinus1R, dx, dt, d, flux_function);
+  // Reiamnn problem right state
+  Vector<Real> u_i_nPlusHalf_L = half_update_L(u_iL, u_iR, dx, dt, d, flux_function);
+  
+  Vector<Real> flux = solver(u_iMinus1_nPlusHalf_R,u_i_nPlusHalf_L,d);
+
+  return flux;
+}
 std::array<Vector<Real>, 2> MUSCL_Hancock_Godunov_Maxwell_and_transverse(const Array4<Real>& arr, int i, int j, int k, int iOffset, int jOffset, int kOffset, 
 							  Real dx, Real dt, int d){
 
@@ -1996,7 +2100,7 @@ Vector<Real> EM_quadraticFunc(const Array4<Real>& Bc, const Array4<Real>& Ec,  i
   Vector<Real> EM(NUM_STATE_MAXWELL,0.0);
 
   Real xdx = x/dx[0], ydy = y/dx[1];
-  
+     
   EM[BX_LOCAL] = Bc(i,j,k,a0) + Bc(i,j,k,ax)*xdx
     + Bc(i,j,k,ay)*ydy // + az*
     + Bc(i,j,k,axx)*(xdx*xdx - 1.0/12.0)
@@ -2037,10 +2141,10 @@ Vector<Real> EM_quadraticFunc(const Array4<Real>& Bc, const Array4<Real>& Ec,  i
     + Ec(i,j,k,bxxy)*(xdx*xdx - 1.0/12.0)*ydy;
   EM[EZ_LOCAL] = Ec(i,j,k,c0) + Ec(i,j,k,cx)*xdx
     + Ec(i,j,k,cy)*ydy
-    + Bc(i,j,k,cxx)*(xdx*xdx - 1.0/12.0)
-    + Bc(i,j,k,cyy)*(ydy*ydy - 1.0/12.0)
-    + Bc(i,j,k,cxy)*xdx*ydy;
-
+    + Ec(i,j,k,cxx)*(xdx*xdx - 1.0/12.0)
+    + Ec(i,j,k,cyy)*(ydy*ydy - 1.0/12.0)
+    + Ec(i,j,k,cxy)*xdx*ydy;
+  
   return EM;
   
 }
@@ -2273,12 +2377,180 @@ Vector<Real> MUSCL_Hancock_WENO_flux(const Array4<Real>& arr, const Array4<Real>
   
   return flux;
 }
+Vector<Real> flux_LLF(const Vector<Real>& u_i, const Vector<Real>& u_iPlus1, int d){
+    
+    Vector<Real> flux, func_i, func_iPlus1;
+    func_i = fluidFlux(u_i,d);
+    func_iPlus1 = fluidFlux(u_iPlus1,d);
+    Real speed_i, speed_iPlus1, speed_max;
+    speed_i = get_speed(u_i);
+    speed_iPlus1 = get_speed(u_iPlus1);
+    speed_max = std::max(speed_i,speed_iPlus1);
+
+    for (int i = 0; i<u_i.size(); i++)
+      {
+        flux.push_back(0.5*(func_iPlus1[i]+func_i[i]
+			    - speed_max*(u_iPlus1[i]-u_i[i])));
+      }
+    return flux;
+}
 Vector<Real> WENO_flux(const Array4<Real>& arr, const Array4<Real>& slopes,
 		       int i, int j, int k, int iOffset, int jOffset, int kOffset,
 		       int start, int len,
 		       Real dx, Real dt, int d,
-		       std::function<Vector<Real> (const Vector<Real>&, int)> flux_function,
 		       std::function<Vector<Real> (Vector<Real>,Vector<Real>,int)> solver){
+  Vector<Real> u_iMinus1;
+  Vector<Real> u_i;
+  
+  Vector<Real> ux_iMinus1,uxx_iMinus1,ux_i,uxx_i;
+  
+#if (AMREX_SPACEDIM >= 2)
+  Vector<Real> uy_iMinus1,uyy_iMinus1,uy_i,uyy_i;
+  Vector<Real> uxy_iMinus1,uxy_i;
+#endif
+
+  int xOffset,yOffset;
+  if (d==0)
+    xOffset = 0, yOffset = 2*NUM_STATE_FLUID;
+  else if (d==1)
+    xOffset = 2*NUM_STATE_FLUID, yOffset = 0;
+  
+  for (int n = start; n<start+len; n++)
+    {
+      u_iMinus1.push_back(arr(i-iOffset,j-jOffset,k-kOffset,n));
+      u_i.push_back(arr(i,j,k,n));      
+      
+      // slopes in x-direction
+      ux_iMinus1.push_back(slopes(i-iOffset,j-jOffset,k-kOffset,n+xOffset));
+      uxx_iMinus1.push_back(slopes(i-iOffset,j-jOffset,k-kOffset,n+xOffset+NUM_STATE_FLUID));
+      ux_i.push_back(slopes(i,j,k,n+xOffset));
+      uxx_i.push_back(slopes(i,j,k,n+xOffset+NUM_STATE_FLUID));
+
+#if (AMREX_SPACEDIM >= 2)
+      uy_iMinus1.push_back(slopes(i-iOffset,j-jOffset,k-kOffset,n+yOffset));
+      uyy_iMinus1.push_back(slopes(i-iOffset,j-jOffset,k-kOffset,n+yOffset+NUM_STATE_FLUID));
+      uy_i.push_back(slopes(i,j,k,n+yOffset));
+      uyy_i.push_back(slopes(i,j,k,n+yOffset+NUM_STATE_FLUID));
+
+      uxy_iMinus1.push_back(slopes(i-iOffset,j-jOffset,k-kOffset,n+4*NUM_STATE_FLUID));
+      uxy_i.push_back(slopes(i,j,k,n+4*NUM_STATE_FLUID));
+#endif      
+    }
+
+  Real x = 0.0, Lx, Lxx;
+  // Cell boundary extrapolated values at the left and the right
+  Vector<Real> u_iMinus1R,u_iL;
+#if (AMREX_SPACEDIM >= 2)
+  Real y = 0.0, Ly, Lyy, Lxy;
+  Vector<Real> u_iMinus1R2,u_iL2;
+  //Vector<Real> u_iMinus1R3,u_iL3;
+#endif
+  
+  for (int n = 0; n<u_i.size(); n++)
+    {
+      x = -0.5;
+      Lx = x, Lxx = x*x - 1.0/12.0;
+      u_iL.push_back(u_i[n] + ux_i[n]*Lx + uxx_i[n]*Lxx);
+  
+      x = 0.5;
+      Lx = x, Lxx = x*x - 1.0/12.0;
+      u_iMinus1R.push_back(u_iMinus1[n] + ux_iMinus1[n]*Lx
+			   + uxx_iMinus1[n]*Lxx);
+
+#if (AMREX_SPACEDIM >= 2)
+      y = 1.0/(2.0*std::sqrt(3.0));
+      Ly = y, Lyy = y*y - 1.0/12.0;
+
+      x = -0.5;
+      Lx = x, Lxx = x*x - 1.0/12.0;
+      u_iL[n] +=  uy_i[n]*Ly + uyy_i[n]*Lyy + uxy_i[n]*Lx*Ly;
+
+      x = 0.5;
+      Lx = x, Lxx = x*x - 1.0/12.0;
+      u_iMinus1R[n] +=  uy_iMinus1[n]*Ly + uyy_iMinus1[n]*Lyy + uxy_iMinus1[n]*Lx*Ly;
+
+      // second quadrature point
+      y = -1.0/(2.0*std::sqrt(3.0));
+      Ly = y, Lyy = y*y - 1.0/12.0;     
+      x = -0.5;
+      Lx = x, Lxx = x*x - 1.0/12.0;
+      u_iL2.push_back(u_i[n] + ux_i[n]*Lx + uxx_i[n]*Lxx
+		      + uy_i[n]*Ly + uyy_i[n]*Lyy + uxy_i[n]*Lx*Ly);
+
+      x = 0.5;
+      Lx = x, Lxx = x*x - 1.0/12.0;
+      u_iMinus1R2.push_back(u_iMinus1[n] + ux_iMinus1[n]*Lx
+			    + uxx_iMinus1[n]*Lxx
+			    + uy_iMinus1[n]*Ly + uyy_iMinus1[n]*Lyy + uxy_iMinus1[n]*Lx*Ly); 
+      /*
+      // Simpson rule
+      y = -0.5;
+      Ly = y, Lyy = y*y - 1.0/12.0;
+
+      x = -0.5;
+      Lx = x, Lxx = x*x - 1.0/12.0;
+      u_iL[n] +=  uy_i[n]*Ly + uyy_i[n]*Lyy + uxy_i[n]*Lx*Ly;
+
+      x = 0.5;
+      Lx = x, Lxx = x*x - 1.0/12.0;
+      u_iMinus1R[n] +=  uy_iMinus1[n]*Ly + uyy_iMinus1[n]*Lyy + uxy_iMinus1[n]*Lx*Ly;
+
+      // second quadrature point
+      y = 0.0;
+      Ly = y, Lyy = y*y - 1.0/12.0;     
+      x = -0.5;
+      Lx = x, Lxx = x*x - 1.0/12.0;
+      u_iL2.push_back(u_i[n] + ux_i[n]*Lx + uxx_i[n]*Lxx
+		      + uy_i[n]*Ly + uyy_i[n]*Lyy + uxy_i[n]*Lx*Ly);
+
+      x = 0.5;
+      Lx = x, Lxx = x*x - 1.0/12.0;
+      u_iMinus1R2.push_back(u_iMinus1[n] + ux_iMinus1[n]*Lx
+			    + uxx_iMinus1[n]*Lxx
+			    + uy_iMinus1[n]*Ly + uyy_iMinus1[n]*Lyy + uxy_iMinus1[n]*Lx*Ly);
+
+      // third quadrature point
+      y = 0.5;
+      Ly = y, Lyy = y*y - 1.0/12.0;     
+      x = -0.5;
+      Lx = x, Lxx = x*x - 1.0/12.0;
+      u_iL3.push_back(u_i[n] + ux_i[n]*Lx + uxx_i[n]*Lxx
+		      + uy_i[n]*Ly + uyy_i[n]*Lyy + uxy_i[n]*Lx*Ly);
+
+      x = 0.5;
+      Lx = x, Lxx = x*x - 1.0/12.0;
+      u_iMinus1R3.push_back(u_iMinus1[n] + ux_iMinus1[n]*Lx
+			    + uxx_iMinus1[n]*Lxx
+			    + uy_iMinus1[n]*Ly + uyy_iMinus1[n]*Lyy + uxy_iMinus1[n]*Lx*Ly);
+      */
+     
+#endif
+    }
+
+  Vector<Real> flux = solver(u_iMinus1R,u_iL,d);
+  //Vector<Real> flux = flux_LLF(u_iMinus1R,u_iL,d);
+  
+#if (AMREX_SPACEDIM >= 2)  
+  Vector<Real> flux2 = solver(u_iMinus1R2,u_iL2,d);
+  //Vector<Real> flux3 = solver(u_iMinus1R3,u_iL3,d);
+  for (int n = 0; n<u_i.size(); n++)
+    {
+      flux[n] += flux2[n];
+      flux[n] *= 0.5;
+      //flux[n] = flux[n]/6.0 + 2.0*flux2[n]/3.0 + flux3[n]/6.0;
+    }
+#endif  
+
+  /*if (i==160 && j==60 && start==5)
+    std::cout << "After reconstruction " << get_specific_energy(u_iMinus1R) << " " << get_specific_energy(u_iL) << " " << get_specific_energy(u_iMinus1R2) << " " << get_specific_energy(u_iL2) << std::endl;
+  */
+  return flux;
+}
+Vector<Real> WENO_flux_flat(const Array4<Real>& arr, const Array4<Real>& slopes, const Array4<Real>& tau,
+			    int i, int j, int k, int iOffset, int jOffset, int kOffset,
+			    int start, int len,
+			    Real dx, Real dt, int d,
+			    std::function<Vector<Real> (Vector<Real>,Vector<Real>,int)> solver){
   Vector<Real> u_iMinus1;
   Vector<Real> u_i;
 
@@ -2332,12 +2604,12 @@ Vector<Real> WENO_flux(const Array4<Real>& arr, const Array4<Real>& slopes,
       x = -0.5;
       Lx = x, Lxx = x*x - 1.0/12.0;
       u_iL.push_back(u_i[n] + ux_i[n]*Lx + uxx_i[n]*Lxx);
-
+  
       x = 0.5;
       Lx = x, Lxx = x*x - 1.0/12.0;
       u_iMinus1R.push_back(u_iMinus1[n] + ux_iMinus1[n]*Lx
 			   + uxx_iMinus1[n]*Lxx);
-
+      
 #if (AMREX_SPACEDIM >= 2)
       y = 1.0/(2.0*std::sqrt(3.0));
       Ly = y, Lyy = y*y - 1.0/12.0;
@@ -2365,9 +2637,42 @@ Vector<Real> WENO_flux(const Array4<Real>& arr, const Array4<Real>& slopes,
 			    + uy_iMinus1[n]*Ly + uyy_iMinus1[n]*Lyy + uxy_iMinus1[n]*Lx*Ly);
       
 #endif
+
+      for (int tau_n=0; tau_n<2; tau_n++)
+	{
+	  if (tau(i,j,k,tau_n)<1.0)
+	    {
+	      //std::cout << "Within function iL " << i << " " << tau_n << " " << tau(i,j,k,tau_n) << " " << u_iL[n] << " ";
+	      u_iL[n] = (1.0-tau(i,j,k,tau_n))*u_i[n] + tau(i,j,k,tau_n)*u_iL[n];
+#if (AMREX_SPACEDIM >= 2)
+	      u_iL2[n] = (1.0-tau(i,j,k,tau_n))*u_i[n] + tau(i,j,k,tau_n)*u_iL2[n];
+#endif
+	      //std::cout <<  u_iL[n] << std::endl; 
+	    }
+	  if (tau(i-1,j,k,tau_n)<1.0)
+	    {
+	      //std::cout << "Within function iMinus1R " << i << " " << tau_n << " " << tau(i-1,j,k,tau_n) << " " << u_iMinus1R[n] << " ";
+	      u_iMinus1R[n] = (1.0-tau(i-1,j,k,tau_n))*u_iMinus1[n] + tau(i-1,j,k,tau_n)*u_iMinus1R[n];
+#if (AMREX_SPACEDIM >= 2)
+	      u_iMinus1R2[n] = (1.0-tau(i-1,j,k,tau_n))*u_iMinus1[n] + tau(i-1,j,k,tau_n)*u_iMinus1R2[n];
+#endif
+	      //std::cout <<  u_iMinus1R[n] << std::endl;
+	    }
+	}            
     }
+  /*
+  if (tau(i,j,k,1)<1.0)
+    {
+      std::cout << "Within function iL pressure " << i << " " << get_pressure(u_iL) << std::endl;
+    }
+  if (tau(i-1,j,k,1)<1.0)
+    {
+      std::cout << "Within function iMinus1R pressure " << i << " " << get_pressure(u_iMinus1R) << std::endl;
+    }
+  */
 
   Vector<Real> flux = solver(u_iMinus1R,u_iL,d);
+  //Vector<Real> flux = flux_LLF(u_iMinus1R,u_iL,d);
 
 #if (AMREX_SPACEDIM >= 2)
 
@@ -2381,10 +2686,16 @@ Vector<Real> WENO_flux(const Array4<Real>& arr, const Array4<Real>& slopes,
   
   return flux;
 }
-Vector<Real> WENO_data(const Array4<Real>& arr, int i, int j, int k, int iOffset, int jOffset, int kOffset, int n)
+Vector<Real> get_data_zone(const Array4<Real>& arr, int i, int j, int k, int start, int length)
 {
   Vector<Real> data;
-
+  for (int n=start; n<start+length; n++)
+    data.push_back(arr(i,j,k,n));
+  return data;
+}
+Vector<Real> get_data_stencil(const Array4<Real>& arr, int i, int j, int k, int iOffset, int jOffset, int kOffset, int n)
+{
+  Vector<Real> data;
   for (int dataiOffset = -iOffset; dataiOffset <= iOffset; dataiOffset++)
     {
       for (int datajOffset = -jOffset; datajOffset <= jOffset; datajOffset++)
@@ -2393,12 +2704,32 @@ Vector<Real> WENO_data(const Array4<Real>& arr, int i, int j, int k, int iOffset
 	    {
 	      data.push_back(arr(i+dataiOffset,
 				 j+datajOffset,
-				 k+datakOffset,n));	      
+				 k+datakOffset,n));
 	    }
 	}
     }
   return data;
 }
+Real TVD_slope(Vector<Real> u, Vector<Real> limiter)
+{
+  Real u_iMinus1 = u[0];
+  Real u_i = u[1];
+  Real u_iPlus1 = u[2];
+
+  Real lim_iMinus1 = limiter[0];
+  Real lim_i = limiter[1];
+  Real lim_iPlus1 = limiter[2];
+
+  // slope measure
+  Real delta_i = get_delta_i(u_iMinus1, u_i, u_iPlus1);
+  // slope ratio
+  Real ri = get_r(lim_iMinus1,lim_i,lim_iPlus1);
+  // slope limiter
+  Real epsilon_i = get_epsilon(ri);
+
+  return epsilon_i*delta_i;
+}
+
 std::array<Real, 2> WENO3_slope(Vector<Real> u)
 {
   Real u_iMinus2 = u[0];
@@ -2407,39 +2738,31 @@ std::array<Real, 2> WENO3_slope(Vector<Real> u)
   Real u_iPlus1 = u[3];
   Real u_iPlus2 = u[4];
 
+  int L=0,C=1,R=2;
+  
   Vector<Real> ux(3, 0.0);
   Vector<Real> uxx(3, 0.0);
-  ux[0] = -2.0*u_iMinus1 + u_iMinus2/2.0 + 3.0*u_i/2.0;
-  uxx[0] = (u_iMinus2 - 2.0*u_iMinus1 + u_i)/2.0;
-  ux[1] = (u_iPlus1-u_iMinus1)/2.0;
-  uxx[1] = (u_iMinus1 - 2.0*u_i + u_iPlus1)/2.0;
-  ux[2] = -3.0*u_i/2.0 + 2.0*u_iPlus1 - u_iPlus2/2.0;
-  uxx[2] = (u_i  - 2.0*u_iPlus1 + u_iPlus2)/2.0;
+  ux[L] = -2.0*u_iMinus1 + 0.5*u_iMinus2 + 1.5*u_i;
+  uxx[L] = 0.5*u_iMinus2 - u_iMinus1 + 0.5*u_i;
+  ux[C] = 0.5*(u_iPlus1-u_iMinus1);
+  uxx[C] = 0.5*u_iMinus1 - u_i + 0.5*u_iPlus1;
+  ux[R] = -1.5*u_i + 2.0*u_iPlus1 - 0.5*u_iPlus2;
+  uxx[R] = 0.5*u_i  - u_iPlus1 + 0.5*u_iPlus2;
 
   // smothness indicator
   Vector<Real> IS(ux.size(), 0.0);
   for (int n=0; n<ux.size(); n++)
     IS[n] = ux[n]*ux[n] + 13.0/3.0*uxx[n]*uxx[n];
-  /*
-  Real ux1 = -2.0*u_iMinus1 + u_iMinus2/2.0 + 3.0*u_i/2.0;
-  Real uxx1 = (u_iMinus2 - 2.0*u_iMinus1 + u_i)/2.0;
-  Real ux2 = (u_iPlus1-u_iMinus1)/2.0;
-  Real uxx2 = (u_iMinus1 - 2.0*u_i + u_iPlus1)/2.0;
-  Real ux3 = -3.0*u_i/2.0 + 2.0*u_iPlus1 - u_iPlus2/2.0;
-  Real uxx3 = (u_i  - 2.0*u_iPlus1 + u_iPlus2)/2.0;
-  Real IS1 = ux1*ux1 + 13.0/3.0*uxx1*uxx1;
-  Real IS2 = ux2*ux2 + 13.0/3.0*uxx2*uxx2;
-  Real IS3 = ux3*ux3 + 13.0/3.0*uxx3*uxx3;
-  */
-  Real e = 1e-6, dLarge=100.0;
+
+  Real e = 1e-12;
   // linear weights
   Vector<Real> d(ux.size(), 0.0);
-  //Real d1 = 1.0/(dLarge+2.0), d2 = dLarge/(dLarge+2.0), d3 = 1.0/(dLarge+2.0);
-  d[0] = 1.0/(dLarge+2.0), d[1] = dLarge/(dLarge+2.0), d[2] = 1.0/(dLarge+2.0);
+  d[L] = 1.0, d[C] = 100.0, d[R] = 1.0;
+  //d[0] = 0.1, d[1] = 0.6, d[2] = 0.3;
   
   Vector<Real> alpha(ux.size(), 0.0);
   for (int n=0; n<ux.size(); n++)
-    alpha[n] = d[n]/((e+IS[n])*(e+IS[n]));
+    alpha[n] = d[n]/(std::pow(e+IS[n],4));
   /*
   Real alpha1_i = d1/((e+IS1)*(e+IS1));
   Real alpha2_i = d2/((e+IS2)*(e+IS2));
@@ -2459,7 +2782,9 @@ std::array<Real, 2> WENO3_slope(Vector<Real> u)
   Real omega2_i = alpha2_i/alpha_i;
   Real omega3_i = alpha3_i/alpha_i;
   */
-  
+  /*for (int n=0; n<5; n++)
+    std::cout << u[n] << " ";
+    std::cout << omega[L] << " " << omega[C] << " " << omega[R] << " " << omega[0]+omega[1]+omega[2] << std::endl;*/
   // Slopes
   //Real ux = omega1_i*ux1 + omega2_i*ux2 + omega3_i*ux3;
   //Real uxx = omega1_i*uxx1 + omega2_i*uxx2 + omega3_i*uxx3;
@@ -2489,8 +2814,9 @@ Real WENO3_slopeCross(Vector<Real> u, Vector<Real> slopes)
   Vector<Real> uxy(4, 0.0);
   uxy[0] = u_iPlus1jPlus1 - u_ij - ux - uy - uxx - uyy;
   uxy[1] = -u_iPlus1jMinus1 + u_ij + ux - uy + uxx + uyy;
-  uxy[2] = -u_iMinus1jMinus1 + u_ij - ux + uy + uxx + uyy;
+  uxy[2] = -u_iMinus1jPlus1 + u_ij - ux + uy + uxx + uyy;
   uxy[3] = u_iMinus1jMinus1 - u_ij + ux + uy - uxx - uyy;
+  
   /*
   Real uxy1 = u_iPlus1jPlus1 - u_ij - ux - uy - uxx - uyy;
   Real uxy2 = -u_iPlus1jMinus1 + u_ij + ux - uy + uxx + uyy;
@@ -2509,11 +2835,11 @@ Real WENO3_slopeCross(Vector<Real> u, Vector<Real> slopes)
   */
 
   Real d = 0.25;
-  Real e = 1e-6;
+  Real e = 1e-12;
 
   Vector<Real> alpha(uxy.size(), 0.0);
   for (int n=0; n<uxy.size(); n++)
-    alpha[n] = d/((e+IS[n])*(e+IS[n]));
+    alpha[n] = d/(std::pow(e+IS[n],4));
   /*
   Real alpha1_i = d/((e+IS1)*(e+IS1));
   Real alpha2_i = d/((e+IS2)*(e+IS2));
@@ -2551,4 +2877,266 @@ Vector<Real> get_charge_scaled(Vector<Real> u_i, Vector<Real> u_e)
   for (int n=0; n<u_i.size(); n++)
     charge_scaled.push_back((r_i*u_i[n] + r_e*u_e[n])/(lambda_d*lambda_d*l_r));
   return charge_scaled;
+}
+// void WENOcharacteristic(const Array4<Real>& arr, const Array4<Real>& slopes,
+// 			int i, int j, int k, int iOffset, int jOffset, int kOffset,
+// 			int start, int len, int d){
+//   // local characteristic reconstruction		      
+//   Vector<Real> u_i = get_data_zone(arr,i,j,k,start,start+len);
+//   // define conserved variables
+//   Real rho_i = u_i[0];
+//   //Real momX_i = u_i[1+d];
+//   Real momX_i = u_i[1];
+//   //Real momY_i = u_i[1+(1+d)%3];
+//   Real momY_i = u_i[2];
+//   //Real momZ_i = u_i[1+(2+d)%3];
+//   Real momZ_i = u_i[3];
+//   Real E_i = u_i[ENER_I];
+		  
+//   // define primitive variables
+//   Real v_x_i = momX_i/rho_i;
+//   Real v_y_i = momY_i/rho_i;
+//   Real v_z_i = momZ_i/rho_i;
+//   Real v_squared = get_magnitude_squared(v_x_i,v_y_i,v_z_i);
+//   Real p_i = get_pressure({rho_i,momX_i,momY_i,momZ_i,E_i});
+//   // sound speed
+//   Real c_i = get_speed(u_i);
+//   // enthalpy
+//   Real H_i = (E_i+p_i)/rho_i;
+//   // useful variables
+//   Real b1 = (Gamma-1.0)/(c_i*c_i);
+//   Real b2 = 0.5*v_squared*b1;
+
+//   // left eigenvbectors
+//   /*Vector<Real> l1 = {0.5*(b2+v_x_i/c_i),-0.5*(b1*v_x_i+1.0/c_i),-0.5*b1*v_y_i,-0.5*b1*v_z_i,0.5*b1};
+//     Vector<Real> l2 = {-v_y_i,0.0,1.0,0.0,0.0};
+//     Vector<Real> l3 = {-v_z_i,0.0,0.0,1.0,0.0};
+//     Vector<Real> l4 = {1.0-b2,b1*v_x_i,b1*v_y_i,b1*v_z_i,-b1};
+//     Vector<Real> l5 = {0.5*(b2-v_x_i/c_i),-0.5*(b1*v_x_i-1.0/c_i),-0.5*b1*v_y_i,-0.5*b1*v_z_i,0.5*b1};
+//   */
+//   /*
+//     Vector<Real> l1 = {0.5*(b2+v_x_i/c_i),-0.5*(b1*v_x_i+1.0/c_i),-0.5*b1*v_y_i,-0.5*b1*v_z_i,0.5*b1};
+//     Vector<Real> l2 = {1.0-b2,b1*v_x_i,b1*v_y_i,b1*v_z_i,-b1};
+//     Vector<Real> l3 = {-v_y_i,0.0,1.0,0.0,0.0};
+//     Vector<Real> l4 = {-v_z_i,0.0,0.0,1.0,0.0};		  
+//     Vector<Real> l5 = {0.5*(b2-v_x_i/c_i),-0.5*(b1*v_x_i-1.0/c_i),-0.5*b1*v_y_i,-0.5*b1*v_z_i,0.5*b1};
+//   */
+//   Vector<Real> l1,l2,l3,l4,l5,r1,r2,r3,r4,r5;
+//   if (d==0){
+//     l1 = {0.5*(b2+v_x_i/c_i),-0.5*(b1*v_x_i+1.0/c_i),-0.5*b1*v_y_i,-0.5*b1*v_z_i,0.5*b1};
+//     l2 = {1.0-b2,b1*v_x_i,b1*v_y_i,b1*v_z_i,-b1};
+//     l3 = {0.5*(b2-v_x_i/c_i),-0.5*(b1*v_x_i-1.0/c_i),-0.5*b1*v_y_i,-0.5*b1*v_z_i,0.5*b1};
+//     l4 = {-v_y_i,0.0,1.0,0.0,0.0};
+//     l5 = {-v_z_i,0.0,0.0,1.0,0.0};
+//   } else if (d==1){
+//     l1 = {0.5*(b2+v_y_i/c_i),-0.5*b1*v_x_i,-0.5*(b1*v_y_i+1.0/c_i),-0.5*b1*v_z_i,0.5*b1};
+//     l2 = {1.0-b2,b1*v_x_i,b1*v_y_i,b1*v_z_i,-b1};
+//     l3 = {0.5*(b2-v_y_i/c_i),-0.5*b1*v_x_i,-0.5*(b1*v_y_i-1.0/c_i),-0.5*b1*v_z_i,0.5*b1};
+//     l4 = {v_x_i,-1.0,0.0,0.0,0.0};
+//     l5 = {v_z_i,0.0,0.0,-1.0,0.0};			
+//   }
+  
+//   // Conserved variables covering the stencils
+//   Vector<Real> u_iMinus2 = get_data_zone(arr,i-2*iOffset,j-2*jOffset,k-2*kOffset,start,start+len);
+//   Vector<Real> u_iMinus1 = get_data_zone(arr,i-iOffset,j-jOffset,k-kOffset,start,start+len);
+//   Vector<Real> u_iPlus1 = get_data_zone(arr,i+iOffset,j+jOffset,k+kOffset,start,start+len);
+//   Vector<Real> u_iPlus2 = get_data_zone(arr,i+2*iOffset,j+2*jOffset,k+2*kOffset,start,start+len);
+//   // Characteristic variables covering the stencils
+//   Vector<Real> w_iMinus2 = {dotProduct(l1,u_iMinus2),
+// 			    dotProduct(l2,u_iMinus2),
+// 			    dotProduct(l3,u_iMinus2),
+// 			    dotProduct(l4,u_iMinus2),
+// 			    dotProduct(l5,u_iMinus2)};
+//   Vector<Real> w_iMinus1 = {dotProduct(l1,u_iMinus1),
+// 			    dotProduct(l2,u_iMinus1),
+// 			    dotProduct(l3,u_iMinus1),
+// 			    dotProduct(l4,u_iMinus1),
+// 			    dotProduct(l5,u_iMinus1)};
+//   Vector<Real> w_i = {dotProduct(l1,u_i),
+// 		      dotProduct(l2,u_i),
+// 		      dotProduct(l3,u_i),
+// 		      dotProduct(l4,u_i),
+// 		      dotProduct(l5,u_i)};
+//   Vector<Real> w_iPlus1 = {dotProduct(l1,u_iPlus1),
+// 			   dotProduct(l2,u_iPlus1),
+// 			   dotProduct(l3,u_iPlus1),
+// 			   dotProduct(l4,u_iPlus1),
+// 			   dotProduct(l5,u_iPlus1)};
+//   Vector<Real> w_iPlus2 = {dotProduct(l1,u_iPlus2),
+// 			   dotProduct(l2,u_iPlus2),
+// 			   dotProduct(l3,u_iPlus2),
+// 			   dotProduct(l4,u_iPlus2),
+// 			   dotProduct(l5,u_iPlus2)};
+//   /*
+//     for (Vector<Real> l : {l1,l2,l3,l4,l5})
+//     {
+//     w_iMinus2.push_back(dotProduct(l,u_iMinus2));
+//     w_iMinus1.push_back(dotProduct(l,u_iMinus1));
+//     w_i.push_back(dotProduct(l,u_i));
+//     w_iPlus1.push_back(dotProduct(l,u_iPlus1));
+//     w_iPlus2.push_back(dotProduct(l,u_iPlus2));
+//     }
+//   */
+//   // Stencils of characteristic variables
+//   Vector<Real> w1 = {w_iMinus2[0],w_iMinus1[0],w_i[0],
+// 		     w_iPlus1[0],w_iPlus2[0]};
+//   Vector<Real> w2 = {w_iMinus2[1],w_iMinus1[1],w_i[1],
+// 		     w_iPlus1[1],w_iPlus2[1]};
+//   Vector<Real> w3 = {w_iMinus2[2],w_iMinus1[2],w_i[2],
+// 		     w_iPlus1[2],w_iPlus2[2]};
+//   Vector<Real> w4 = {w_iMinus2[3],w_iMinus1[3],w_i[3],
+// 		     w_iPlus1[3],w_iPlus2[3]};		  
+//   Vector<Real> w5 = {w_iMinus2[4],w_iMinus1[4],w_i[4],
+// 		     w_iPlus1[4],w_iPlus2[4]};
+//   /*
+//     int n = 0;
+//     for (Vector<Real> w : {w1,w2,w3,w4,w5})
+//     {
+//     w.push_back(w_iMinus2[n]);
+//     w.push_back(w_iMinus1[n]);
+//     w.push_back(w_i[n]);
+//     w.push_back(w_iPlus1[n]);
+//     w.push_back(w_iPlus2[n]);
+//     n += 1;
+//     }
+//   */		  
+//   std::array<Real, 2> slopesw1 = WENO3_slope(w1);		      
+//   std::array<Real, 2> slopesw2 = WENO3_slope(w2);
+//   std::array<Real, 2> slopesw3 = WENO3_slope(w3);
+//   std::array<Real, 2> slopesw4 = WENO3_slope(w4);
+//   std::array<Real, 2> slopesw5 = WENO3_slope(w5);
+//   // right eigenvectors
+//   /*
+//     Vector<Real> r1 = {1.0,0.0,0.0,1.0,1.0};
+//     Vector<Real> r2 = {v_x_i-c_i,0.0,0.0,v_x_i,v_x_i+c_i};
+//     Vector<Real> r3 = {v_y_i,1.0,0.0,v_y_i,v_y_i};
+//     Vector<Real> r4 = {v_z_i,0.0,1.0,v_z_i,v_z_i};
+//     Vector<Real> r5 = {H_i-v_x_i*c_i,v_y_i,v_z_i,0.5*v_squared,H_i+v_x_i*c_i};
+//   */
+//   /*Vector<Real> r1 = {1.0,1.0,0.0,0.0,1.0};
+//     Vector<Real> r2 = {v_x_i-c_i,v_x_i,0.0,0.0,v_x_i+c_i};
+//     Vector<Real> r3 = {v_y_i,v_y_i,1.0,0.0,v_y_i};
+//     Vector<Real> r4 = {v_z_i,v_z_i,0.0,1.0,v_z_i};
+//     Vector<Real> r5 = {H_i-v_x_i*c_i,0.5*v_squared,v_y_i,v_z_i,H_i+v_x_i*c_i};
+//   */
+//   if (d==0){
+//     r1 = {1.0,1.0,1.0,0.0,0.0};
+//     r2 = {v_x_i-c_i,v_x_i,v_x_i+c_i,0.0,0.0};
+//     r3 = {v_y_i,v_y_i,v_y_i,1.0,0.0};
+//     r4 = {v_z_i,v_z_i,v_z_i,0.0,1.0};
+//     r5 = {H_i-v_x_i*c_i,0.5*v_squared,H_i+v_x_i*c_i,v_y_i,v_z_i};
+//   } else if (d==1){
+//     r1 = {1.0,1.0,1.0,0.0,0.0};
+//     r2 = {v_x_i,v_x_i,v_x_i,-1.0,0.0};
+//     r3 = {v_y_i-c_i,v_y_i,v_y_i+c_i,0.0,0.0};
+//     r4 = {v_z_i,v_z_i,v_z_i,0.0,-1.0};
+//     r5 = {H_i-v_y_i*c_i,0.5*v_squared,H_i+v_y_i*c_i,-v_x_i,-v_z_i};
+//   }
+  
+//   slopes(i,j,k,RHO_I+2*NUM_STATE_FLUID*d+start) = dotProduct(r1,{slopesw1[0],slopesw2[0],slopesw3[0],slopesw4[0],slopesw5[0]});
+//   slopes(i,j,k,RHO_I+NUM_STATE_FLUID+2*NUM_STATE_FLUID*d+start) = dotProduct(r1,{slopesw1[1],slopesw2[1],slopesw3[1],slopesw4[1],slopesw5[1]});
+//   slopes(i,j,k,MOMX_I+2*NUM_STATE_FLUID*d+start) = dotProduct(r2,{slopesw1[0],slopesw2[0],slopesw3[0],slopesw4[0],slopesw5[0]});
+//   slopes(i,j,k,MOMX_I+NUM_STATE_FLUID+2*NUM_STATE_FLUID*d+start) = dotProduct(r2,{slopesw1[1],slopesw2[1],slopesw3[1],slopesw4[1],slopesw5[1]});
+//   slopes(i,j,k,MOMY_I+2*NUM_STATE_FLUID*d+start) = dotProduct(r3,{slopesw1[0],slopesw2[0],slopesw3[0],slopesw4[0],slopesw5[0]});  
+//   slopes(i,j,k,MOMY_I+NUM_STATE_FLUID+2*NUM_STATE_FLUID*d+start) = dotProduct(r3,{slopesw1[1],slopesw2[1],slopesw3[1],slopesw4[1],slopesw5[1]});
+//   slopes(i,j,k,MOMZ_I+2*NUM_STATE_FLUID*d+start) = dotProduct(r4,{slopesw1[0],slopesw2[0],slopesw3[0],slopesw4[0],slopesw5[0]});
+//   slopes(i,j,k,MOMZ_I+NUM_STATE_FLUID+2*NUM_STATE_FLUID*d+start) = dotProduct(r4,{slopesw1[1],slopesw2[1],slopesw3[1],slopesw4[1],slopesw5[1]});
+//   slopes(i,j,k,ENER_I+2*NUM_STATE_FLUID*d+start) = dotProduct(r5,{slopesw1[0],slopesw2[0],slopesw3[0],slopesw4[0],slopesw5[0]});
+//   slopes(i,j,k,ENER_I+NUM_STATE_FLUID+2*NUM_STATE_FLUID*d+start) = dotProduct(r5,{slopesw1[1],slopesw2[1],slopesw3[1],slopesw4[1],slopesw5[1]});
+
+// }
+void WENOcharacteristic(const Array4<Real>& arr, const Array4<Real>& slopes,
+			int i, int j, int k, int iOffset, int jOffset, int kOffset,
+			int start, int len, int d){
+  // local characteristic reconstruction		      
+  Vector<Real> u_i = get_data_zone(arr,i,j,k,start,start+len);
+  // define conserved variables
+  Real rho_i = u_i[0];
+  Real momX_i = u_i[1];
+  Real momY_i = u_i[2];
+  Real momZ_i = u_i[3];
+  Real E_i = u_i[ENER_I];
+		  
+  // define primitive variables
+  Real v_x_i = momX_i/rho_i;
+  Real v_y_i = momY_i/rho_i;
+  Real v_z_i = momZ_i/rho_i;
+  Real v_squared = get_magnitude_squared(v_x_i,v_y_i,v_z_i);
+  Real p_i = get_pressure({rho_i,momX_i,momY_i,momZ_i,E_i});
+  // sound speed
+  Real c_i = get_speed(u_i);
+  // enthalpy
+  Real H_i = (E_i+p_i)/rho_i;
+  // useful variables
+  Real b1 = (Gamma-1.0)/(c_i*c_i);
+  Real b2 = 0.5*v_squared*b1;
+
+  Vector<Vector<Real>> left, right;
+  if (d==0){
+    left.push_back({0.5*(b2+v_x_i/c_i),-0.5*(b1*v_x_i+1.0/c_i),-0.5*b1*v_y_i,-0.5*b1*v_z_i,0.5*b1});
+    left.push_back({1.0-b2,b1*v_x_i,b1*v_y_i,b1*v_z_i,-b1});
+    left.push_back({0.5*(b2-v_x_i/c_i),-0.5*(b1*v_x_i-1.0/c_i),-0.5*b1*v_y_i,-0.5*b1*v_z_i,0.5*b1});
+    left.push_back({-v_y_i,0.0,1.0,0.0,0.0});
+    left.push_back({-v_z_i,0.0,0.0,1.0,0.0});
+  } else if (d==1){
+    left.push_back({0.5*(b2+v_y_i/c_i),-0.5*b1*v_x_i,-0.5*(b1*v_y_i+1.0/c_i),-0.5*b1*v_z_i,0.5*b1});
+    left.push_back({1.0-b2,b1*v_x_i,b1*v_y_i,b1*v_z_i,-b1});
+    left.push_back({0.5*(b2-v_y_i/c_i),-0.5*b1*v_x_i,-0.5*(b1*v_y_i-1.0/c_i),-0.5*b1*v_z_i,0.5*b1});
+    left.push_back({v_x_i,-1.0,0.0,0.0,0.0});
+    left.push_back({v_z_i,0.0,0.0,-1.0,0.0});			
+  }
+  
+  // Conserved variables covering the stencils
+  Vector<Real> u_iMinus2 = get_data_zone(arr,i-2*iOffset,j-2*jOffset,k-2*kOffset,start,start+len);
+  Vector<Real> u_iMinus1 = get_data_zone(arr,i-iOffset,j-jOffset,k-kOffset,start,start+len);
+  Vector<Real> u_iPlus1 = get_data_zone(arr,i+iOffset,j+jOffset,k+kOffset,start,start+len);
+  Vector<Real> u_iPlus2 = get_data_zone(arr,i+2*iOffset,j+2*jOffset,k+2*kOffset,start,start+len);
+  // Characteristic variables covering the stencils
+  Vector<Real> w_iMinus2,w_iMinus1,w_i,w_iPlus1,w_iPlus2;  
+  for (int n=0; n<left.size(); n++)
+    {
+      w_iMinus2.push_back(dotProduct(left[n],u_iMinus2));
+      w_iMinus1.push_back(dotProduct(left[n],u_iMinus1));
+      w_i.push_back(dotProduct(left[n],u_i));
+      w_iPlus1.push_back(dotProduct(left[n],u_iPlus1));
+      w_iPlus2.push_back(dotProduct(left[n],u_iPlus2));
+    }
+  
+  // Stencils of characteristic variables
+  Vector<Real> w1 = {w_iMinus2[0],w_iMinus1[0],w_i[0],
+		     w_iPlus1[0],w_iPlus2[0]};
+  Vector<Real> w2 = {w_iMinus2[1],w_iMinus1[1],w_i[1],
+		     w_iPlus1[1],w_iPlus2[1]};
+  Vector<Real> w3 = {w_iMinus2[2],w_iMinus1[2],w_i[2],
+		     w_iPlus1[2],w_iPlus2[2]};
+  Vector<Real> w4 = {w_iMinus2[3],w_iMinus1[3],w_i[3],
+		     w_iPlus1[3],w_iPlus2[3]};		  
+  Vector<Real> w5 = {w_iMinus2[4],w_iMinus1[4],w_i[4],
+		     w_iPlus1[4],w_iPlus2[4]};
+		  
+  std::array<Real, 2> slopesw1 = WENO3_slope(w1);		      
+  std::array<Real, 2> slopesw2 = WENO3_slope(w2);
+  std::array<Real, 2> slopesw3 = WENO3_slope(w3);
+  std::array<Real, 2> slopesw4 = WENO3_slope(w4);
+  std::array<Real, 2> slopesw5 = WENO3_slope(w5);
+
+  if (d==0){
+    right.push_back({1.0,1.0,1.0,0.0,0.0});
+    right.push_back({v_x_i-c_i,v_x_i,v_x_i+c_i,0.0,0.0});
+    right.push_back({v_y_i,v_y_i,v_y_i,1.0,0.0});
+    right.push_back({v_z_i,v_z_i,v_z_i,0.0,1.0});
+    right.push_back({H_i-v_x_i*c_i,0.5*v_squared,H_i+v_x_i*c_i,v_y_i,v_z_i});
+  } else if (d==1){
+    right.push_back({1.0,1.0,1.0,0.0,0.0});
+    right.push_back({v_x_i,v_x_i,v_x_i,-1.0,0.0});
+    right.push_back({v_y_i-c_i,v_y_i,v_y_i+c_i,0.0,0.0});
+    right.push_back({v_z_i,v_z_i,v_z_i,0.0,-1.0});
+    right.push_back({H_i-v_y_i*c_i,0.5*v_squared,H_i+v_y_i*c_i,-v_x_i,-v_z_i});
+  }
+
+  for (int n = 0; n<right.size(); n++)
+    {
+      slopes(i,j,k,n+2*NUM_STATE_FLUID*d+start) = dotProduct(right[n],{slopesw1[0],slopesw2[0],slopesw3[0],slopesw4[0],slopesw5[0]});
+      slopes(i,j,k,n+NUM_STATE_FLUID+2*NUM_STATE_FLUID*d+start) = dotProduct(right[n],{slopesw1[1],slopesw2[1],slopesw3[1],slopesw4[1],slopesw5[1]});
+    }
 }

@@ -1,3 +1,13 @@
+#include <CAMReXmp.H>
+#include <Adv_F.H>
+#include <AMReX_VisMF.H>
+#include <AMReX_TagBox.H>
+#include <AMReX_ParmParse.H>
+
+using namespace amrex;
+
+#include "utils.H"
+
 Real pressure(Real rho, Real momentum, Real E){
     // define velocity and pressure
     Real v = momentum/rho;
@@ -110,58 +120,22 @@ Vector<Real> get_w_R_fan(const Vector<Real>& w, Real S, int d){
     return w_fan;
 }
 
-Vector<Real> MUSCL_Hancock_exact_flux(const Array4<Real>& arr, int i, int j, int k, int iOffset, int jOffset, int kOffset,
-				     Real dx, Real dt, int d){
-  Vector<Real> ui_iMinus1, ue_iMinus1;
-  Vector<Real> ui_i, ue_i;
-  Vector<Real> ui_iPlus1, ue_iPlus1;
-  Vector<Real> ui_iPlus2, ue_iPlus2;
+Vector<Real> exact_flux(const Array4<Real>& arr, int i, int j, int k, int iOffset, int jOffset, int kOffset,
+ 			int start, int length, Real dx, Real dt, int d){
+  
+  Vector<Real> w_L_i;
+  Vector<Real> w_R_i;
 
-  for (int n = 0; n<NUM_STATE_FLUID/2; n++)
+  for (int n = start; n<start+length; n++)
     {
-      ui_iMinus1.push_back(arr(i-2*iOffset,j-2*jOffset,k-2*kOffset,n));
-      ui_i.push_back(arr(i-iOffset,j-jOffset,k-kOffset,n));
-      ui_iPlus1.push_back(arr(i,j,k,n));
-      ui_iPlus2.push_back(arr(i+iOffset,j+jOffset,k+kOffset,n));
-      
-      ue_iMinus1.push_back(arr(i-2*iOffset,j-2*jOffset,k-2*kOffset,n+NUM_STATE_FLUID/2));
-      ue_i.push_back(arr(i-iOffset,j-jOffset,k-kOffset,n+NUM_STATE_FLUID/2));
-      ue_iPlus1.push_back(arr(i,j,k,n+NUM_STATE_FLUID/2));
-      ue_iPlus2.push_back(arr(i+iOffset,j+jOffset,k+kOffset,n+NUM_STATE_FLUID/2));
+      w_L_i.push_back(arr(i-iOffset,j-jOffset,k-kOffset,n));
+      w_R_i.push_back(arr(i,j,k,n));
     }
 
-  // Slope limiting variable index
-  Vector<int> limiting_idx(NUM_STATE_FLUID/2, NUM_STATE_FLUID/2-1);
-  
-  // Cell boundary extrapolated values at the left and the right for the ion
-  Vector<Real> u_iL_i = TVD2_reconstruction_L(ui_iMinus1, ui_i, ui_iPlus1, limiting_idx);
-  Vector<Real> u_iR_i = TVD2_reconstruction_R(ui_iMinus1, ui_i, ui_iPlus1, limiting_idx);
-  Vector<Real> u_iPlus1L_i = TVD2_reconstruction_L(ui_i, ui_iPlus1, ui_iPlus2, limiting_idx);
-  Vector<Real> u_iPlus1R_i = TVD2_reconstruction_R(ui_i, ui_iPlus1, ui_iPlus2, limiting_idx);
-
-  // Cell boundary extrapolated values at the left and the right for the electron
-  Vector<Real> u_iL_e = TVD2_reconstruction_L(ue_iMinus1, ue_i, ue_iPlus1, limiting_idx);
-  Vector<Real> u_iR_e = TVD2_reconstruction_R(ue_iMinus1, ue_i, ue_iPlus1, limiting_idx);
-  Vector<Real> u_iPlus1L_e = TVD2_reconstruction_L(ue_i, ue_iPlus1, ue_iPlus2, limiting_idx);
-  Vector<Real> u_iPlus1R_e = TVD2_reconstruction_R(ue_i, ue_iPlus1, ue_iPlus2, limiting_idx);
-  
-  // Reiamnn problem left state for the ion variables 
-  Vector<Real> u_i_nPlusHalf_R_i = half_update_R(u_iL_i, u_iR_i, dx, dt, d, &fluidFlux); 
-  // Reiamnn problem right state for the ion variables
-  Vector<Real> u_iPlus1_nPlusHalf_L_i = half_update_L(u_iPlus1L_i, u_iPlus1R_i, dx, dt, d, &fluidFlux);
-
-  // Reiamnn problem left state for the electron variables
-  Vector<Real> u_i_nPlusHalf_R_e = half_update_R(u_iL_e, u_iR_e, dx, dt, d, &fluidFlux); 
-  // Reiamnn problem right state for the electron variables
-  Vector<Real> u_iPlus1_nPlusHalf_L_e = half_update_L(u_iPlus1L_e, u_iPlus1R_e, dx, dt, d, &fluidFlux);
-
-  Vector<Real> flux(NUM_STATE_FLUID,0.0);
+  Vector<Real> flux(5,0.0);
   
   Real x = 0.0;
   Real S = x/dt;
-
-  Vector<Real> w_L_i = u_i_nPlusHalf_R_i;
-  Vector<Real> w_R_i = u_iPlus1_nPlusHalf_L_i;
 
   Real p_star_i = get_p_star(w_L_i, w_R_i, d);
   Real rho_L_star_i = get_rho_star(w_L_i, p_star_i);
@@ -318,169 +292,6 @@ Vector<Real> MUSCL_Hancock_exact_flux(const Array4<Real>& arr, int i, int j, int
 	  }	
 	//output << x << " " << w_R_i[0] << " " << w_R_i[1] << " " << w_R_i[2] 
 	//     << " " << w_R_i[2]/(w_R_i[0]*(gamma-1.0))<< endl;
-      }
-    }
-  }
-
-  // electron
-  Vector<Real> w_L_e = u_i_nPlusHalf_R_e;
-  Vector<Real> w_R_e = u_iPlus1_nPlusHalf_L_e;
-
-  Real p_star_e = get_p_star(w_L_e, w_R_e, d);
-  Real rho_L_star_e = get_rho_star(w_L_e, p_star_e);
-  Real rho_R_star_e = get_rho_star(w_R_e, p_star_e);
-  Real v_star_e = get_v_star(w_L_e, w_R_e, p_star_e, d);
-  
-  Real S_L_e = get_S_L(w_L_e, p_star_e, d);
-  Real S_R_e = get_S_R(w_R_e, p_star_e, d);
-    
-  Real speed_star_L_e = get_speed_star(w_L_e, p_star_e);
-  Real speed_star_R_e = get_speed_star(w_R_e, p_star_e);
-
-  Real S_HL_e = w_L_e[1]/w_L_e[0]-speed(w_L_e[0], w_L_e[2]);
-  Real S_TL_e = v_star_e-speed_star_L_e;
-  Real S_TR_e = v_star_e+speed_star_R_e;
-  Real S_HR_e = w_R_e[1]/w_R_e[0]+speed(w_R_e[0], w_R_e[2]);
-
-  // LEFT
-  if (S <= v_star_e){
-    // left shock
-    if (p_star_e>get_pressure(w_L_e)){
-      if (S < S_L_e){
-	Vector<Real> function = fluidFlux(w_L_e, d);
-	for (int n = RHO_E; n<=ENER_E; n++)
-	  {
-	    flux[n] = function[n-5];
-	  }
-	//output << x << " " << w_L_e[0] << " " << w_L_e[1] << " " << w_L_e[2]
-	//     << " " << w_L_e[2]/(w_L_e[0]*(gamma-1.0)) << endl;
-      } else{
-	Vector<Real> w_star(5,0.0);
-	w_star[0] = rho_L_star_e;
-	w_star[1+d] = rho_L_star_e*v_star_e;
-	w_star[2-d] = rho_L_star_e*w_L_e[2-d]/w_L_e[0];
-	w_star[3] = rho_L_star_e*w_L_e[3]/w_L_e[0];
-	w_star[ENER_I] = get_energy({rho_L_star_e,v_star_e,w_L_e[2-d]/w_L_e[0],w_L_e[3]/w_L_e[0],p_star_e});
-	Vector<Real> function = fluidFlux(w_star, d);
-	for (int n = RHO_E; n<=ENER_E; n++)
-	  {
-	    flux[n] = function[n-5];
-	  }
-	//output << x << " " << rho_L_star_e << " " << v_star << " " << p_star 
-	//     << " " << p_star/(rho_L_star_e*(gamma-1.0)) << endl;
-      }
-      // left rarefaction
-    } else{
-      if (S < S_HL_e){
-	Vector<Real> function = fluidFlux(w_L_e, d);
-	for (int n = RHO_E; n<=ENER_E; n++)
-	  {
-	    flux[n] = function[n-5];
-	  }
-	//output << x << " " << w_L_e[0] << " " << w_L_e[1] << " " << w_L_e[2] 
-	//     << " " << w_L_e[2]/(w_L_e[0]*(gamma-1.0)) << endl;
-      } else if (S >= S_HL_e && S <= S_TL_e){
-	Vector<Real> w_L_fan_e = get_w_L_fan(w_L_e, S, d);
-	
-	w_L_fan_e[ENER_I] = get_energy({w_L_fan_e[0],w_L_fan_e[1+d],w_L_e[2-d]/w_L_e[0],
-					w_L_e[3]/w_L_e[0],w_L_fan_e[ENER_I]});
-
-	w_L_fan_e[1+d] *= w_L_fan_e[0];
-	w_L_fan_e[2-d] = w_L_fan_e[0]*w_L_e[2-d]/w_L_e[0];
-	w_L_fan_e[3] = w_L_fan_e[0]*w_L_e[3]/w_L_e[0];
-
-	Vector<Real> function = fluidFlux(w_L_fan_e, d);
-	for (int n = RHO_E; n<=ENER_E; n++)
-	  {
-	    flux[n] = function[n-5];
-	  }
-	//output << x << " " << w_L_efan[0] << " " << w_L_efan[1] << " " << w_L_efan[2] 
-	//     << " " << w_L_efan[2]/(w_L_efan[0]*(gamma-1.0)) << endl;
-      } else{
-	Vector<Real> w_star(5,0.0);
-	w_star[0] = rho_L_star_e;
-	w_star[1+d] = rho_L_star_e*v_star_e;
-	w_star[2-d] = rho_L_star_e*w_L_e[2-d]/w_L_e[0];
-	w_star[3] = rho_L_star_e*w_L_e[3]/w_L_e[0];
-	w_star[ENER_I] = get_energy({rho_L_star_e,v_star_e,w_L_e[2-d]/w_L_e[0],w_L_e[3]/w_L_e[0],p_star_e});
-	Vector<Real> function = fluidFlux(w_star, d);
-	for (int n = RHO_E; n<=ENER_E; n++)
-	  {
-	    flux[n] = function[n-5];
-	  }
-	
-	//output << x << " " << rho_L_star_e << " " << v_star << " " << p_star 
-	//     << " " << p_star/(rho_L_star_e*(gamma-1.0)) << endl;
-      }
-    }
-    // RIGHT
-        } else {
-    // right shock
-    if (p_star_e>get_pressure(w_R_e)){
-      if (S >= v_star_e && S <= S_R_e){
-	Vector<Real> w_star(5,0.0);
-	w_star[0] = rho_R_star_e;
-	w_star[1+d] = rho_R_star_e*v_star_e;
-	w_star[2-d] = rho_R_star_e*w_R_e[2-d]/w_R_e[0];
-	w_star[3] = rho_R_star_e*w_R_e[3]/w_R_e[0];
-	w_star[ENER_I] = get_energy({rho_R_star_e,v_star_e,w_R_e[2-d]/w_R_e[0],w_R_e[3]/w_R_e[0],p_star_e});
-	Vector<Real> function = fluidFlux(w_star, d);
-	for (int n = RHO_E; n<=ENER_E; n++)
-	  {
-	    flux[n] = function[n-5];
-	  }
-	//output << x << " " << rho_R_star_e << " " << v_star << " " << p_star 
-	//     << " " << p_star/(rho_R_star_e*(gamma-1.0)) << endl;
-      } else{
-	Vector<Real> function = fluidFlux(w_R_e, d);
-	for (int n = RHO_E; n<=ENER_E; n++)
-	  {
-	    flux[n] = function[n-5];
-	  }
-	//output << x << " " << w_R_e[0] << " " << w_R_e[1] << " " << w_R_e[2] 
-	//          << " " << w_R_e[2]/(w_R_e[0]*(gamma-1.0)) << endl;
-      }
-      // right rarefaction
-    } else{
-      if (S >= v_star_e && S <= S_TR_e){
-	Vector<Real> w_star(5,0.0);
-	w_star[0] = rho_R_star_e;
-	w_star[1+d] = rho_R_star_e*v_star_e;
-	w_star[2-d] = rho_R_star_e*w_R_e[2-d]/w_R_e[0];
-	w_star[3] = rho_R_star_e*w_R_e[3]/w_R_e[0];
-	w_star[ENER_I] = get_energy({rho_R_star_e,v_star_e,w_R_e[2-d]/w_R_e[0],w_R_e[3]/w_R_e[0],p_star_e});
-	Vector<Real> function = fluidFlux(w_star, d);
-	for (int n = RHO_E; n<=ENER_E; n++)
-	  {
-	    flux[n] = function[n-5];
-	  }		
-	//output << x << " " << rho_R_star_e << " " << v_star << " " << p_star 
-	//     << " " << p_star/(rho_R_star_e*(gamma-1.0)) << endl;
-      } else if (S >= S_TR_e && S <= S_HR_e){
-	Vector<Real> w_R_fan_e = get_w_R_fan(w_R_e, S, d);	
-	
-	w_R_fan_e[ENER_I] = get_energy({w_R_fan_e[0],w_R_fan_e[1+d],w_R_e[2-d]/w_R_e[0],
-				    w_R_e[3]/w_R_e[0],w_R_fan_e[ENER_I]});
-
-	w_R_fan_e[1+d] *= w_R_fan_e[0];
-	w_R_fan_e[2-d] = w_R_fan_e[0]*w_R_e[2-d]/w_R_e[0];
-	w_R_fan_e[3] = w_R_fan_e[0]*w_R_e[3]/w_R_e[0];
-
-	Vector<Real> function = fluidFlux(w_R_fan_e, d);
-	for (int n = RHO_E; n<=ENER_E; n++)
-	  {
-	    flux[n] = function[n-5];
-	  }
-	//output << x << " " << w_R_efan[0] << " " << w_R_efan[1] << " " << w_R_efan[2]
-	//     << " " << w_R_efan[2]/(w_R_efan[0]*(gamma-1.0)) << endl;
-      } else{
-	Vector<Real> function = fluidFlux(w_R_e, d);
-	for (int n = RHO_E; n<=ENER_E; n++)
-	  {
-	    flux[n] = function[n-5];
-	  }	
-	//output << x << " " << w_R_e[0] << " " << w_R_e[1] << " " << w_R_e[2] 
-	//     << " " << w_R_e[2]/(w_R_e[0]*(gamma-1.0))<< endl;
       }
     }
   }

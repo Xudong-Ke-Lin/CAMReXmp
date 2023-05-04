@@ -38,10 +38,10 @@ enum StateVariableMaxwell {
 class CAMReXmp;
 
 typedef void (CAMReXmp::*advanceFunctionPointer)(MultiFab&, amrex::MultiFab (&)[AMREX_SPACEDIM], const Real*, Real);
-typedef void (CAMReXmp::*StrangFunctionPointer)(MultiFab&, amrex::MultiFab (&)[AMREX_SPACEDIM], const Real*, Real);
-typedef void (CAMReXmp::*RKFunctionPointer)(MultiFab&, amrex::MultiFab (&)[AMREX_SPACEDIM], const Real*, Real,
-					    void (CAMReXmp::*)(amrex::MultiFab&, amrex::MultiFab (&)[AMREX_SPACEDIM], const double*, double), int, int);
-typedef void (CAMReXmp::*MaxwellFunctionPointer)(MultiFab&, amrex::MultiFab (&)[AMREX_SPACEDIM], const Real*, Real);
+typedef void (CAMReXmp::*StrangFunctionPointer)(MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], Array<MultiFab,AMREX_SPACEDIM>&, Array<MultiFab,AMREX_SPACEDIM>&, MultiFab&, const Real*, Real, Real);
+typedef void (CAMReXmp::*RKFunctionPointer)(MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], Array<MultiFab,AMREX_SPACEDIM>&, Array<MultiFab,AMREX_SPACEDIM>&, MultiFab&, const Real*, Real, Real);
+typedef void (CAMReXmp::*fluidFunctionPointer)(MultiFab&, MultiFab&,  amrex::MultiFab (&)[AMREX_SPACEDIM], const Real*, Real);
+typedef void (CAMReXmp::*MaxwellFunctionPointer)(Array<MultiFab,AMREX_SPACEDIM>&, Array<MultiFab,AMREX_SPACEDIM>&,MultiFab&, MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], const Real*, Real);
 typedef void (CAMReXmp::*sourceFunctionPointer)(Array4<Real>&, int, int, int, Real);
 
 //
@@ -176,17 +176,19 @@ public:
   void sourceUpdateEX(Array4<Real>& arr, int i, int j, int k, Real dt);
   void sourceUpdateIM(Array4<Real>& arr, int i, int j, int k, Real dt);
   void sourceUpdateANEX(Array4<Real>& arr, int i, int j, int k, Real dt);
+  void sourceUpdateStiff(Array4<Real>& arr, int i, int j, int k, Real dt);
   void cylSourceUpdate(Array4<Real>& arr, int i, int j, int k, Real dt, Real x);
   void cylSourceUpdateImplicitRK2(MultiFab& Sborder, MultiFab& Sold, const Real* dx, Real dt);
 
   static int NUM_STATE_FLUID;
   static int NUM_STATE_MAXWELL;
 
-  static int advanceOrder;
+  static int StrangOrder;
   static int RKOrder;
-  static std::string MaxwellMethod;
+  static int fluidOrder;
+  static int MaxwellOrder;
   static std::string sourceMethod;
-
+  /*
   // Number of slopes in third order Legendre reconstruction
   //static int nSlopes;
 #if (AMREX_SPACEDIM == 1)
@@ -195,7 +197,7 @@ public:
 #if (AMREX_SPACEDIM == 2)
   static const int nSlopes = 5;
 #endif
-  
+  */
   
 protected:
 
@@ -235,9 +237,10 @@ protected:
     static Vector<BCRec> bc;
     static Vector<BCRec> bc_EM;
   
-  static advanceFunctionPointer advanceWithChosenUpdateOrder;
+  static StrangFunctionPointer StrangWithChosenUpdateOrder;
   static RKFunctionPointer RKWithChosenUpdateOrder;
-  static MaxwellFunctionPointer MaxwellSolverWithChosenMethod;
+  static fluidFunctionPointer fluidSolverWithChosenOrder;
+  static MaxwellFunctionPointer MaxwellSolverWithChosenOrder;
   static sourceFunctionPointer sourceUpdateWithChosenMethod;  
 
   using functionPointer = void (CAMReXmp::*)(MultiFab&, amrex::MultiFab (&)[AMREX_SPACEDIM], const Real*, Real);
@@ -262,27 +265,30 @@ protected:
   
 private:
 
-  void StrangFirst(amrex::MultiFab&, amrex::MultiFab (&)[AMREX_SPACEDIM], const amrex::Real*, amrex::Real);
-  void StrangSecond(amrex::MultiFab&, amrex::MultiFab (&)[AMREX_SPACEDIM], const amrex::Real*, amrex::Real);
-  //void RK1(amrex::MultiFab&, amrex::MultiFab (&)[AMREX_SPACEDIM], const amrex::Real*, amrex::Real,
-  //	   std::function<void (amrex::MultiFab&, amrex::MultiFab (&)[AMREX_SPACEDIM], const amrex::Real*, amrex::Real)>);
-  void RK1(amrex::MultiFab&, amrex::MultiFab (&)[AMREX_SPACEDIM], const amrex::Real*, amrex::Real, functionPointer, int, int);
-  void RK2(amrex::MultiFab&, amrex::MultiFab (&)[AMREX_SPACEDIM], const amrex::Real*, amrex::Real, functionPointer, int, int);
+  void StrangFirst(MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], Array<MultiFab,AMREX_SPACEDIM>&, Array<MultiFab,AMREX_SPACEDIM>&, MultiFab&, const Real*, Real, Real);
+  void StrangSecond(MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], Array<MultiFab,AMREX_SPACEDIM>&, Array<MultiFab,AMREX_SPACEDIM>&, MultiFab&, const Real*, Real, Real);
+
+  void RK1(MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], Array<MultiFab,AMREX_SPACEDIM>&, Array<MultiFab,AMREX_SPACEDIM>&, MultiFab&, const Real*, Real, Real);
+  void RK2(MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], Array<MultiFab,AMREX_SPACEDIM>&, Array<MultiFab,AMREX_SPACEDIM>&, MultiFab&, const Real*, Real, Real);
+  void RK3(MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], Array<MultiFab,AMREX_SPACEDIM>&, Array<MultiFab,AMREX_SPACEDIM>&, MultiFab&, const Real*, Real, Real);
   void linearCombination(MultiFab&, MultiFab&, Real, MultiFab&, Real, int, int);
   void fluidSolver(amrex::MultiFab&, amrex::MultiFab (&)[AMREX_SPACEDIM], const amrex::Real*, amrex::Real);
+  void fluidSolverTVD(MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], const Real*, Real);
+  void fluidSolverExact(MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], const Real*, Real);
+  void MUSCLHancokFluidSolverTVD(MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], const Real*, Real);
   void fluidSolverWENO(MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], const Real*, Real);
-  void hyperbolicMaxwellRK(amrex::MultiFab&, amrex::MultiFab (&)[AMREX_SPACEDIM], const amrex::Real*, amrex::Real);
+  void flattenerAlgorithm(MultiFab&, MultiFab&, MultiFab&, int, int);
   void hyperbolicMaxwellSolver(amrex::MultiFab&, amrex::MultiFab (&)[AMREX_SPACEDIM], const amrex::Real*, amrex::Real);
-  void implicitMaxwellRK(amrex::MultiFab&, amrex::MultiFab (&)[AMREX_SPACEDIM], const amrex::Real*, amrex::Real);
   void implicitMaxwellSolverSetUp();  
   void implicitMaxwellSolver(amrex::MultiFab&, const amrex::Real*, amrex::Real);
   void implicitMaxwellSolverElecFieldUpdate(amrex::MultiFab&, const amrex::MultiFab&, const amrex::MultiFab&, const amrex::Real*, amrex::Real);
   void hyperbolicMaxwellSolverDivFree(Array<MultiFab,AMREX_SPACEDIM>&, MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], const Real*, Real);
   void hyperbolicMaxwellSolverDivFreeBalsara(Array<MultiFab,AMREX_SPACEDIM>&, MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], MultiFab&, const Real*, Real);
   void MaxwellSolverDivFree(Array<MultiFab,AMREX_SPACEDIM>&, MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], MultiFab&, const Real*, Real);
+  void MaxwellSolverDivFreeTVD(Array<MultiFab,AMREX_SPACEDIM>&, Array<MultiFab,AMREX_SPACEDIM>&,MultiFab&, MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], const Real*, Real);
   void MaxwellSolverDivFreeWENO(Array<MultiFab,AMREX_SPACEDIM>&, Array<MultiFab,AMREX_SPACEDIM>&,MultiFab&, MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], const Real*, Real);
+  void MaxwellSolverDivFreeWENOcharacteristic(Array<MultiFab,AMREX_SPACEDIM>&, Array<MultiFab,AMREX_SPACEDIM>&,MultiFab&, MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], const Real*, Real);  
   void hyperbolicMaxwellSolverDivFreeSubCycle(Array<MultiFab,AMREX_SPACEDIM>&, MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], const Real*, Real);
-  void hyperbolicMaxwellSolverDivFreeSubCycleIneff(Array<MultiFab,AMREX_SPACEDIM>&, MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], MultiFab&, MultiFab (&)[AMREX_SPACEDIM], const Real*, Real);
   void computeCurrentUpdate(amrex::MultiFab&, const amrex::MultiFab&, const amrex::Real*, amrex::Real);
   void computeAlpha(amrex::MultiFab&);
   void computeBeta(std::array<amrex::MultiFab,AMREX_SPACEDIM>&);
@@ -295,7 +301,6 @@ private:
                    amrex::Real, amrex::Real);
   void computeRhsZ(amrex::MultiFab&, amrex::MultiFab&, amrex::MultiFab&, amrex::Real, amrex::Real,
 		   amrex::Real, amrex::Real);
-
 
 };    
 

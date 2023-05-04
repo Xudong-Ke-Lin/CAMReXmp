@@ -5,7 +5,7 @@
 #include <AMReX_ParmParse.H>
 #include <AMReX_BCUtil.H>
 
-using namespace amrex;
+//using namespace amrex;
 
 // Eigen library
 #include <Eigen/Dense>
@@ -14,6 +14,8 @@ using Eigen::VectorXd;
 
 // 3x3 identity matrix
 MatrixXd identity = MatrixXd::Identity(3, 3);
+
+#include "sourceFunctionsStiff.H"
 
 void CAMReXmp::sourceUpdate(MultiFab& Sborder, MultiFab (&fluxes)[AMREX_SPACEDIM], const Real* dx, Real dt)
 {
@@ -34,7 +36,7 @@ void CAMReXmp::sourceUpdate(MultiFab& Sborder, MultiFab (&fluxes)[AMREX_SPACEDIM
 	    {
 	      for(int i = lo.x; i <= hi.x; i++)
 		{
-		  (this->*sourceUpdateWithChosenMethod)(arr,i,j,k,dt);
+		  //(this->*sourceUpdateWithChosenMethod)(arr,i,j,k,dt);
 		  /*
 		  if (geom.Coord()==1)		  
 		    {
@@ -46,7 +48,9 @@ void CAMReXmp::sourceUpdate(MultiFab& Sborder, MultiFab (&fluxes)[AMREX_SPACEDIM
 		      cylSourceUpdate(arr,i,j,k,dt,y);
 		    }
 		  */
-		  //sourceUpdateANEX(arr, i, j, k, dt);		  
+		  (this->*sourceUpdateWithChosenMethod)(arr, i, j, k, dt);
+		  //sourceUpdateANEX(arr, i, j, k, dt);
+		  //sourceUpdateStiff(arr, i, j, k, dt);
 		}
 	    }
 	}      
@@ -254,7 +258,7 @@ void CAMReXmp::sourceUpdateIM(Array4<Real>& arr, int i, int j, int k, Real dt)
 }
 void CAMReXmp::sourceUpdateANEX(Array4<Real>& arr, int i, int j, int k, Real dt)
 {
-  
+
   // define conserved variables                     
   Real rho_i = arr(i,j,k,0);
   Real momX_i = arr(i,j,k,1);
@@ -282,7 +286,17 @@ void CAMReXmp::sourceUpdateANEX(Array4<Real>& arr, int i, int j, int k, Real dt)
   Real v_y_e = momY_e/rho_e;
   Real v_z_e = momZ_e/rho_e;
   Real p_e = get_pressure({rho_e,momX_e,momY_e,momZ_e,E_e});
-
+  /*
+  if (p_i<0.0 || p_e <0.0)
+    {
+      std::cout << "Negative in pressure " << p_i << " " << p_e << " at " << i << " " << j << std::endl;
+      if (p_i<0.0)
+	std::cout << "Ion " << get_energy({rho_i,momX_i,momY_i,momZ_i,E_i}) << " " << get_specific_energy({rho_i,momX_i,momY_i,momZ_i,E_i}) << std::endl;
+      if (p_e <0.0)
+	std::cout << "Electron " << get_energy({rho_e,momX_e,momY_e,momZ_e,E_e}) << " " << get_specific_energy({rho_e,momX_e,momY_e,momZ_e,E_e}) << std::endl;
+      amrex::Abort();
+    }
+  */
   //arr(i,j,k,EZ) = E_z - dt*1.0/(lambda_d*lambda_d*l_r)*(r_i*rho_i*v_z_i + r_e*rho_e*v_z_e);
   //E_z = arr(i,j,k,EZ);
   
@@ -312,7 +326,7 @@ void CAMReXmp::sourceUpdateANEX(Array4<Real>& arr, int i, int j, int k, Real dt)
 			       EcrossB[dir], v_ecrossB[dir], Bcross_EcrossB[dir], Bcross_v_ecrossB[dir],
 			       arr(i,j,k,BX+dir), dt, r_e);
   }
-  
+
   arr(i,j,k,0) = rho_i;
   arr(i,j,k,1) = rho_i*v_i_new[0];
   arr(i,j,k,2) = rho_i*v_i_new[1];
@@ -322,7 +336,7 @@ void CAMReXmp::sourceUpdateANEX(Array4<Real>& arr, int i, int j, int k, Real dt)
   arr(i,j,k,MOMX_E) = rho_e*v_e_new[0];
   arr(i,j,k,MOMY_E) = rho_e*v_e_new[1];
   arr(i,j,k,MOMZ_E) = rho_e*v_e_new[2];
-
+  
   arr(i,j,k,ENER_I) = E_i + dt*r_i*rho_i/l_r*(E_x*v_i_new[0] + E_y*v_i_new[1] + E_z*v_i_new[2]);
   arr(i,j,k,ENER_E) = E_e + dt*r_e*rho_e/l_r*(E_x*v_e_new[0] + E_y*v_e_new[1] + E_z*v_e_new[2]);
   
@@ -348,6 +362,57 @@ void CAMReXmp::sourceUpdateANEX(Array4<Real>& arr, int i, int j, int k, Real dt)
       
     }
 
+}
+void CAMReXmp::sourceUpdateStiff(Array4<Real>& arr, int i, int j, int k, Real dt)
+{
+
+  // define conserved variables                     
+  Real rho_i = arr(i,j,k,0);
+  Real momX_i = arr(i,j,k,1);
+  Real momY_i = arr(i,j,k,2);
+  Real momZ_i = arr(i,j,k,MOMZ_I);
+  Real E_i = arr(i,j,k,ENER_I);
+  Real rho_e = arr(i,j,k,RHO_E);
+  Real momX_e = arr(i,j,k,MOMX_E);
+  Real momY_e = arr(i,j,k,MOMY_E);
+  Real momZ_e = arr(i,j,k,MOMZ_E);
+  Real E_e = arr(i,j,k,ENER_E);
+  Real B_x = arr(i,j,k,BX);
+  Real B_y = arr(i,j,k,BY);
+  Real B_z = arr(i,j,k,BZ);
+  Real E_x = arr(i,j,k,EX);
+  Real E_y = arr(i,j,k,EY);
+  Real E_z = arr(i,j,k,EZ);
+  
+  // define velocities
+  Real v_x_i = momX_i/rho_i;
+  Real v_y_i = momY_i/rho_i;
+  Real v_z_i = momZ_i/rho_i;
+  Real v_x_e = momX_e/rho_e;
+  Real v_y_e = momY_e/rho_e;
+  Real v_z_e = momZ_e/rho_e;
+
+  // define input
+  std::vector<double> u_i = {rho_i,v_x_i,v_y_i,v_z_i,E_i,
+			     B_x,B_y,B_z,E_x,E_y,E_z};
+
+  size_t num_of_steps = stiffSolver(u_i, r_i, l_r, dt);
+
+  // define input
+  std::vector<double> u_e = {rho_e,v_x_e,v_y_e,v_z_e,E_e,
+			     B_x,B_y,B_z,E_x,E_y,E_z};
+  size_t num_of_steps_e = stiffSolver(u_e, r_e, l_r, dt);
+
+  arr(i,j,k,1) = rho_i*u_i[1];
+  arr(i,j,k,2) = rho_i*u_i[2];
+  arr(i,j,k,3) = rho_i*u_i[3];
+  arr(i,j,k,ENER_I) = u_i[4];
+  
+  arr(i,j,k,MOMX_E) = rho_e*u_e[1];
+  arr(i,j,k,MOMY_E) = rho_e*u_e[2];
+  arr(i,j,k,MOMZ_E) = rho_e*u_e[3];
+  arr(i,j,k,ENER_E) = u_e[4];
+  
 }
 
 void CAMReXmp::cylSourceUpdate(Array4<Real>& arr, int i, int j, int k, Real dt, Real y)
@@ -412,7 +477,7 @@ void CAMReXmp::cylSourceUpdate(Array4<Real>& arr, int i, int j, int k, Real dt, 
   arr(i,j,k,MOMY_E) -= dt*(rho_e*v_y_e*v_y_e/y);
   arr(i,j,k,MOMZ_E) -= dt*(rho_e*v_y_e*v_z_e/y);
   arr(i,j,k,ENER_E) -= dt*((E_e+p_e)*v_y_e/y);
-  
+  /*
   if (MaxwellMethod=="IM")
     {
       arr(i,j,k,BX) -= tau*dt*(E_z/y);      
@@ -423,4 +488,5 @@ void CAMReXmp::cylSourceUpdate(Array4<Real>& arr, int i, int j, int k, Real dt, 
       arr(i,j,k,BX) -= dt*(E_z/y);      
       arr(i,j,k,EX) += dt*(c*c*B_z/y);    
     }
+  */
 }
