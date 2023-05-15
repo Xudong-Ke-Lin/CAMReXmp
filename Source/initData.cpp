@@ -91,21 +91,25 @@ CAMReXmp::initData ()
 	    Real B_x_L = 0.75, B_y_L = 1.0, B_z_L = 0.0;
 	    Real B_x_R = 0.75, B_y_R = -1.0, B_z_R = 0.0;
 	    
-	    if (x<=(geom.ProbLo()[0]+geom.ProbHi()[0])/2.0){
+	    /*if (x<=(geom.ProbLo()[0]+geom.ProbHi()[0])/2.0){
 	      B_x = B_x_L, B_y = B_y_L, B_z = B_z_L;
 	    } else{
 	      B_x = B_x_R, B_y = B_y_R, B_z = B_z_R;
-	    }
+	      }*/
 	    /*if (y<=(geom.ProbLo()[1]+geom.ProbHi()[1])/2.0){
 	      B_x = B_y_L, B_y = B_x_L, B_z = B_z_L;
 	    } else{
 	      B_x = B_y_R, B_y = B_x_R, B_z = B_z_R;
 	      }*/
-	    /*if (x+y<=geom.ProbHi()[1]){
-	      B_x = B_x_L, B_y = B_y_L, B_z = B_z_L;
+	    if (x+y<=geom.ProbHi()[1]){
+	      B_x = B_x_L*std::cos(M_PI/4.0)+B_y_L*std::cos(3.0*M_PI/4.0);
+	      B_y = B_x_L*std::sin(M_PI/4.0)+B_y_L*std::sin(3.0*M_PI/4.0);
+	      B_z = B_z_L;
 	    } else{
-	      B_x = B_x_R, B_y = B_y_R, B_z = B_z_R;
-	      }*/
+	      B_x = B_x_R*std::cos(M_PI/4.0)+B_y_R*std::cos(3.0*M_PI/4.0);
+	      B_y = B_y_R*std::sin(M_PI/4.0)+B_y_R*std::sin(3.0*M_PI/4.0);
+	      B_z = B_z_R;
+	    }
 	    
 	    arr(i,j,k,BX_LOCAL) = B_x;	    
 	    arr(i,j,k,BY_LOCAL) = 0.0;
@@ -131,11 +135,11 @@ CAMReXmp::initData ()
 	    arr(i,j,k,EZ_LOCAL) = -vcrossB[2];
 
 	  } else if (test=="OTideal"){
-	    v_x = -std::sin(2.0*M_PI*y);
-	    v_y = std::sin(2.0*M_PI*x);
+	    v_x = -std::sin(y);
+	    v_y = std::sin(x);
 	    v_z = 0.0;	    
-	    B_x = -std::sin(2.0*M_PI*y);
-	    B_y = std::sin(4.0*M_PI*x);
+	    B_x = -std::sin(y);
+	    B_y = std::sin(2.0*x);
 	    B_z = 0.0;
 	    Vector<Real> vcrossB = cross_product({v_x,v_y,v_z},{B_x,B_y,B_z});	    
 	    
@@ -185,6 +189,24 @@ CAMReXmp::initData ()
 	    arr(i,j,k,EX_LOCAL) = -vcrossB[0];
 	    arr(i,j,k,EY_LOCAL) = 0.0;
 	    arr(i,j,k,EZ_LOCAL) = -vcrossB[2];
+
+	  } else if (test=="convergence"){
+
+	    arr(i,j,k,BX_LOCAL) = 0.0;
+	    arr(i,j,k,BY_LOCAL) = 0.0;
+	    arr(i,j,k,BZ_LOCAL) = 0.0;
+	    arr(i,j,k,EX_LOCAL) = 0.0;
+	    arr(i,j,k,EY_LOCAL) = 0.0;
+	    arr(i,j,k,EZ_LOCAL) = -std::sin(2*M_PI*x);
+
+	  } else if (test=="convergence2D"){
+
+	    arr(i,j,k,BX_LOCAL) = 0.0;
+	    arr(i,j,k,BY_LOCAL) = 0.0;
+	    arr(i,j,k,BZ_LOCAL) = 0.0;
+	    arr(i,j,k,EX_LOCAL) = -c*std::cos(2.0*M_PI*(x+y))/std::sqrt(2.0);
+	    arr(i,j,k,EY_LOCAL) = 0.0;
+	    arr(i,j,k,EZ_LOCAL) = 0.0;
 
 	  } else if (test=="EMwave"){
 
@@ -240,21 +262,25 @@ CAMReXmp::initData ()
   	    Real B_x_L = 0.75, B_y_L = 1.0, B_z_L = 0.0;
   	    Real B_x_R = 0.75, B_y_R = -1.0, B_z_R = 0.0;
 	    
-  	    if (x<=(geom.ProbLo()[0]+geom.ProbHi()[0])/2.0){
+  	    /*if (x<=(geom.ProbLo()[0]+geom.ProbHi()[0])/2.0){
   	      B_x = B_x_L, B_y = B_y_L, B_z = B_z_L;
   	    } else{
   	      B_x = B_x_R, B_y = B_y_R, B_z = B_z_R;
-	    }
+	      }*/
   	    /*if (y<=(geom.ProbLo()[1]+geom.ProbHi()[1])/2.0){
   	      B_x = B_y_L, B_y = B_x_L, B_z = B_z_L;
   	    } else{
   	      B_x = B_y_R, B_y = B_x_R, B_z = B_z_R;
 	      }*/
-	    /*if (x+y<=geom.ProbHi()[1]){
-	      B_x = B_x_L, B_y = B_y_L, B_z = B_z_L;
+	    if (x+y<=geom.ProbHi()[1]){
+	      B_x = B_x_L*std::cos(M_PI/4.0)+B_y_L*std::cos(3.0*M_PI/4.0);
+	      B_y = B_x_L*std::sin(M_PI/4.0)+B_y_L*std::sin(3.0*M_PI/4.0);
+	      B_z = B_z_L;
 	    } else{
-	      B_x = B_x_R, B_y = B_y_R, B_z = B_z_R;
-	      }*/
+	      B_x = B_x_R*std::cos(M_PI/4.0)+B_y_R*std::cos(3.0*M_PI/4.0);
+	      B_y = B_y_R*std::sin(M_PI/4.0)+B_y_R*std::sin(3.0*M_PI/4.0);
+	      B_z = B_z_R;
+	    }
 	    
   	    arr(i,j,k,BX_LOCAL) = 0.0;
   	    arr(i,j,k,BY_LOCAL) = B_y;
@@ -280,11 +306,11 @@ CAMReXmp::initData ()
   	    arr(i,j,k,EZ_LOCAL) = -vcrossB[2];
 	    
   	  } else if (test=="OTideal"){
-  	    v_x = -std::sin(2.0*M_PI*y);
-  	    v_y = std::sin(2.0*M_PI*x);
+  	    v_x = -std::sin(y);
+  	    v_y = std::sin(x);
   	    v_z = 0.0;	    
-  	    B_x = -std::sin(2.0*M_PI*y);
-  	    B_y = std::sin(4.0*M_PI*x);
+  	    B_x = -std::sin(y);
+  	    B_y = std::sin(2.0*x);
   	    B_z = 0.0;
   	    Vector<Real> vcrossB = cross_product({v_x,v_y,v_z},{B_x,B_y,B_z});	    
 
@@ -332,6 +358,24 @@ CAMReXmp::initData ()
   	    arr(i,j,k,EY_LOCAL) = -vcrossB[1];
   	    arr(i,j,k,EZ_LOCAL) = -vcrossB[2];
 
+	  } else if (test=="convergence"){
+
+	    arr(i,j,k,BX_LOCAL) = 0.0;
+	    arr(i,j,k,BY_LOCAL) = std::sin(2*M_PI*x);
+	    arr(i,j,k,BZ_LOCAL) = 0.0;
+	    arr(i,j,k,EX_LOCAL) = 0.0;
+	    arr(i,j,k,EY_LOCAL) = 0.0;
+	    arr(i,j,k,EZ_LOCAL) = -std::sin(2*M_PI*x);
+
+	  } else if (test=="convergence2D"){
+
+	    arr(i,j,k,BX_LOCAL) = 0.0;
+	    arr(i,j,k,BY_LOCAL) = 0.0;
+	    arr(i,j,k,BZ_LOCAL) = 0.0;
+	    arr(i,j,k,EX_LOCAL) = 0.0;
+	    arr(i,j,k,EY_LOCAL) = c*std::cos(2.0*M_PI*(x+y))/std::sqrt(2.0);
+	    arr(i,j,k,EZ_LOCAL) = 0.0;
+
 	  } else if (test=="EMwave"){
 
 	    arr(i,j,k,BX_LOCAL) = 0.0;
@@ -340,6 +384,7 @@ CAMReXmp::initData ()
 	    arr(i,j,k,EX_LOCAL) = 0.0;
 	    arr(i,j,k,EY_LOCAL) = c*std::cos(2.0*M_PI*(x+y))/std::sqrt(2.0);
 	    arr(i,j,k,EZ_LOCAL) = 0.0;
+
 	  } else if (test=="gaussianEM"){
 
 	    Real lambda = 1.5, chi = 1.5, a = -2.5, b = -2.5;
@@ -390,22 +435,28 @@ CAMReXmp::initData ()
 	    Real rho_R = 0.125, v_x_R = 0.0, v_y_R = 0.0, v_z_R = 0.0, p_R = 0.05;
 	    Real B_x_R = 0.75, B_y_R = -1.0, B_z_R = 0.0;
 	    
-	    if (x<=(geom.ProbLo()[0]+geom.ProbHi()[0])/2.0){
+	    /*if (x<=(geom.ProbLo()[0]+geom.ProbHi()[0])/2.0){
 	      rho = rho_L, v_x = v_x_L, v_y = v_y_L, v_z = v_z_L, p = p_L, B_x = B_x_L, B_y = B_y_L, B_z = B_z_L;
 	    } else{
 	      rho = rho_R, v_x = v_x_R, v_y = v_y_R, v_z = v_z_R, p = p_R, B_x = B_x_R, B_y = B_y_R, B_z = B_z_R;
-	    }
+	      }*/
 	    /*
 	    if (y<=(geom.ProbLo()[1]+geom.ProbHi()[1])/2.0){
               rho = rho_L, v_x = v_y_L, v_y = v_x_L, v_z = v_z_L, p = p_L, B_x = B_y_L, B_y = B_x_L, B_z = B_z_L;                           
             } else{                                                                                                       
               rho = rho_R, v_x = v_y_R, v_y = v_x_R, v_z = v_z_R, p = p_R, B_x = B_y_R, B_y = B_x_R, B_z = B_z_R;   
-	      }*/
-	    /*if (x+y<=geom.ProbHi()[1]){
-	      rho = rho_L, v_x = v_x_L, v_y = v_y_L, v_z = v_z_L, p = p_L, B_x = B_x_L, B_y = B_y_L, B_z = B_z_L;
+	      }*/	    
+	    if (x+y<=geom.ProbHi()[1]){
+	      rho = rho_L, v_x = v_x_L, v_y = v_y_L, v_z = v_z_L, p = p_L;
+	      B_x = B_x_L*std::cos(M_PI/4.0)+B_y_L*std::cos(3.0*M_PI/4.0);
+	      B_y = B_x_L*std::sin(M_PI/4.0)+B_y_L*std::sin(3.0*M_PI/4.0);
+	      B_z = B_z_L;	      
 	    } else{
-	      rho = rho_R, v_x = v_x_R, v_y = v_y_R, v_z = v_z_R, p = p_R, B_x = B_x_R, B_y = B_y_R, B_z = B_z_R;
-	      }*/
+	      rho = rho_R, v_x = v_x_R, v_y = v_y_R, v_z = v_z_R, p = p_R;
+	      B_x = B_x_R*std::cos(M_PI/4.0)+B_y_R*std::cos(3.0*M_PI/4.0);
+	      B_y = B_x_R*std::sin(M_PI/4.0)+B_y_R*std::sin(3.0*M_PI/4.0);
+	      B_z = B_z_R;	      
+	    }
 	    
 	    arr(i,j,k,0) = rho;
 	    arr(i,j,k,1) = arr(i,j,k,0)*v_x;
@@ -476,14 +527,14 @@ CAMReXmp::initData ()
 	    c = std::max(c, 3.0*std::max(std::abs(v_x)+get_speed(w_i),std::abs(v_y)+get_speed(w_i)));
 	    
 	  } else if (test=="OTideal"){
-
-	    rho = Gamma*Gamma/2.0;
-	    v_x = -std::sin(2.0*M_PI*y);
-	    v_y = std::sin(2.0*M_PI*x);
+	    Real factor = r_i + 1.0/m;
+	    rho = Gamma*Gamma/factor;
+	    v_x = -std::sin(y);
+	    v_y = std::sin(x);
 	    v_z = 0.0;
-	    p = Gamma/2.0;
-	    B_x = -std::sin(2.0*M_PI*y);
-	    B_y = std::sin(4.0*M_PI*x);
+	    p = Gamma/factor;
+	    B_x = -std::sin(y);
+	    B_y = std::sin(2.0*x);
 	    B_z = 0.0;
 	    Vector<Real> vcrossB = cross_product({v_x,v_y,v_z},{B_x,B_y,B_z});
 
@@ -704,7 +755,7 @@ CAMReXmp::initData ()
 	    c_a = std::max(c_a, get_speed_a(rho, B_y));
 	    c = std::max(c, 8.0*c_a);	    
 
-	  }else if (test=="convergence"){
+	  } else if (test=="convergence"){
 	    arr(i,j,k,0) = 2.0+std::sin(2*M_PI*x);
 	    arr(i,j,k,1) = arr(i,j,k,0)*1.0;
 	    arr(i,j,k,2) = arr(i,j,k,0)*0.0;
@@ -726,9 +777,31 @@ CAMReXmp::initData ()
 	    arr(i,j,k,EY) = 0.0;
 	    arr(i,j,k,EZ) = -std::sin(2*M_PI*x);
 
-	    // set speed of light
-	    c = 100.0;
+	  } else if (test=="convergence2D"){
+	    Real vx = c/std::sqrt(2.0), vy = c/std::sqrt(2.0);
+	    //Real vx = 1.0, vy = 1.0;
 	    
+	    arr(i,j,k,0) = 2.0+std::sin(2*M_PI*(x+y));
+	    arr(i,j,k,1) = arr(i,j,k,0)*vx;
+	    arr(i,j,k,2) = arr(i,j,k,0)*vy;
+	    arr(i,j,k,3) = arr(i,j,k,0)*0.0;
+	    Vector<Real> w_i{arr(i,j,k,0), vx, vy, 0.0, 1.0};
+	    arr(i,j,k,ENER_I) = get_energy(w_i);
+
+	    arr(i,j,k,RHO_E) = 2.0+std::sin(2*M_PI*(x+y));
+	    arr(i,j,k,MOMX_E) = arr(i,j,k,RHO_E)*vx;
+	    arr(i,j,k,MOMY_E) = arr(i,j,k,RHO_E)*vy;
+	    arr(i,j,k,MOMZ_E) = arr(i,j,k,RHO_E)*0.0;
+	    Vector<Real> w_e{arr(i,j,k,RHO_E), vx, vy, 0.0, 1.0};
+	    arr(i,j,k,ENER_E) = get_energy(w_e);
+
+	    arr(i,j,k,BX) = 0.0;
+	    arr(i,j,k,BY) = 0.0;
+	    arr(i,j,k,BZ) = std::cos(2.0*M_PI*(x+y));
+	    arr(i,j,k,EX) = -c*std::cos(2.0*M_PI*(x+y))/std::sqrt(2.0);
+	    arr(i,j,k,EY) = c*std::cos(2.0*M_PI*(x+y))/std::sqrt(2.0);
+	    arr(i,j,k,EZ) = 0.0;
+
 	  } else if (test=="Toro1" || test=="Toro2" || test=="Toro3" || test=="Toro4" || test=="Toro5"){
 	    Real rho_L, v_x_L, v_y_L, v_z_L, p_L;
 	    Real rho_R, v_x_R, v_y_R, v_z_R, p_R;

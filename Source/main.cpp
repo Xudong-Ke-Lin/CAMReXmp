@@ -85,6 +85,8 @@ main (int   argc,
     ppa.query("plot_file",filename);
     std::regex pattern("plt_");
     filename = std::regex_replace(filename, pattern, "");
+    std::regex pattern2("_plt");
+    filename = std::regex_replace(filename, pattern2, "_");
 #ifdef AMREX_USE_MPI
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD,&rank);

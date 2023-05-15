@@ -413,7 +413,7 @@ CAMReXmp::variableSetUp ()
       bc[EZ].setHi(1, BCType::reflect_odd);
       bc[EX].setHi(1, BCType::reflect_odd);
       
-    } else if (test=="convergence")
+    } else if (test=="convergence" || test=="convergence2D")
     {
       for (int i = 0; i < amrex::SpaceDim; ++i)
 	{
@@ -1027,33 +1027,124 @@ CAMReXmp::advance (Real time,
       const int kOffset = ( d == 2 ? 1 : 0);
 
       for (MFIter mfi(SNew, true); mfi.isValid(); ++mfi)
-      {
-  	const Box& bx = mfi.tilebox();
+	{
+	  const Box& bx = mfi.tilebox();
 	  
-  	const Dim3 lo = lbound(bx);
-  	const Dim3 hi = ubound(bx);
+	  const Dim3 lo = lbound(bx);
+	  const Dim3 hi = ubound(bx);
 	
-  	Array4<Real> arr = SNew.array(mfi);
-  	Array4<Real> arrEM = S_EMNew[d].array(mfi);	
+	  Array4<Real> arr = SNew.array(mfi);
+	  Array4<Real> arrEM = S_EMNew[d].array(mfi);	
 	
-  	//for(int k = lo.z; k <= hi.z+kOffset; k++)
-  	for(int k = lo.z; k <= hi.z; k++)
-  	{
-  	  //for(int j = lo.y; j <= hi.y+jOffset; j++)
-  	  for(int j = lo.y; j <= hi.y; j++)
-  	  {
-  	    //for(int i = lo.x; i <= hi.x+iOffset; i++)
-  	    for(int i = lo.x; i <= hi.x; i++)
-  	      {
-  		arr(i,j,k,DIVB) += (arrEM(i+iOffset,j+jOffset,k,BX_LOCAL+d)-arrEM(i,j,k,BX_LOCAL+d))/dx[d];
-  		// substract because divEerror was set to be the charge density
-		arr(i,j,k,DIVE) -= (arrEM(i+iOffset,j+jOffset,k,EX_LOCAL+d)-arrEM(i,j,k,EX_LOCAL+d))/dx[d];
-  	      }
-  	  }
-  	}      
-      }
+	  //for(int k = lo.z; k <= hi.z+kOffset; k++)
+	  for(int k = lo.z; k <= hi.z; k++)
+	    {
+	      //for(int j = lo.y; j <= hi.y+jOffset; j++)
+	      for(int j = lo.y; j <= hi.y; j++)
+		{
+		  //for(int i = lo.x; i <= hi.x+iOffset; i++)
+		  for(int i = lo.x; i <= hi.x; i++)
+		    {
+		      arr(i,j,k,DIVB) += (arrEM(i+iOffset,j+jOffset,k,BX_LOCAL+d)-arrEM(i,j,k,BX_LOCAL+d))/dx[d];
+		      // substract because divEerror was set to be the charge density
+		      arr(i,j,k,DIVE) -= (arrEM(i+iOffset,j+jOffset,k,EX_LOCAL+d)-arrEM(i,j,k,EX_LOCAL+d))/dx[d];
+		    }
+		}
+	    }      
+	}
     }
   
+    /*
+  // Density errors for convergence problem
+  for (MFIter mfi(S_EMNew[0], true); mfi.isValid(); ++mfi)
+    {
+      const Box& bx = mfi.tilebox();
+
+      const Dim3 lo = lbound(bx);
+      const Dim3 hi = ubound(bx);
+
+      // Indexable arrays for the data, and the directional flux
+      // Based on the corner-centred definition of the flux array, the
+      // data array runs from e.g. [0,N+1] and the flux array from [-1,N+1]
+      //const auto& arr = S_source.array(mfi);
+      const auto& arrEM = S_EMNew[0].array(mfi);
+      
+      for(int k = lo.z; k <= hi.z; k++)
+  	{
+  	  for(int j = lo.y; j <= hi.y; j++)
+  	    {
+	      const Real y = prob_lo[1] + (double(j)+0.5) * dx[1];
+  	      for(int i = lo.x; i <= hi.x; i++)
+  		{
+  		  const Real x = prob_lo[0] + (double(i)) * dx[0];
+  		  // forcing term for Ex
+  		  //arrEM(i,j,k,EX_LOCAL) += -dt*(2.0+std::sin(2.0*M_PI*(x-cur_time)))/(lambda_d*lambda_d*l_r);
+		  arrEM(i,j,k,EX_LOCAL) += -dt*c/std::sqrt(2.0)*(2.0+std::sin(2.0*M_PI*(x+y-std::sqrt(2.0)*c*cur_time)))/(lambda_d*lambda_d*l_r);		  
+  		}
+  	    }
+  	}      
+    }
+  for (MFIter mfi(S_EMNew[1], true); mfi.isValid(); ++mfi)
+    {
+      const Box& bx = mfi.tilebox();
+
+      const Dim3 lo = lbound(bx);
+      const Dim3 hi = ubound(bx);
+
+      // Indexable arrays for the data, and the directional flux
+      // Based on the corner-centred definition of the flux array, the
+      // data array runs from e.g. [0,N+1] and the flux array from [-1,N+1]
+      //const auto& arr = S_source.array(mfi);
+      const auto& arrEM = S_EMNew[1].array(mfi);
+      
+      for(int k = lo.z; k <= hi.z; k++)
+  	{
+  	  for(int j = lo.y; j <= hi.y; j++)
+  	    {
+	      const Real y = prob_lo[1] + (double(j)) * dx[1];
+  	      for(int i = lo.x; i <= hi.x; i++)
+  		{
+  		  const Real x = prob_lo[0] + (double(i)+0.5) * dx[0];
+  		  // forcing term for Ey
+		  arrEM(i,j,k,EY_LOCAL) += -dt*c/std::sqrt(2.0)*(2.0+std::sin(2.0*M_PI*(x+y-std::sqrt(2.0)*c*cur_time)))/(lambda_d*lambda_d*l_r);
+  		}
+  	    }
+  	}      
+    }
+  for (MFIter mfi(SNew, true); mfi.isValid(); ++mfi)
+    {
+      const Box& bx = mfi.tilebox();
+
+      const Dim3 lo = lbound(bx);
+      const Dim3 hi = ubound(bx);
+
+      // Indexable arrays for the data, and the directional flux
+      // Based on the corner-centred definition of the flux array, the
+      // data array runs from e.g. [0,N+1] and the flux array from [-1,N+1]
+      //const auto& arr = S_source.array(mfi);
+      const auto& arr = SNew.array(mfi);
+      
+      for(int k = lo.z; k <= hi.z; k++)
+  	{
+  	  for(int j = lo.y; j <= hi.y; j++)
+  	    {
+	      const Real y = prob_lo[1] + (double(j)+0.5) * dx[1];
+  	      for(int i = lo.x; i <= hi.x; i++)
+  		{
+  		  const Real x = prob_lo[0] + (double(i)+0.5) * dx[0];
+  		  // forcing term for Ex
+  		  //arr(i,j,k,EX) += -dt*(2.0+std::sin(2.0*M_PI*(x-cur_time)))/(lambda_d*lambda_d*l_r);
+		  // in 2D
+		  arr(i,j,k,EX) += -dt*c/std::sqrt(2.0)*(2.0+std::sin(2.0*M_PI*(x+y-std::sqrt(2.0)*c*cur_time)))/(lambda_d*lambda_d*l_r);
+		  arr(i,j,k,EY) += -dt*c/std::sqrt(2.0)*(2.0+std::sin(2.0*M_PI*(x+y-std::sqrt(2.0)*c*cur_time)))/(lambda_d*lambda_d*l_r);
+		  // Real rho_exact = 2.0+std::sin(2.0*M_PI*(x-cur_time));
+		  Real rho_exact = 2.0+std::sin(2.0*M_PI*(x+y-std::sqrt(2.0)*c*cur_time));
+		  arr(i,j,k,DIVB) = arr(i,j,k,0)-rho_exact;
+  		}
+  	    }
+  	}      
+    }
+  */  
   // Bz and Ey errors for EM wave problem
   /*for (MFIter mfi(SNew, true); mfi.isValid(); ++mfi)
     {
@@ -1259,10 +1350,11 @@ CAMReXmp::estTimeStep (Real)
 		    c_array.push_back(std::abs(v_x_e)+c_e);
 		  else
 		  c_array.push_back(v_x_e+c_e);		  		  */
-		  //c_array.push_back(std::abs(v_x_e)+c_e);
-		  c_array.push_back(std::max(v_x_e+c_e,v_x_e-c_e));
+		  c_array.push_back(std::abs(v_x_e)+c_e);
+		  //c_array.push_back(std::max(v_x_e+c_e,v_x_e-c_e));
 		  // compute electron frequencies
-		  omega_pe_array.push_back(std::sqrt(m*m*arr(i,j,k,RHO_E)));
+		  //omega_pe_array.push_back(std::sqrt(m*m*arr(i,j,k,RHO_E)));
+		  omega_pe_array.push_back(std::sqrt(m*m*arr(i,j,k,RHO_E)/(lambda_d*lambda_d*l_r*l_r)));
 		  Real B = get_magnitude(arr(i,j,k,BX),arr(i,j,k,BY),arr(i,j,k,BZ));
 		  omega_ce_array.push_back(m*B);
 		  
@@ -1277,13 +1369,11 @@ CAMReXmp::estTimeStep (Real)
     }
     c_h = *std::max_element(c_array.begin(), c_array.end());
 
-    if (c_h > c)
-      {
-	std::cout << c_h << " " << c << std::endl;
-	//amrex::Abort("c_h is greater than c!");
-      }
-    //Real omega_pe = *std::max_element(omega_pe_array.begin(), omega_pe_array.end());
-    //Real omega_ce = *std::max_element(omega_ce_array.begin(), omega_ce_array.end());
+    Real omega_pe = *std::max_element(omega_pe_array.begin(), omega_pe_array.end());
+    Real omega_ce = *std::max_element(omega_ce_array.begin(), omega_ce_array.end());
+
+    //amrex::Print() << c_h << " " << c << " " << omega_pe << " " << omega_ce << std::endl;
+    //amrex::Print() << cfl*dx[d]/c_h << " " << cfl*dx[d]/c << " " << 0.5/omega_pe << " " << 0.5/omega_ce << std::endl;
 
     //dt_est = std::min(dt_est, dx[d]/c_h);
     //dt_est = std::min(dt_est, dx[d]/c);
@@ -1294,21 +1384,30 @@ CAMReXmp::estTimeStep (Real)
     else
       dt_est = std::min(dt_est, dx[d]/std::max(c_h, c));
     */
-    dt_est = std::min(dt_est, dx[d]/std::max(c_h, c));
+    //dt_est = std::min(dt_est, dx[d]/std::max(c_h, c));
+    dt_est = std::min(dt_est, cfl*dx[d]/std::max(c_h, c));
+      //dt_est = std::min(dt_est, cfl*dx[d]/c);
+    //dt_est = std::min(dt_est, dx[d]/c_h);
+      //dt_est = std::min(dt_est, cfl*dx[d]/c_h);
       //dt_est = std::min(dt_est, dx[d]/c_h);
       // 0.5 means subcycling two times
       //dt_est = std::min(dt_est, dx[d]/std::max(c_h, c/2.0));
 
     // dt also needs to resolve plasma and cyclotron frequencies
     //dt_est = std::min(dt_est, 0.5*std::min(omega_pe,omega_ce));
+    //dt_est = std::min(dt_est, 0.5/std::max(omega_pe,omega_ce));
+    dt_est = std::min(dt_est, 1.0/std::max(omega_pe,omega_ce));
 
+    //if (1.0/std::max(omega_pe,omega_ce)<cfl*dx[d]/std::max(c_h, c))
+    //std::cout << 1.0/std::max(omega_pe,omega_ce) << " " << cfl*dx[d]/std::max(c_h, c) << std::endl;
+    
   }  
   
   // Ensure that we really do have the minimum across all processors
   ParallelDescriptor::ReduceRealMin(dt_est);
   ParallelDescriptor::ReduceRealMax(c_h);
 
-  dt_est *= cfl;
+  //dt_est *= cfl;
   amrex::Print() << c_h << " " << dt_est << std::endl;
   
   if (c_h>c)
@@ -1318,7 +1417,7 @@ CAMReXmp::estTimeStep (Real)
       ParmParse pp;
       Real stop_time;
       pp.query("stop_time",stop_time);
-      dt_est = stop_time - cur_time;      
+      //dt_est = stop_time - cur_time;      
     }
   if (dt_est<1e-8)
     {
