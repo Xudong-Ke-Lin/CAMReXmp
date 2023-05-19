@@ -244,7 +244,7 @@ CAMReXmp::variableSetUp ()
 	      bc[n].setHi(idim, BCType::foextrap);
 	    }
 	}      
-    } else if (test=="OT" || test=="OTAmano" || test=="OTideal")
+    } else if (test=="OT" || test=="OTideal")
     {
       for (int i = 0; i < amrex::SpaceDim; ++i)
 	{
@@ -671,43 +671,20 @@ CAMReXmp::advance (Real time,
   MultiFab S0(grids, dmap, NUM_STATE+2, NUM_GROW);
   // See init function for details about the FillPatch function
   FillPatch(*this, S0, NUM_GROW, time, Phi_Type, 0, NUM_STATE+2);
-  // Fill periodic boundaries where they exist.  More accurately, the
-  // FillBoundary call will fill overlapping boundaries (with periodic
-  // domains effectively being overlapping).  It also takes care of
-  // AMR patch and CPU boundaries.
-  //S0.FillBoundary(geom.periodicity());
-
-  // Fill non-periodic physical boundaries
-  //FillDomainBoundary(S0, geom, bc);
   
   // Set up a multifab that will contain the electromagnetic fields
   //MultiFab S_EM[2];
   Array<MultiFab,AMREX_SPACEDIM> S_EM0;
   S_EM0[0].define(convert(grids,IntVect{AMREX_D_DECL(1,0,0)}), dmap, 6, NUM_GROW);
   FillPatch(*this, S_EM0[0], NUM_GROW, time, EM_X_Type, 0, 6);
-  //S_EM0[0].FillBoundary(geom.periodicity());
-  //FillDomainBoundary(S_EM0[0], geom, bc_EM);  
 
 #if (AMREX_SPACEDIM >= 2) 
   S_EM0[1].define(convert(grids,IntVect{AMREX_D_DECL(0,1,0)}), dmap, 6, NUM_GROW);
   FillPatch(*this, S_EM0[1], NUM_GROW, time, EM_Y_Type, 0, 6);
-  //S_EM0[1].FillBoundary(geom.periodicity());
-  //FillDomainBoundary(S_EM0[1], geom, bc_EM);  
 #endif
 
   //std::cout << Sborder.ixType().cellCentered() << " " << S_EM[0].ixType().cellCentered() << " " << S_EM[1].ixType().cellCentered() << std::endl;
   
-  // We use FillPatcher to do fillpatch here if we can
-  //FillPatcherFill(SY, 0, 2, NUM_GROW, time, 3, 0);
-  //FillPatch(*this, SY, NUM_GROW, time, 3, 0, 2);
-  //SY.FillBoundary(geom.periodicity());
-  //FillDomainBoundary(SY, geom, bc3);
-
-  //FillPatcherFill(S_EM0[0], 0, 6, NUM_GROW, time, EM_X_Type, 0);
-  //FillPatcherFill(S_EM0[1], 0, 6, NUM_GROW, time, EM_Y_Type, 0);
-  //FillPatcherFill(Sborder, 0, NUM_STATE, NUM_GROW, time, Phi_Type, 0);
-  //MFIter::allowMultipleMFIters(true);
-
   //(this->*advanceWithChosenUpdateOrder)(Sborder,fluxes,dx,dt);  
   //sourceUpdate(S0, fluxes, dx, 0.5*dt);
   
@@ -1054,7 +1031,7 @@ CAMReXmp::advance (Real time,
 	}
     }
   
-    /*
+  /*
   // Density errors for convergence problem
   for (MFIter mfi(S_EMNew[0], true); mfi.isValid(); ++mfi)
     {
@@ -1144,9 +1121,10 @@ CAMReXmp::advance (Real time,
   	    }
   	}      
     }
-  */  
+  */
+    /*  
   // Bz and Ey errors for EM wave problem
-  /*for (MFIter mfi(SNew, true); mfi.isValid(); ++mfi)
+  for (MFIter mfi(SNew, true); mfi.isValid(); ++mfi)
     {
       const Box& bx = mfi.tilebox();
 	  
@@ -1169,7 +1147,7 @@ CAMReXmp::advance (Real time,
 	    }
   	}      
     }  
-  */
+    */
   // We need to compute boundary conditions again after each update       
   //Sborder.FillBoundary(geom.periodicity());
   
@@ -1242,11 +1220,13 @@ CAMReXmp::advance (Real time,
   // NUM_STATE: Total number of variables being copied
   // Sixth entry: Number of ghost cells to be included in the copy (zero in this case, since only real
   //              data is needed for S_new)
+  
   MultiFab::Copy(S_new, SNew, 0, 0, NUM_STATE+2, 0);
   MultiFab::Copy(S_EM_X_new, S_EMNew[0], 0, 0, 6, 0);
 #if (AMREX_SPACEDIM >= 2) 
   MultiFab::Copy(S_EM_Y_new, S_EMNew[1], 0, 0, 6, 0);
 #endif
+  
   // Refluxing at patch boundaries.  Amrex automatically does this
   // where needed, but you need to state a few things to make sure it
   // happens correctly:
@@ -1294,8 +1274,6 @@ CAMReXmp::estTimeStep (Real)
   const Real cur_time = state[Phi_Type].curTime();
   const MultiFab& S_new = get_new_data(Phi_Type);
   
-  // This should not really be hard coded
-  
   // State with ghost cells - this is used to compute fluxes and perform the update.
   MultiFab Sborder(grids, dmap, NUM_STATE, NUM_GROW);
   // See init function for details about the FillPatch function
@@ -1305,6 +1283,9 @@ CAMReXmp::estTimeStep (Real)
   // Fill non-periodic physical boundaries     
   FillDomainBoundary(Sborder, geom, bc);
 
+  bool fluidconstraint = (fluidOrder != 0 ? true : false);
+  bool EMconstraint = (MaxwellOrder != 0 ? true : false);
+  
   /*Vector<Real> dim;
   if (geom.Coord()==0)
     dim = {0,1};
@@ -1318,6 +1299,9 @@ CAMReXmp::estTimeStep (Real)
   else
     dim = {0,1};*/
 
+  // if electron mass smaller than ion mass, use electron velocities
+  const int fluid = ( m>1.0 ? NUM_STATE_FLUID/2 : 0);
+  
   MFIter::allowMultipleMFIters(true);
 
   for(unsigned int d = 0; d < amrex::SpaceDim; ++d)
@@ -1344,37 +1328,36 @@ CAMReXmp::estTimeStep (Real)
 	      for(int i = lo.x; i <= hi.x; i++)
 		{
 		  // compute fastest speeds
-		  Real v_x_e = arr(i,j,k,MOMX_E+d)/arr(i,j,k,RHO_E);		  
-		  Real c_e = get_speed({arr(i,j,k,RHO_E),arr(i,j,k,MOMX_E),arr(i,j,k,MOMY_E),arr(i,j,k,MOMZ_E),arr(i,j,k,ENER_E)});
+		  Real v = arr(i,j,k,MOMX_I+d+fluid)/arr(i,j,k,RHO_I+fluid);
+		  Vector<Real> u_i = get_data_zone(arr,i,j,k,fluid,NUM_STATE_FLUID/2);
+		  Real c = get_speed(u_i);
+		  c_array.push_back(std::abs(v)+c);
 		  /*if (MaxwellMethod=="IM")
 		    c_array.push_back(std::abs(v_x_e)+c_e);
 		  else
 		  c_array.push_back(v_x_e+c_e);		  		  */
-		  c_array.push_back(std::abs(v_x_e)+c_e);
-		  //c_array.push_back(std::max(v_x_e+c_e,v_x_e-c_e));
+		  //c_array.push_back(std::abs(v_x_e)+c_e);		  
+		  
 		  // compute electron frequencies
 		  //omega_pe_array.push_back(std::sqrt(m*m*arr(i,j,k,RHO_E)));
-		  omega_pe_array.push_back(std::sqrt(m*m*arr(i,j,k,RHO_E)/(lambda_d*lambda_d*l_r*l_r)));
-		  Real B = get_magnitude(arr(i,j,k,BX),arr(i,j,k,BY),arr(i,j,k,BZ));
-		  omega_ce_array.push_back(m*B);
-		  
-		  // Real v_x_i = arr(i,j,k,MOMX_I+d)/arr(i,j,k,RHO_I);		  
-		  // Real c_i = get_speed({arr(i,j,k,RHO_I),arr(i,j,k,MOMX_I),arr(i,j,k,MOMY_I),arr(i,j,k,MOMZ_I),arr(i,j,k,ENER_I)});
-		  // c_array.push_back(std::abs(v_x_i)+c_i);
+		  if (EMconstraint && fluidconstraint)
+		    {
+		      omega_pe_array.push_back(std::sqrt(m*m*arr(i,j,k,RHO_E)/(lambda_d*lambda_d*l_r*l_r)));
+		      Real B = get_magnitude(arr(i,j,k,BX),arr(i,j,k,BY),arr(i,j,k,BZ));
+		      omega_ce_array.push_back(m*B);
+		    }
 		}
 	    }
 	}
       //c_h = *std::max_element(c_array.begin(), c_array.end());
-      //std::cout << "In " << lo.x << " " << hi.x << " " << lo.y << " " << hi.y << " " << c_h << std::endl;      
     }
     c_h = *std::max_element(c_array.begin(), c_array.end());
 
-    Real omega_pe = *std::max_element(omega_pe_array.begin(), omega_pe_array.end());
-    Real omega_ce = *std::max_element(omega_ce_array.begin(), omega_ce_array.end());
-
-    //amrex::Print() << c_h << " " << c << " " << omega_pe << " " << omega_ce << std::endl;
-    //amrex::Print() << cfl*dx[d]/c_h << " " << cfl*dx[d]/c << " " << 0.5/omega_pe << " " << 0.5/omega_ce << std::endl;
-
+    if (EMconstraint && fluidconstraint)
+      {
+	Real omega_pe = *std::max_element(omega_pe_array.begin(), omega_pe_array.end());
+	Real omega_ce = *std::max_element(omega_ce_array.begin(), omega_ce_array.end());
+      }
     //dt_est = std::min(dt_est, dx[d]/c_h);
     //dt_est = std::min(dt_est, dx[d]/c);
     // for implicit Maxwell solver use maximum fluid velocity
@@ -1385,18 +1368,24 @@ CAMReXmp::estTimeStep (Real)
       dt_est = std::min(dt_est, dx[d]/std::max(c_h, c));
     */
     //dt_est = std::min(dt_est, dx[d]/std::max(c_h, c));
-    dt_est = std::min(dt_est, cfl*dx[d]/std::max(c_h, c));
+    //dt_est = std::min(dt_est, cfl*dx[d]/std::max(c_h, c));
       //dt_est = std::min(dt_est, cfl*dx[d]/c);
     //dt_est = std::min(dt_est, dx[d]/c_h);
-      //dt_est = std::min(dt_est, cfl*dx[d]/c_h);
+    //dt_est = std::min(dt_est, cfl*dx[d]/c_h);
       //dt_est = std::min(dt_est, dx[d]/c_h);
       // 0.5 means subcycling two times
       //dt_est = std::min(dt_est, dx[d]/std::max(c_h, c/2.0));
-
+    if (EMconstraint && fluidconstraint)
+      dt_est = std::min(dt_est, cfl*dx[d]/std::max(c_h, c));
+    else if (EMconstraint && !fluidconstraint)
+      dt_est = std::min(dt_est, cfl*dx[d]/c);
+    else
+      dt_est = std::min(dt_est, cfl*dx[d]/c_h);
+    
     // dt also needs to resolve plasma and cyclotron frequencies
     //dt_est = std::min(dt_est, 0.5*std::min(omega_pe,omega_ce));
     //dt_est = std::min(dt_est, 0.5/std::max(omega_pe,omega_ce));
-    dt_est = std::min(dt_est, 1.0/std::max(omega_pe,omega_ce));
+    //dt_est = std::min(dt_est, 1.0/std::max(omega_pe,omega_ce));
 
     //if (1.0/std::max(omega_pe,omega_ce)<cfl*dx[d]/std::max(c_h, c))
     //std::cout << 1.0/std::max(omega_pe,omega_ce) << " " << cfl*dx[d]/std::max(c_h, c) << std::endl;
@@ -1410,7 +1399,7 @@ CAMReXmp::estTimeStep (Real)
   //dt_est *= cfl;
   amrex::Print() << c_h << " " << dt_est << std::endl;
   
-  if (c_h>c)
+  if (c_h>c && EMconstraint && fluidconstraint)
     {
       amrex::Abort("Fluid velocity is higher than speed of light!");
       amrex::Print() << "Fluid velocity is higher than speed of light!" << std::endl;
@@ -1760,7 +1749,11 @@ CAMReXmp::read_params ()
   
   ppn.get("Strang", StrangOrder);
   amrex::Print() << "Reading Strang splitting order: " << std::endl; 
-  if (StrangOrder==1){
+  if (StrangOrder==0){
+    amrex::Print() << "No Strang splitting" << std::endl;
+    StrangWithChosenUpdateOrder = &CAMReXmp::StrangZero;
+  }
+  else if (StrangOrder==1){
     amrex::Print() << "1st order Strang splitting" << std::endl;
     StrangWithChosenUpdateOrder = &CAMReXmp::StrangFirst;
   }
@@ -1769,7 +1762,7 @@ CAMReXmp::read_params ()
     StrangWithChosenUpdateOrder = &CAMReXmp::StrangSecond;
   }
   else
-    amrex::Abort("Please specify a valid Strang splitting order: 1 or 2");
+    amrex::Abort("Please specify a valid Strang splitting order: 0, 1 or 2");
   
   ppn.get("RK", RKOrder);
   amrex::Print() << "Reading RK order: " << std::endl;
@@ -1792,7 +1785,11 @@ CAMReXmp::read_params ()
   
   ppn.get("fluid",fluidOrder);
   amrex::Print() << "Reading fluid method: " << std::endl;
-  if (fluidOrder==2){
+  if (fluidOrder==0){
+    amrex::Print() << "no fluid solver" << std::endl;
+    fluidSolverWithChosenOrder = &CAMReXmp::fluidSolverNothing;
+  }
+  else if (fluidOrder==2){
     amrex::Print() << "fluid 2nd order TVD" << std::endl;
     fluidSolverWithChosenOrder = &CAMReXmp::fluidSolverTVD;
   }
@@ -1801,11 +1798,15 @@ CAMReXmp::read_params ()
     fluidSolverWithChosenOrder = &CAMReXmp::fluidSolverWENO;
   }
   else
-    amrex::Abort("Please specify a valid fluid order: 2 or 3");
+    amrex::Abort("Please specify a valid fluid order: 0, 2 or 3");
 
   ppn.get("Maxwell",MaxwellOrder);
   amrex::Print() << "Reading Maxwell method: " << std::endl;
-  if (MaxwellOrder==2){
+  if (MaxwellOrder==0){
+    amrex::Print() << "Maxwell 2nd order TVD" << std::endl;
+    MaxwellSolverWithChosenOrder = &CAMReXmp::MaxwellSolverDivFreeNothing;
+  }
+  else if (MaxwellOrder==2){
     amrex::Print() << "Maxwell 2nd order TVD" << std::endl;
     MaxwellSolverWithChosenOrder = &CAMReXmp::MaxwellSolverDivFreeTVD;
   }

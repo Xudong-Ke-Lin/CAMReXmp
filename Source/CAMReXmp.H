@@ -265,6 +265,7 @@ protected:
   
 private:
 
+  void StrangZero(MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], Array<MultiFab,AMREX_SPACEDIM>&, Array<MultiFab,AMREX_SPACEDIM>&, MultiFab&, const Real*, Real, Real);
   void StrangFirst(MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], Array<MultiFab,AMREX_SPACEDIM>&, Array<MultiFab,AMREX_SPACEDIM>&, MultiFab&, const Real*, Real, Real);
   void StrangSecond(MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], Array<MultiFab,AMREX_SPACEDIM>&, Array<MultiFab,AMREX_SPACEDIM>&, MultiFab&, const Real*, Real, Real);
 
@@ -273,6 +274,7 @@ private:
   void RK3(MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], Array<MultiFab,AMREX_SPACEDIM>&, Array<MultiFab,AMREX_SPACEDIM>&, MultiFab&, const Real*, Real, Real);
   void linearCombination(MultiFab&, MultiFab&, Real, MultiFab&, Real, int, int);
   void fluidSolver(amrex::MultiFab&, amrex::MultiFab (&)[AMREX_SPACEDIM], const amrex::Real*, amrex::Real);
+  void fluidSolverNothing(MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], const Real*, Real);
   void fluidSolverTVD(MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], const Real*, Real);
   void fluidSolverExact(MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], const Real*, Real);
   void MUSCLHancokFluidSolverTVD(MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], const Real*, Real);
@@ -285,6 +287,7 @@ private:
   void hyperbolicMaxwellSolverDivFree(Array<MultiFab,AMREX_SPACEDIM>&, MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], const Real*, Real);
   void hyperbolicMaxwellSolverDivFreeBalsara(Array<MultiFab,AMREX_SPACEDIM>&, MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], MultiFab&, const Real*, Real);
   void MaxwellSolverDivFree(Array<MultiFab,AMREX_SPACEDIM>&, MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], MultiFab&, const Real*, Real);
+  void MaxwellSolverDivFreeNothing(Array<MultiFab,AMREX_SPACEDIM>&, Array<MultiFab,AMREX_SPACEDIM>&,MultiFab&, MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], const Real*, Real);
   void MaxwellSolverDivFreeTVD(Array<MultiFab,AMREX_SPACEDIM>&, Array<MultiFab,AMREX_SPACEDIM>&,MultiFab&, MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], const Real*, Real);
   void MaxwellSolverDivFreeWENO(Array<MultiFab,AMREX_SPACEDIM>&, Array<MultiFab,AMREX_SPACEDIM>&,MultiFab&, MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], const Real*, Real);
   void MaxwellSolverDivFreeWENOcharacteristic(Array<MultiFab,AMREX_SPACEDIM>&, Array<MultiFab,AMREX_SPACEDIM>&,MultiFab&, MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], const Real*, Real);  

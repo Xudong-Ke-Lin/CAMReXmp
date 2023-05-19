@@ -1,3 +1,6 @@
+#ifndef _utils_H_
+#define _utils_H_
+
 #include <AMReX_AmrLevel.H>
 #include <AMReX_FluxRegister.H>
 
@@ -192,3 +195,5 @@ Vector<Real> get_charge_scaled(Vector<Real> u_i, Vector<Real> u_e);
 void WENOcharacteristic(const Array4<Real>& arr, const Array4<Real>& slopes,
 			int i, int j, int k, int iOffset, int jOffset, int kOffset,
 			int start, int len, int d);
+
+#endif /*_utils_H_*/

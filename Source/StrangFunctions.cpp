@@ -7,6 +7,13 @@
 
 using namespace amrex;
 
+void CAMReXmp::StrangZero(MultiFab& S_dest, MultiFab& S_source, MultiFab (&fluxes)[AMREX_SPACEDIM], Array<MultiFab,AMREX_SPACEDIM>& S_EM_dest, Array<MultiFab,AMREX_SPACEDIM>& S_EM_source, MultiFab& fluxesEM, const Real* dx, Real time, Real dt)
+{
+
+  (this->*RKWithChosenUpdateOrder)(S_dest, S_source, fluxes, S_EM_dest, S_EM_source, fluxesEM, dx, time, dt);
+ 
+}
+
 void CAMReXmp::StrangFirst(MultiFab& S_dest, MultiFab& S_source, MultiFab (&fluxes)[AMREX_SPACEDIM], Array<MultiFab,AMREX_SPACEDIM>& S_EM_dest, Array<MultiFab,AMREX_SPACEDIM>& S_EM_source, MultiFab& fluxesEM, const Real* dx, Real time, Real dt)
 {
   //MultiFab Sprev(grids, dmap, NUM_STATE, NUM_GROW);

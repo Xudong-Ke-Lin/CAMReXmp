@@ -3648,6 +3648,10 @@ void CAMReXmp::MaxwellSolverDivFree(Array<MultiFab,AMREX_SPACEDIM>& S_EM, MultiF
   	}
     }    
 }
+void CAMReXmp::MaxwellSolverDivFreeNothing(Array<MultiFab,AMREX_SPACEDIM>& S_EM_dest, Array<MultiFab,AMREX_SPACEDIM>& S_EM_source, MultiFab& fluxesEM, MultiFab& S_dest, MultiFab& S_source, MultiFab (&fluxes)[AMREX_SPACEDIM], const Real* dx, Real dt)
+{
+  return;
+}
 void CAMReXmp::MaxwellSolverDivFreeWENO(Array<MultiFab,AMREX_SPACEDIM>& S_EM_dest, Array<MultiFab,AMREX_SPACEDIM>& S_EM_source, MultiFab& fluxesEM, MultiFab& S_dest, MultiFab& S_source, MultiFab (&fluxes)[AMREX_SPACEDIM], const Real* dx, Real dt)
 {
 
@@ -5031,7 +5035,6 @@ void CAMReXmp::MaxwellSolverDivFreeTVD(Array<MultiFab,AMREX_SPACEDIM>& S_EM_dest
 		      // source terms
 		      Real currentFace = r_i*fluxArr(i,j,k,RHO_I) + r_e*fluxArr(i,j,k,RHO_E);
 		      arrEM(i,j,k,EX_LOCAL+d_EM) -= dt*1.0/(lambda_d*lambda_d*l_r)*currentFace;
-		      
 		    }
 		}
 	    }      
