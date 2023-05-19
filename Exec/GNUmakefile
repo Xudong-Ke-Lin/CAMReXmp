@@ -10,7 +10,7 @@ PROFILE    = FALSE
 # accurate line information, without optimising out variables.
 # Additionally, additional bounds checking is implemented in AMReX's
 # debug mode
-#DEBUG      = TRUE
+DEBUG      = TRUE
 DEBUG      = FALSE
 
 USE_PARTICLES = TRUE
@@ -30,6 +30,9 @@ Blocs   := $(TOPTOP)
 
 # Include Eigen library
 INCLUDE_LOCATIONS += /usr/include/eigen3/
+INCLUDE_LOCATIONS += /usr/include/boost/
+
+ADR_DIR  ?= $(AMREX_HOME)/Tutorials/Amr/Advection_AmrLevel
 
 TOP := $(TOPTOP)/..
 

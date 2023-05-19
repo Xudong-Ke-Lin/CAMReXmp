@@ -15,7 +15,7 @@ geometry.coord_sys   =  0                     # 0 -> Cartesian geometry
 geometry.prob_lo     =  -12.8  -6.4  0.0         # Physical minimum extents
 geometry.prob_hi     =  12.8  6.4  1.0         # Physical maximum extents
 amr.n_cell           =  512  256  256         # Number of cells in each dimension
-
+#amr.n_cell           =  256  128  256
 # TIME STEP CONTROL
 adv.cfl            = 0.2     # cfl number for hyperbolic system
 
@@ -47,7 +47,8 @@ amr.plot_int          = 0               # number of timesteps between plot files
 amr.probin_file = probin
 
 # NUMERICAL METHODS
-num.Strang      = 1
+num.Strang      = 2
 num.RK		= 2
 num.source 	= "ANEX"
-num.Maxwell	= "HYP"
+num.fluid       = 3
+num.Maxwell	= 3
