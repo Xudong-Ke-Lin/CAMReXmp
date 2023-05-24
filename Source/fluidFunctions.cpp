@@ -67,8 +67,8 @@ void CAMReXmp::fluidSolver(MultiFab& Sborder, MultiFab (&fluxes)[AMREX_SPACEDIM]
 	  for(int i = lo.x; i <= hi.x+iOffset; i++)
 	  {
 	    //Vector<Real> flux = flux_SLIC(arr, i, j, k, iOffset, jOffset, kOffset, dx[d], dt, d, cfl);
-	    Vector<Real> flux = fluid_flux_HLLC(arr, i, j, k, iOffset, jOffset, kOffset, dx[d], dt, d);
-	    //Vector<Real> flux = flux_HLLC(arr, i, j, k, iOffset, jOffset, kOffset, dx[d], dt, dim[d]);
+	    //Vector<Real> flux = fluid_flux_HLLC(arr, i, j, k, iOffset, jOffset, kOffset, dx[d], dt, d);
+	    Vector<Real> flux = flux_HLLC(arr, i, j, k, iOffset, jOffset, kOffset, dx[d], dt, d);
 	    for(int n=0; n<NUM_STATE_FLUID; n++)
 	      //for(int n=0; n<NUM_STATE; n++)
 	      {

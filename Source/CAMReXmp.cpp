@@ -750,13 +750,19 @@ CAMReXmp::advance (Real time,
   fluidSolverWENO(S2, S1, fluxes, dx, dt);
   MaxwellSolverDivFreeWENO(S_EM2,S_EM1,fluxesEM,S2,S1,fluxes,dx,dt);
   */
-  MultiFab SNew(grids, dmap, NUM_STATE+2, NUM_GROW);  
+  /*MultiFab SNew(grids, dmap, NUM_STATE+2, NUM_GROW);  
   Array<MultiFab,AMREX_SPACEDIM> S_EMNew;
   S_EMNew[0].define(convert(grids,IntVect{AMREX_D_DECL(1,0,0)}), dmap, 6, NUM_GROW);
 #if (AMREX_SPACEDIM >= 2)
   S_EMNew[1].define(convert(grids,IntVect{AMREX_D_DECL(0,1,0)}), dmap, 6, NUM_GROW);
-#endif
-  (this->*StrangWithChosenUpdateOrder)(SNew, S0, fluxes, S_EMNew, S_EM0, fluxesEM, dx, time, dt);
+  #endif*/
+  //(this->*StrangWithChosenUpdateOrder)(SNew, S0, fluxes, S_EMNew, S_EM0, fluxesEM, dx, time, dt);
+
+  sourceUpdate(S0, fluxes, dx, 0.5*dt);  
+  implicitMaxwellSolver(S0, dx, dt);
+  fluidSolver(S0, fluxes, dx, dt);
+  sourceUpdate(S0, fluxes, dx, 0.5*dt);
+  
   //(this->*RKWithChosenUpdateOrder)(SNew, S0, fluxes, S_EMNew, S_EM0, fluxesEM, dx, time, dt);
   //SSPRK3(SNew, S0, fluxes, S_EMNew, S_EM0, fluxesEM, dx, dt);
   //SSPRK2(SNew, S0, fluxes, S_EMNew, S_EM0, fluxesEM, dx, dt);
@@ -969,7 +975,7 @@ CAMReXmp::advance (Real time,
       }      
     }
   */
-  
+  /*
   // Loop over all the patches at this level
   for (MFIter mfi(SNew, true); mfi.isValid(); ++mfi)
     {
@@ -1030,7 +1036,7 @@ CAMReXmp::advance (Real time,
 	    }      
 	}
     }
-  
+  */
   /*
   // Density errors for convergence problem
   for (MFIter mfi(S_EMNew[0], true); mfi.isValid(); ++mfi)
@@ -1221,12 +1227,13 @@ CAMReXmp::advance (Real time,
   // Sixth entry: Number of ghost cells to be included in the copy (zero in this case, since only real
   //              data is needed for S_new)
   
-  MultiFab::Copy(S_new, SNew, 0, 0, NUM_STATE+2, 0);
-  MultiFab::Copy(S_EM_X_new, S_EMNew[0], 0, 0, 6, 0);
+  //MultiFab::Copy(S_new, SNew, 0, 0, NUM_STATE+2, 0);
+  MultiFab::Copy(S_new, S0, 0, 0, NUM_STATE+2, 0);
+  /*MultiFab::Copy(S_EM_X_new, S_EMNew[0], 0, 0, 6, 0);
 #if (AMREX_SPACEDIM >= 2) 
   MultiFab::Copy(S_EM_Y_new, S_EMNew[1], 0, 0, 6, 0);
 #endif
-  
+  */
   // Refluxing at patch boundaries.  Amrex automatically does this
   // where needed, but you need to state a few things to make sure it
   // happens correctly:
@@ -1304,11 +1311,12 @@ CAMReXmp::estTimeStep (Real)
   
   MFIter::allowMultipleMFIters(true);
 
+  Vector<Real> c_array {0.0};
+  Vector<Real> omega_pe_array {0.0};
+  Vector<Real> omega_ce_array {0.0};
+
   for(unsigned int d = 0; d < amrex::SpaceDim; ++d)
   {
-    Vector<Real> c_array {0.0};
-    Vector<Real> omega_pe_array {0.0};
-    Vector<Real> omega_ce_array {0.0};
     
     for (MFIter mfi(Sborder, true); mfi.isValid(); ++mfi)
     {
@@ -1353,10 +1361,11 @@ CAMReXmp::estTimeStep (Real)
     }
     c_h = *std::max_element(c_array.begin(), c_array.end());
 
+    Real omega_pe, omega_ce;
     if (EMconstraint && fluidconstraint)
       {
-	Real omega_pe = *std::max_element(omega_pe_array.begin(), omega_pe_array.end());
-	Real omega_ce = *std::max_element(omega_ce_array.begin(), omega_ce_array.end());
+	omega_pe = *std::max_element(omega_pe_array.begin(), omega_pe_array.end());
+	omega_ce = *std::max_element(omega_ce_array.begin(), omega_ce_array.end());
       }
     //dt_est = std::min(dt_est, dx[d]/c_h);
     //dt_est = std::min(dt_est, dx[d]/c);
@@ -1375,16 +1384,18 @@ CAMReXmp::estTimeStep (Real)
       //dt_est = std::min(dt_est, dx[d]/c_h);
       // 0.5 means subcycling two times
       //dt_est = std::min(dt_est, dx[d]/std::max(c_h, c/2.0));
-    if (EMconstraint && fluidconstraint)
+    /*if (EMconstraint && fluidconstraint)
       dt_est = std::min(dt_est, cfl*dx[d]/std::max(c_h, c));
     else if (EMconstraint && !fluidconstraint)
       dt_est = std::min(dt_est, cfl*dx[d]/c);
     else
       dt_est = std::min(dt_est, cfl*dx[d]/c_h);
+    */
+    dt_est = std::min(dt_est, cfl*dx[d]/c_h);
     
     // dt also needs to resolve plasma and cyclotron frequencies
     //dt_est = std::min(dt_est, 0.5*std::min(omega_pe,omega_ce));
-    //dt_est = std::min(dt_est, 0.5/std::max(omega_pe,omega_ce));
+    dt_est = std::min(dt_est, 0.5/std::max(omega_pe,omega_ce));
     //dt_est = std::min(dt_est, 1.0/std::max(omega_pe,omega_ce));
 
     //if (1.0/std::max(omega_pe,omega_ce)<cfl*dx[d]/std::max(c_h, c))
@@ -1774,7 +1785,7 @@ CAMReXmp::read_params ()
   else if (RKOrder==2){
     amrex::Print() << "2nd order RK" << std::endl;
     RKWithChosenUpdateOrder = &CAMReXmp::RK2;
-    //tau = 0.5;
+    tau = 0.5;
   }
   else if (RKOrder==3){
     amrex::Print() << "3rd order RK" << std::endl;

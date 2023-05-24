@@ -195,13 +195,13 @@ void CAMReXmp::implicitMaxwellSolver(MultiFab& Sborder, const Real* dx, Real dt)
   Rhs[0].define(grids, dmap, 1, 0);
   Rhs[1].define(grids, dmap, 1, 0);
   Rhs[2].define(grids, dmap, 1, 0);
-  MultiFab::Copy(Rhs[0], Sborder, 0, BX, 1, 0);
-  MultiFab::Copy(Rhs[1], Sborder, 0, BY, 1, 0);
-  MultiFab::Copy(Rhs[2], Sborder, 0, BZ, 1, 0);
-  computeRhs(Rhs, J, Sborder, dx, dt);
-  //computeRhsX(Rhs[0], J, Sborder, 0.0, dt, dx[0], dx[1]);
-  //computeRhsY(Rhs[1], J, Sborder, 0.0, dt, dx[0], dx[1]);
-  //computeRhsZ(Rhs[2], J, Sborder, 0.0, dt, dx[0], dx[1]);    
+  MultiFab::Copy(Rhs[0], Sborder, BX, 0, 1, 0);
+  MultiFab::Copy(Rhs[1], Sborder, BY, 0, 1, 0);
+  MultiFab::Copy(Rhs[2], Sborder, BZ, 0, 1, 0);
+  //computeRhs(Rhs, J, Sborder, dx, dt);
+  computeRhsX(Rhs[0], J, Sborder, 0.0, dt, dx[0], dx[1]);
+  computeRhsY(Rhs[1], J, Sborder, 0.0, dt, dx[0], dx[1]);
+  computeRhsZ(Rhs[2], J, Sborder, 0.0, dt, dx[0], dx[1]);    
 
   MLMG mlmgX(mlabecX);
   MLMG mlmgY(mlabecY);
@@ -235,71 +235,122 @@ void CAMReXmp::implicitMaxwellSolverElecFieldUpdate(MultiFab& Sborder, const amr
 {
   MFIter::allowMultipleMFIters(true);
   
-  for (int d = 0; d < amrex::SpaceDim ; d++)
+  for (MFIter mfi(Sborder, true); mfi.isValid(); ++mfi)
     {
-      const int iOffset = ( d == 0 ? 1 : 0);
-      const int jOffset = ( d == 1 ? 1 : 0);
-      const int kOffset = ( d == 2 ? 1 : 0);
+      const Box& bx = mfi.tilebox();
       
-      for (MFIter mfi(Sborder, true); mfi.isValid(); ++mfi)
-	{
-	  const Box& bx = mfi.tilebox();
-      
-	  const Dim3 lo = lbound(bx);
-	  const Dim3 hi = ubound(bx);
+      const Dim3 lo = lbound(bx);
+      const Dim3 hi = ubound(bx);
 
-	  const auto& arr = Sborder.array(mfi);
-	  const auto& arr_old = Sold.array(mfi);
-	  const auto& J_nPlusHalf = J.array(mfi); 
+      const auto& arr = Sborder.array(mfi);
+      const auto& arr_old = Sold.array(mfi);
+      const auto& J_nPlusHalf = J.array(mfi); 
 
-	  for(int k = lo.z; k <= hi.z; k++)
-	    {
-	      for(int j = lo.y; j <= hi.y; j++)
-		{
-		  for(int i = lo.x; i <= hi.x; i++)
-		    {
-		      Real dxBy = computeDerivative(arr(i-iOffset,j-jOffset,k-kOffset,BX+(1+d)%3),
-						    arr(i+iOffset,j+jOffset,k+kOffset,BX+(1+d)%3),dx[d]);
-		      Real dxBz = computeDerivative(arr(i-iOffset,j-jOffset,k-kOffset,BX+(2+d)%3),
-						    arr(i+iOffset,j+jOffset,k+kOffset,BX+(2+d)%3),dx[d]);
-		      // when using implicit source treatment do not include the current
-		      if (sourceMethod!="IM" && d==0)
-			{
-			  arr(i,j,k,EX) -= dt*J_nPlusHalf(i,j,k,0)/(lambda_d*lambda_d*l_r);
-			  arr(i,j,k,EY) -= dt*J_nPlusHalf(i,j,k,1)/(lambda_d*lambda_d*l_r);
-			  arr(i,j,k,EZ) -= dt*J_nPlusHalf(i,j,k,2)/(lambda_d*lambda_d*l_r);
-			}
-		      /*if (geom.Coord()==1 && d==0)
-			{
-			  const Real y = geom.ProbLo()[1]+(double(j)+0.5)*dx[1];
-			  arr(i,j,k,BX) -= dt*(arr(i,j,k,EZ)/y);      
-			  arr(i,j,k,EX) += dt*(c*c*arr(i,j,k,BZ)/y);
-			  }*/
-		      arr(i,j,k,EX+d) += 0.0;
-		      arr(i,j,k,EX+(1+d)%3) -= tau*dt*c*c*dxBz;
-		      arr(i,j,k,EX+(2+d)%3) += tau*dt*c*c*dxBy;
-
-		      if (RKOrder==2)
-			{
-			  Real dxByOld = computeDerivative(arr_old(i-iOffset,j-jOffset,k-kOffset,BX+(1+d)%3),
-							   arr_old(i+iOffset,j+jOffset,k+kOffset,BX+(1+d)%3),dx[d]);
-			  Real dxBzOld = computeDerivative(arr_old(i-iOffset,j-jOffset,k-kOffset,BX+(2+d)%3),
-							   arr_old(i+iOffset,j+jOffset,k+kOffset,BX+(2+d)%3),dx[d]);
-			  
-			  arr(i,j,k,EX+d) += 0.0;
-			  arr(i,j,k,EX+(1+d)%3) -= (1.0-tau)*dt*c*c*dxBzOld;
-			  arr(i,j,k,EX+(2+d)%3) += (1.0-tau)*dt*c*c*dxByOld;
-			}
-		    }
-		}
-	    }
+      for(int k = lo.z; k <= hi.z; k++)
+      {
+        for(int j = lo.y; j <= hi.y; j++)
+        {
+          for(int i = lo.x; i <= hi.x; i++)
+          {	    
+	    // update electric field
+	    Real dxBy = computeDerivative(arr(i-1,j,k,BY),arr(i+1,j,k,BY),dx[0]);
+	    Real dxBz = computeDerivative(arr(i-1,j,k,BZ),arr(i+1,j,k,BZ),dx[0]);
+	    /////////////////////////////////////////////////////////////////////////
+	    // 2D	    
+ 	    Real dyBx = computeDerivative(arr(i,j-1,k,BX),arr(i,j+1,k,BX),dx[1]);
+	    Real dyBz = computeDerivative(arr(i,j-1,k,BZ),arr(i,j+1,k,BZ),dx[1]);
+	    // old data
+	    Real dxByOld = computeDerivative(arr_old(i-1,j,k,BY),arr_old(i+1,j,k,BY),dx[0]);
+	    Real dxBzOld = computeDerivative(arr_old(i-1,j,k,BZ),arr_old(i+1,j,k,BZ),dx[0]);
+	    Real dyBxOld = computeDerivative(arr_old(i,j-1,k,BX),arr_old(i,j+1,k,BX),dx[1]);
+	    Real dyBzOld = computeDerivative(arr_old(i,j-1,k,BZ),arr_old(i,j+1,k,BZ),dx[1]);
+	    
+	    arr(i,j,k,EX) = arr(i,j,k,EX)
+	      + dt*(-J_nPlusHalf(i,j,k,0)/(lambda_d*lambda_d*l_r)
+		    + 0.5*c*c*dyBz + 0.5*c*c*dyBzOld); 
+	    arr(i,j,k,EY) = arr(i,j,k,EY)
+	      + dt*(-J_nPlusHalf(i,j,k,1)/(lambda_d*lambda_d*l_r)
+		    - 0.5*c*c*dxBz - 0.5*c*c*dxBzOld);
+	    arr(i,j,k,EZ) = arr(i,j,k,EZ)
+	      + dt*(-J_nPlusHalf(i,j,k,2)/(lambda_d*lambda_d*l_r)
+		    + 0.5*c*c*(dxBy-dyBx) + 0.5*c*c*(dxByOld-dyBxOld));
+	  }
 	}
+      }      
     }
+
+  
   // We need to compute boundary conditions again after each update 
   Sborder.FillBoundary(geom.periodicity());
+	    
+  // Fill non-periodic physical boundaries                         
+  FillDomainBoundary(Sborder, geom, bc);
+
+  // for (int d = 0; d < amrex::SpaceDim ; d++)
+  //   {
+  //     const int iOffset = ( d == 0 ? 1 : 0);
+  //     const int jOffset = ( d == 1 ? 1 : 0);
+  //     const int kOffset = ( d == 2 ? 1 : 0);
+      
+  //     for (MFIter mfi(Sborder, true); mfi.isValid(); ++mfi)
+  // 	{
+  // 	  const Box& bx = mfi.tilebox();
+      
+  // 	  const Dim3 lo = lbound(bx);
+  // 	  const Dim3 hi = ubound(bx);
+
+  // 	  const auto& arr = Sborder.array(mfi);
+  // 	  const auto& arr_old = Sold.array(mfi);
+  // 	  const auto& J_nPlusHalf = J.array(mfi); 
+
+  // 	  for(int k = lo.z; k <= hi.z; k++)
+  // 	    {
+  // 	      for(int j = lo.y; j <= hi.y; j++)
+  // 		{
+  // 		  for(int i = lo.x; i <= hi.x; i++)
+  // 		    {
+  // 		      Real dxBy = computeDerivative(arr(i-iOffset,j-jOffset,k-kOffset,BX+(1+d)%3),
+  // 						    arr(i+iOffset,j+jOffset,k+kOffset,BX+(1+d)%3),dx[d]);
+  // 		      Real dxBz = computeDerivative(arr(i-iOffset,j-jOffset,k-kOffset,BX+(2+d)%3),
+  // 						    arr(i+iOffset,j+jOffset,k+kOffset,BX+(2+d)%3),dx[d]);
+  // 		      // when using implicit source treatment do not include the current
+  // 		      if (sourceMethod!="IM" && d==0)
+  // 			{
+  // 			  arr(i,j,k,EX) -= dt*J_nPlusHalf(i,j,k,0)/(lambda_d*lambda_d*l_r);
+  // 			  arr(i,j,k,EY) -= dt*J_nPlusHalf(i,j,k,1)/(lambda_d*lambda_d*l_r);
+  // 			  arr(i,j,k,EZ) -= dt*J_nPlusHalf(i,j,k,2)/(lambda_d*lambda_d*l_r);
+  // 			}
+  // 		      /*if (geom.Coord()==1 && d==0)
+  // 			{
+  // 			  const Real y = geom.ProbLo()[1]+(double(j)+0.5)*dx[1];
+  // 			  arr(i,j,k,BX) -= dt*(arr(i,j,k,EZ)/y);      
+  // 			  arr(i,j,k,EX) += dt*(c*c*arr(i,j,k,BZ)/y);
+  // 			  }*/
+  // 		      arr(i,j,k,EX+d) += 0.0;
+  // 		      arr(i,j,k,EX+(1+d)%3) -= tau*dt*c*c*dxBz;
+  // 		      arr(i,j,k,EX+(2+d)%3) += tau*dt*c*c*dxBy;
+
+  // 		      if (RKOrder==2)
+  // 			{
+  // 			  Real dxByOld = computeDerivative(arr_old(i-iOffset,j-jOffset,k-kOffset,BX+(1+d)%3),
+  // 							   arr_old(i+iOffset,j+jOffset,k+kOffset,BX+(1+d)%3),dx[d]);
+  // 			  Real dxBzOld = computeDerivative(arr_old(i-iOffset,j-jOffset,k-kOffset,BX+(2+d)%3),
+  // 							   arr_old(i+iOffset,j+jOffset,k+kOffset,BX+(2+d)%3),dx[d]);
+			  
+  // 			  arr(i,j,k,EX+d) += 0.0;
+  // 			  arr(i,j,k,EX+(1+d)%3) -= (1.0-tau)*dt*c*c*dxBzOld;
+  // 			  arr(i,j,k,EX+(2+d)%3) += (1.0-tau)*dt*c*c*dxByOld;
+  // 			}
+  // 		    }
+  // 		}
+  // 	    }
+  // 	}
+  //   }
+  // // We need to compute boundary conditions again after each update 
+  // Sborder.FillBoundary(geom.periodicity());
   
-  // Fill non-periodic physical boundaries
-  FillDomainBoundary(Sborder, geom, bc);  
+  // // Fill non-periodic physical boundaries
+  // FillDomainBoundary(Sborder, geom, bc);  
 }
 void CAMReXmp::computeCurrentUpdate(MultiFab& J, const MultiFab& Sborder, const Real* dx, Real dt)
 {
@@ -328,12 +379,12 @@ void CAMReXmp::computeCurrentUpdate(MultiFab& J, const MultiFab& Sborder, const 
 	      for(int i = lo.x-iOffset; i <= hi.x+iOffset; i++)
 		{
 		  Vector<Real> currentUpdated = currentUpdate(arr, i, j, k, dx, dt);
-		  J_nPlusHalf(i,j,k,0) = currentUpdated[0];
-		  J_nPlusHalf(i,j,k,1) = currentUpdated[1];
-		  J_nPlusHalf(i,j,k,2) = currentUpdated[2];
-		  /*J_nPlusHalf(i,j,k,0) = computeJx_nPlusHalf(arr, i, j, k, dx[0], dx[1], 2.0*dt);
+		  //J_nPlusHalf(i,j,k,0) = currentUpdated[0];
+		  //J_nPlusHalf(i,j,k,1) = currentUpdated[1];
+		  //J_nPlusHalf(i,j,k,2) = currentUpdated[2];
+		  J_nPlusHalf(i,j,k,0) = computeJx_nPlusHalf(arr, i, j, k, dx[0], dx[1], 2.0*dt);
 		  J_nPlusHalf(i,j,k,1) = computeJy_nPlusHalf(arr, i, j, k, dx[0], dx[1], 2.0*dt);
-		  J_nPlusHalf(i,j,k,2) = computeJz_nPlusHalf(arr, i, j, k, dx[0], dx[1], 2.0*dt);*/
+		  J_nPlusHalf(i,j,k,2) = computeJz_nPlusHalf(arr, i, j, k, dx[0], dx[1], 2.0*dt);
 		}
 	    }
 	}
@@ -500,6 +551,7 @@ void CAMReXmp::computeRhs(std::array<MultiFab, 3>& Rhs, MultiFab& current, Multi
 	  const Dim3 lo = lbound(bx);
 	  const Dim3 hi = ubound(bx);
 
+
 	  // Indexable arrays for the data, and the directional flux
 	  // Based on the vertex-centred definition of the flux array, the
 	  // data array runs from e.g. [0,N] and the flux array from [0,N+1]
@@ -528,7 +580,7 @@ void CAMReXmp::computeRhs(std::array<MultiFab, 3>& Rhs, MultiFab& current, Multi
 		      rhsArray[d] = 0.0;
 		      rhsArray[(1+d)%3] = + dt*dxEz - tau*dt*dt*dxJz_nPlusHalf/(lambda_d*lambda_d*l_r);
 		      rhsArray[(2+d)%3] = - dt*dxEy + tau*dt*dt*dxJy_nPlusHalf/(lambda_d*lambda_d*l_r);
-		      
+
 		      // update rhs variables
 		      //if (d==0)
 			{
@@ -677,11 +729,19 @@ void CAMReXmp::computeRhsX(MultiFab& Rhs, MultiFab& current, MultiFab& state,
 		  // 2D
 		  //Real Jz_nPlusHalf_jMinus1 = computeJz_nPlusHalf(arr, i, j-1, k, dx, dy, dt);
 		  //Real Jz_nPlusHalf_jPlus1 = computeJz_nPlusHalf(arr, i, j+1, k, dx, dy, dt);
-		  Real dyJz_nPlusHalf = computeDerivative(J_nPlusHalf(i,j-1,k,2), J_nPlusHalf(i,j+1,k,2), dy);
+		  /*Real dyJz_nPlusHalf = computeDerivative(J_nPlusHalf(i,j-1,k,2), J_nPlusHalf(i,j+1,k,2), dy);
 		  Real dyEz = computeDerivative(arr(i,j-1,k,EZ), arr(i,j+1,k,EZ), dy);
 		  //Real dxdxBx = computeSecondDerivative(arr(i-1,j,k,BX), arr(i,j,k,BX), arr(i+1,j,k,BX), dx);
 		  //Real dydyBx = computeSecondDerivative(arr(i,j-1,k,BX), arr(i,j,k,BX), arr(i,j+1,k,BX), dx);		  
 		  rhs(i,j,k) = arr(i,j,k,BX) - dt*dyEz + dt*dt*dyJz_nPlusHalf/(lambda_d*lambda_d*l_r);
+		  */
+		  Real dyJz_nPlusHalf = computeDerivative(J_nPlusHalf(i,j-1,k,2), J_nPlusHalf(i,j+1,k,2), dy);
+		  Real dyEz = computeDerivative(arr(i,j-1,k,EZ), arr(i,j+1,k,EZ), dy);
+		  Real dxdxBx = computeSecondDerivative(arr(i-1,j,k,BX), arr(i,j,k,BX), arr(i+1,j,k,BX), dx);
+		  Real dydyBx = computeSecondDerivative(arr(i,j-1,k,BX), arr(i,j,k,BX), arr(i,j+1,k,BX), dy);		  
+		  rhs(i,j,k) = arr(i,j,k,BX) - dt*dyEz
+		    + 0.5*(1.0-0.5)*c*c*dt*dt*(dxdxBx+dydyBx)
+		    + 0.5*dt*dt*dyJz_nPlusHalf/(lambda_d*lambda_d*l_r);
 		  /////////////////////////////////////////////////////////////////////////
 		  // 1D
 		  //rhs(i,j,k) = arr(i,j,k,BX);
@@ -738,12 +798,20 @@ void CAMReXmp::computeRhsY(MultiFab& Rhs, MultiFab& current, MultiFab& state,
 		{
 		  //Real Jz_nPlusHalf_iMinus1 = computeJz_nPlusHalf(arr, i-1, j, k, dx, dy, dt);
 		  //Real Jz_nPlusHalf_iPlus1 = computeJz_nPlusHalf(arr, i+1, j, k, dx, dy, dt);
-		  Real dxJz_nPlusHalf = computeDerivative(J_nPlusHalf(i-1,j,k,2), J_nPlusHalf(i+1,j,k,2), dx);
+		  /*Real dxJz_nPlusHalf = computeDerivative(J_nPlusHalf(i-1,j,k,2), J_nPlusHalf(i+1,j,k,2), dx);
 		  Real dxEz = computeDerivative(arr(i-1,j,k,EZ), arr(i+1,j,k,EZ), dx);
 		  //Real dxdxBy = computeSecondDerivative(arr(i-1,j,k,BY), arr(i,j,k,BY), arr(i+1,j,k,BY), dx);
 		  //Real dydyBy = computeSecondDerivative(arr(i,j-1,k,BY), arr(i,j,k,BY), arr(i,j+1,k,BY), dx);
 		  //std::cout << dxEz << " " << dxJz_nPlusHalf << std::endl;
-		  rhs(i,j,k) = arr(i,j,k,BY) + dt*dxEz - dt*dt*dxJz_nPlusHalf/(lambda_d*lambda_d*l_r);
+		  rhs(i,j,k) = arr(i,j,k,BY) + dt*dxEz - dt*dt*dxJz_nPlusHalf/(lambda_d*lambda_d*l_r);*/
+		  Real dxJz_nPlusHalf = computeDerivative(J_nPlusHalf(i-1,j,k,2), J_nPlusHalf(i+1,j,k,2), dx);
+		  Real dxEz = computeDerivative(arr(i-1,j,k,EZ), arr(i+1,j,k,EZ), dx);
+		  Real dxdxBy = computeSecondDerivative(arr(i-1,j,k,BY), arr(i,j,k,BY), arr(i+1,j,k,BY), dx);
+		  Real dydyBy = computeSecondDerivative(arr(i,j-1,k,BY), arr(i,j,k,BY), arr(i,j+1,k,BY), dy);
+		  //std::cout << dxEz << " " << dxJz_nPlusHalf << std::endl;
+		  rhs(i,j,k) = arr(i,j,k,BY) + dt*dxEz
+		    + 0.5*(1.0-0.5)*c*c*dt*dt*(dxdxBy+dydyBy)
+		    - 0.5*dt*dt*dxJz_nPlusHalf/(lambda_d*lambda_d*l_r);
 		}
 	    }
 	}
@@ -800,7 +868,7 @@ void CAMReXmp::computeRhsZ(MultiFab& Rhs, MultiFab& current, MultiFab& state,
                   //Real Jy_nPlusHalf_iPlus1 = computeJy_nPlusHalf(arr, i+1, j, k, dx, dy, dt);
 		  /////////////////////////////////////////////////////////////////////////
 		  // 2D
-		  Real dyJx_nPlusHalf = computeDerivative(J_nPlusHalf(i,j-1,k,0), J_nPlusHalf(i,j+1,k,0), dy);
+		  /*Real dyJx_nPlusHalf = computeDerivative(J_nPlusHalf(i,j-1,k,0), J_nPlusHalf(i,j+1,k,0), dy);
 		  Real dyEx = computeDerivative(arr(i,j-1,k,EX), arr(i,j+1,k,EX), dy);
 		  ///////////////////////////////////////////////////////////////////////// 
 		  Real dxJy_nPlusHalf = computeDerivative(J_nPlusHalf(i-1,j,k,1), J_nPlusHalf(i+1,j,k,1), dx);
@@ -809,7 +877,20 @@ void CAMReXmp::computeRhsZ(MultiFab& Rhs, MultiFab& current, MultiFab& state,
 		  //Real dydyBz = computeSecondDerivative(arr(i,j-1,k,BZ), arr(i,j,k,BZ), arr(i,j+1,k,BZ), dx);
 		  /////////////////////////////////////////////////////////////////////////
 		  // 2D
-		  rhs(i,j,k) = arr(i,j,k,BZ) - dt*(dxEy-dyEx) + dt*dt*(dxJy_nPlusHalf-dyJx_nPlusHalf)/(lambda_d*lambda_d*l_r);
+		  rhs(i,j,k) = arr(i,j,k,BZ) - dt*(dxEy-dyEx) + dt*dt*(dxJy_nPlusHalf-dyJx_nPlusHalf)/(lambda_d*lambda_d*l_r);*/
+		  Real dyJx_nPlusHalf = computeDerivative(J_nPlusHalf(i,j-1,k,0), J_nPlusHalf(i,j+1,k,0), dy);
+		  Real dyEx = computeDerivative(arr(i,j-1,k,EX), arr(i,j+1,k,EX), dy);
+		  ///////////////////////////////////////////////////////////////////////// 
+		  Real dxJy_nPlusHalf = computeDerivative(J_nPlusHalf(i-1,j,k,1), J_nPlusHalf(i+1,j,k,1), dx);
+		  Real dxEy = computeDerivative(arr(i-1,j,k,EY), arr(i+1,j,k,EY), dx);
+		  Real dxdxBz = computeSecondDerivative(arr(i-1,j,k,BZ), arr(i,j,k,BZ), arr(i+1,j,k,BZ), dx);
+		  Real dydyBz = computeSecondDerivative(arr(i,j-1,k,BZ), arr(i,j,k,BZ), arr(i,j+1,k,BZ), dy);
+		  /////////////////////////////////////////////////////////////////////////
+		  // 2D
+		  rhs(i,j,k) = arr(i,j,k,BZ) - dt*(dxEy-dyEx)
+		    + 0.5*(1.0-0.5)*c*c*dt*dt*(dxdxBz+dydyBz)
+		    + 0.5*dt*dt*(dxJy_nPlusHalf-dyJx_nPlusHalf)/(lambda_d*lambda_d*l_r);
+
 		  /////////////////////////////////////////////////////////////////////////
 		  // 1D
 		  //rhs(i,j,k) = arr(i,j,k,BZ) - dt*dxEy + dt*dt*dxJy_nPlusHalf/(lambda_d*lambda_d*l_r); 

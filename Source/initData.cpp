@@ -64,6 +64,8 @@ CAMReXmp::initData ()
     implicitMaxwellSolverSetUp();
   }
   */
+  implicitMaxwellSolverSetUp();
+  
   Real rho, v_x, v_y, v_z, p, B_x, B_y, B_z;
   Real c_a = 0.0;
 

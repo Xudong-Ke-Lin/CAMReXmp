@@ -238,22 +238,22 @@ Real dotProduct(Vector<Real> a, Vector<Real> b){
 // r is the slope ratio
 Real get_epsilon(Real r){
   // MIMBEE
-  /*if (r <= 0){
+  if (r <= 0){
     return 0.0;
   } else if (r>0 && r<=1.0){
     return r;
   } else{
     Real epsilon_R = 2.0/(1.0+r);
     return std::min(1.0, epsilon_R);
-    }*/
+  }
   // Van-Leer
-  if (r <= 0){
+  /*if (r <= 0){
     return 0.0;
   } else{
     Real epsilon_R = 2.0/(1.0+r);
     Real epsilon_L = 2.0*r/(1.0+r);
     return std::min(epsilon_L, epsilon_R);
-  }
+    }*/
   // Superbee
   /*if (r <= 0){
     return 0.0;
@@ -921,7 +921,7 @@ Vector<Real> currentUpdate(const Array4<const Real>& arr, int i, int j, int k, c
   Vector<Real> currentUpdated = {Jx + dt*(charge_scaled*E_x + current_scaled[1]*B_z - current_scaled[2]*B_y)/l_r,
 				 Jy + dt*(charge_scaled*E_y + current_scaled[2]*B_x - current_scaled[0]*B_z)/l_r,
 				 Jz + dt*(charge_scaled*E_z + current_scaled[0]*B_y - current_scaled[1]*B_x)/l_r};
-  
+
   for (int d = 0; d < amrex::SpaceDim ; d++)
     {      
       Real PxxMinus1 = computeCurrentFluxWithPressure(u_iMinus1j[d],d);
@@ -941,6 +941,7 @@ Vector<Real> currentUpdate(const Array4<const Real>& arr, int i, int j, int k, c
       currentUpdated[(1+d)%3] -= dt*dxPyx;
       currentUpdated[(2+d)%3] -= dt*dxPzx;
 
+      /*
       // cylindrical source terms
       if (AMReX::top()->getDefaultGeometry()->Coord()==1 && d==1)
 	{
@@ -954,11 +955,12 @@ Vector<Real> currentUpdate(const Array4<const Real>& arr, int i, int j, int k, c
 	  currentUpdated[(1+d)%3] -= dt*Pyy/std::abs(y);
 	  currentUpdated[(2+d)%3] -= dt*Pyz/std::abs(y); 
 	}
+      */
     }
 
   return currentUpdated;
 }
-/*
+
 Real computeJx_nPlusHalf(const Array4<const Real>& arr, int i, int j, int k,
 			Real dx, Real dy, Real dt){
   Vector<Real> u_ij, u_iPlus1j, u_iMinus1j, u_ijPlus1, u_ijMinus1;
@@ -1101,7 +1103,7 @@ Real computeJy_nPlusHalf(const Array4<const Real>& arr, int i, int j, int k,
 				 r_i*r_i*rho_i*v_y_i + r_e*r_e*rho_e*v_y_e,
 				 r_i*r_i*rho_i*v_z_i + r_e*r_e*rho_e*v_z_e};
   // 2D
-  return Jy - 0.5*dt*(dxPyx+dyPyy) + 0.5*dt*(charge_scaled*E_y + current_scaled[2]*B_z - current_scaled[0]*B_z)/l_r;
+  return Jy - 0.5*dt*(dxPyx+dyPyy) + 0.5*dt*(charge_scaled*E_y + current_scaled[2]*B_x - current_scaled[0]*B_z)/l_r;
   // 1D
   //return Jy - 0.5*dt*dxPyx + 0.5*dt*(charge_scaled*E_y + current_scaled[2]*B_x - current_scaled[0]*B_z)/l_r;  
 }
@@ -1174,7 +1176,7 @@ Real computeJz_nPlusHalf(const Array4<const Real>& arr, int i, int j, int k,
   // 1D
   //return Jz - 0.5*dt*dxPzx + 0.5*dt*(charge_scaled*E_z + current_scaled[0]*B_y - current_scaled[1]*B_x)/l_r;
 }
-*/
+
 
 Vector<Real> half_step_evolution_L(Vector<Real> u_iMinus1, Vector<Real> u_i,
                             Vector<Real> u_iPlus1, Real dx, Real dt, int d){
@@ -1262,7 +1264,6 @@ Vector<Real> half_step_evolution_R(Vector<Real> u_iMinus1, Vector<Real> u_i,
       }
     return half_step_evolution;
 }
-
 Vector<Real> flux_HLLC(const Array4<Real>& arr, int i, int j, int k, int iOffset, int jOffset, int kOffset, 
 		       Real dx, Real dt, int d){
   Vector<Real> u_iMinus1;

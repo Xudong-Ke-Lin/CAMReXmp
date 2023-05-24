@@ -100,13 +100,13 @@ Real computeDerivative(Real u_iMinus1, Real u_iPlus1, Real dx);
 Real computeSecondDerivative(Real u_iMinus1, Real u_i, Real u_iPlus1, Real dx);
 Vector<Real> currentUpdate(const Array4<const Real>& arr, int i, int j, int k,
 			   const Real* dx, Real dt);
-/*Real computeJx_nPlusHalf(const Array4<const Real>& arr, int i, int j, int k,
+Real computeJx_nPlusHalf(const Array4<const Real>& arr, int i, int j, int k,
 			 Real dx, Real dy, Real dt);
 Real computeJy_nPlusHalf(const Array4<const Real>& arr, int i, int j, int k,
 			 Real dx, Real dy, Real dt);
 Real computeJz_nPlusHalf(const Array4<const Real>& arr, int i, int j, int k,
 			 Real dx, Real dy, Real dt);
-*/
+
 Vector<Real> half_step_evolution_L(Vector<Real> u_iMinus1, Vector<Real> u_i,
                             Vector<Real> u_iPlus1, Real dx, Real dt, int d);
 // half time step evolution for right state in a linear reconstruction
