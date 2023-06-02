@@ -103,7 +103,7 @@ void CAMReXmp::fluidSolver(MultiFab& Sborder, MultiFab (&fluxes)[AMREX_SPACEDIM]
     
     // The fluxes now need scaling for the reflux command.
     // This scaling is by the size of the boundary through which the flux passes, e.g. the x-flux needs scaling by the dy, dz and dt
-    if(do_reflux)
+    /*if(do_reflux)
     {
       Real scaleFactor = dt;
       for(int scaledir = 0; scaledir < amrex::SpaceDim; ++scaledir)
@@ -117,7 +117,7 @@ void CAMReXmp::fluidSolver(MultiFab& Sborder, MultiFab (&fluxes)[AMREX_SPACEDIM]
       }
 
       fluxes[d].mult(scaleFactor, 0, NUM_STATE);
-    }
+      }*/
   }  
 }
 void CAMReXmp::fluidSolverExact(MultiFab& S_dest, MultiFab& S_source, MultiFab (&fluxes)[AMREX_SPACEDIM], const Real* dx, Real dt)

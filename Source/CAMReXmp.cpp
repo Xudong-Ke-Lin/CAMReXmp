@@ -750,18 +750,81 @@ CAMReXmp::advance (Real time,
   fluidSolverWENO(S2, S1, fluxes, dx, dt);
   MaxwellSolverDivFreeWENO(S_EM2,S_EM1,fluxesEM,S2,S1,fluxes,dx,dt);
   */
-  /*MultiFab SNew(grids, dmap, NUM_STATE+2, NUM_GROW);  
+  MultiFab SNew(grids, dmap, NUM_STATE+2, NUM_GROW);
+  //FillPatch(*this, SNew, NUM_GROW, time, Phi_Type, 0, NUM_STATE);
   Array<MultiFab,AMREX_SPACEDIM> S_EMNew;
   S_EMNew[0].define(convert(grids,IntVect{AMREX_D_DECL(1,0,0)}), dmap, 6, NUM_GROW);
+  FillPatch(*this, S_EMNew[0], NUM_GROW, time, EM_X_Type, 0, 6);
 #if (AMREX_SPACEDIM >= 2)
   S_EMNew[1].define(convert(grids,IntVect{AMREX_D_DECL(0,1,0)}), dmap, 6, NUM_GROW);
-  #endif*/
+  FillPatch(*this, S_EMNew[1], NUM_GROW, time, EM_Y_Type, 0, 6);
+#endif
   //(this->*StrangWithChosenUpdateOrder)(SNew, S0, fluxes, S_EMNew, S_EM0, fluxesEM, dx, time, dt);
 
-  sourceUpdate(S0, fluxes, dx, 0.5*dt);  
-  implicitMaxwellSolver(S0, dx, dt);
-  fluidSolver(S0, fluxes, dx, dt);
-  sourceUpdate(S0, fluxes, dx, 0.5*dt);
+  sourceUpdate(SNew, fluxes, dx, 0.5*dt);
+  MultiFab::Copy(SNew, S0, 0, 0, NUM_STATE, NUM_GROW);
+  //implicitMaxwellSolver(SNew, dx, dt);
+  fluidSolver(SNew, fluxes, dx, dt);
+  implicitMaxwellSolverTest(S_EMNew, S_EM0, fluxesEM, SNew, S0, fluxes, dx, time, dt);
+  //implicitMaxwellSolverDivFreeTVD(S_EMNew,S_EM0,fluxesEM,SNew,S0,fluxes,dx,time,dt);
+  /*
+  MultiFab S1(grids, dmap, NUM_STATE+2, NUM_GROW);
+  Array<MultiFab,AMREX_SPACEDIM> S_EM1;
+  S_EM1[0].define(convert(grids,IntVect{AMREX_D_DECL(1,0,0)}), dmap, 6, NUM_GROW);  
+#if (AMREX_SPACEDIM >= 2)
+  S_EM1[1].define(convert(grids,IntVect{AMREX_D_DECL(0,1,0)}), dmap, 6, NUM_GROW);
+#endif
+
+  (this->*fluidSolverWithChosenOrder)(S1,S0,fluxes,dx,dt);  
+  (this->*MaxwellSolverWithChosenOrder)(S_EM1,S_EM0,fluxesEM,S1,S0,fluxes,dx,dt);
+
+  MultiFab& S_EM_X_int = get_new_data(EM_X_Type);
+  MultiFab& S_EM_Y_int = get_new_data(EM_Y_Type);  
+  MultiFab::Copy(S_EM_X_int, S_EM1[0], 0, 0, 6, 0);
+  FillPatch(*this, S_EM1[0], NUM_GROW, time+dt, EM_X_Type, 0, 6);
+#if (AMREX_SPACEDIM >= 2)
+  MultiFab::Copy(S_EM_Y_int, S_EM1[1], 0, 0, 6, 0);
+  FillPatch(*this, S_EM1[1], NUM_GROW, time+dt, EM_Y_Type, 0, 6);
+#endif
+  
+  linearCombination(fluxesNew[0], fluxes[0], 1.0/2.0, fluxes[0], 1.0/2.0, 0, NUM_STATE_FLUID);
+#if (AMREX_SPACEDIM >= 2)
+  linearCombination(fluxesNew[1], fluxes[1], 1.0/2.0, fluxes[1], 1.0/2.0, 0, NUM_STATE_FLUID);
+#endif
+
+  MultiFab S2(grids, dmap, NUM_STATE+2, NUM_GROW);
+  Array<MultiFab,AMREX_SPACEDIM> S_EM2;
+  S_EM2[0].define(convert(grids,IntVect{AMREX_D_DECL(1,0,0)}), dmap, 6, NUM_GROW);
+#if (AMREX_SPACEDIM >= 2)
+  S_EM2[1].define(convert(grids,IntVect{AMREX_D_DECL(0,1,0)}), dmap, 6, NUM_GROW);
+#endif
+
+  (this->*fluidSolverWithChosenOrder)(S2,S1,fluxes,dx,dt);
+  (this->*MaxwellSolverWithChosenOrder)(S_EM2,S_EM1,fluxesEM,S2,S1,fluxes,dx,dt);
+
+  linearCombination(SNew, S0, 1.0/2.0, S2, 1.0/2.0, 0, NUM_STATE+2);
+  linearCombination(S_EMNew[0], S_EM0[0], 1.0/2.0, S_EM2[0], 1.0/2.0, 0, 6);
+#if (AMREX_SPACEDIM >= 2)
+  linearCombination(S_EMNew[1], S_EM0[1], 1.0/2.0, S_EM2[1], 1.0/2.0, 0, 6);
+#endif
+  */
+  /*
+  MultiFab fluxesNew[amrex::SpaceDim];
+  for (int j = 0; j < amrex::SpaceDim; j++)
+  {
+    BoxArray ba = S_new.boxArray();
+    ba.surroundingNodes(j);
+    fluxesNew[j].define(ba, dmap, NUM_STATE, 0);
+  }
+
+  linearCombination(fluxesNew[0], fluxesNew[0], 1.0/2.0, fluxes[0], 1.0/2.0, 0, NUM_STATE_FLUID);
+#if (AMREX_SPACEDIM >= 2)
+  linearCombination(fluxesNew[1], fluxesNew[1], 1.0/2.0, fluxes[1], 1.0/2.0, 0, NUM_STATE_FLUID);
+#endif
+  */
+  //implicitMaxwellSolverDivFreeTVD(S_EMNew,S_EM0,fluxesEM,SNew,S0,fluxes,dx,time,dt);
+  
+  sourceUpdate(SNew, fluxes, dx, 0.5*dt);
   
   //(this->*RKWithChosenUpdateOrder)(SNew, S0, fluxes, S_EMNew, S_EM0, fluxesEM, dx, time, dt);
   //SSPRK3(SNew, S0, fluxes, S_EMNew, S_EM0, fluxesEM, dx, dt);
@@ -975,7 +1038,7 @@ CAMReXmp::advance (Real time,
       }      
     }
   */
-  /*
+  
   // Loop over all the patches at this level
   for (MFIter mfi(SNew, true); mfi.isValid(); ++mfi)
     {
@@ -1036,7 +1099,7 @@ CAMReXmp::advance (Real time,
 	    }      
 	}
     }
-  */
+
   /*
   // Density errors for convergence problem
   for (MFIter mfi(S_EMNew[0], true); mfi.isValid(); ++mfi)
@@ -1227,13 +1290,13 @@ CAMReXmp::advance (Real time,
   // Sixth entry: Number of ghost cells to be included in the copy (zero in this case, since only real
   //              data is needed for S_new)
   
-  //MultiFab::Copy(S_new, SNew, 0, 0, NUM_STATE+2, 0);
-  MultiFab::Copy(S_new, S0, 0, 0, NUM_STATE+2, 0);
-  /*MultiFab::Copy(S_EM_X_new, S_EMNew[0], 0, 0, 6, 0);
+  MultiFab::Copy(S_new, SNew, 0, 0, NUM_STATE+2, 0);
+  //MultiFab::Copy(S_new, S0, 0, 0, NUM_STATE+2, 0);
+  MultiFab::Copy(S_EM_X_new, S_EMNew[0], 0, 0, 6, 0);
 #if (AMREX_SPACEDIM >= 2) 
   MultiFab::Copy(S_EM_Y_new, S_EMNew[1], 0, 0, 6, 0);
 #endif
-  */
+  
   // Refluxing at patch boundaries.  Amrex automatically does this
   // where needed, but you need to state a few things to make sure it
   // happens correctly:

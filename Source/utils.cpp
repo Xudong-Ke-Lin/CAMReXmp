@@ -238,22 +238,22 @@ Real dotProduct(Vector<Real> a, Vector<Real> b){
 // r is the slope ratio
 Real get_epsilon(Real r){
   // MIMBEE
-  if (r <= 0){
+  /*if (r <= 0){
     return 0.0;
   } else if (r>0 && r<=1.0){
     return r;
   } else{
     Real epsilon_R = 2.0/(1.0+r);
     return std::min(1.0, epsilon_R);
-  }
+    }*/
   // Van-Leer
-  /*if (r <= 0){
+  if (r <= 0){
     return 0.0;
   } else{
     Real epsilon_R = 2.0/(1.0+r);
     Real epsilon_L = 2.0*r/(1.0+r);
     return std::min(epsilon_L, epsilon_R);
-    }*/
+  }
   // Superbee
   /*if (r <= 0){
     return 0.0;
@@ -2181,6 +2181,32 @@ Vector<Real> EM_linearFunc(const Array4<Real>& Bc, const Array4<Real>& Ec,  int 
     + Ec(i,j,k,byy)*(ydy*ydy - 1.0/12.0)
     + Ec(i,j,k,bxy)*xdx*ydy; // + bxz*
   EM[EZ_LOCAL] = Ec(i,j,k,c0) + Ec(i,j,k,cx)*xdx
+    + Ec(i,j,k,cy)*ydy; // + cz* + cxz* + cyz* + czz		  
+
+  return EM;
+  
+}
+Vector<Real> E_linearFunc(const Array4<Real>& Ec,  int i, int j, int k, Real x, Real y, Real z, const Real* dx)
+{
+  // For second order, there are 27 coeff.
+  // i.e. a0,ax,ay,az,axx,...,b0,bx,...,c0,cx,...,czz  
+  int a0=0,ax=1,ay=2,az=3,axx=4,axy=5,axz=6;
+  int b0=7,bx=8,by=9,bz=10,byy=11,bxy=12,byz=13;
+  int c0=14,cx=15,cy=16,cz=17,czz=18,cxz=19,cyz=20;
+  
+  Vector<Real> EM(3,0.0);
+
+  Real xdx = x/dx[0], ydy = y/dx[1];	  
+
+  EM[EX_LOCAL-3] = Ec(i,j,k,a0) + Ec(i,j,k,ax)*xdx
+    + Ec(i,j,k,ay)*ydy // + az*
+    + Ec(i,j,k,axx)*(xdx*xdx - 1.0/12.0)
+    + Ec(i,j,k,axy)*xdx*ydy; // + axz*
+  EM[EY_LOCAL-3] = Ec(i,j,k,b0) + Ec(i,j,k,bx)*xdx
+    + Ec(i,j,k,by)*ydy // + bz*
+    + Ec(i,j,k,byy)*(ydy*ydy - 1.0/12.0)
+    + Ec(i,j,k,bxy)*xdx*ydy; // + bxz*
+  EM[EZ_LOCAL-3] = Ec(i,j,k,c0) + Ec(i,j,k,cx)*xdx
     + Ec(i,j,k,cy)*ydy; // + cz* + cxz* + cyz* + czz		  
 
   return EM;
