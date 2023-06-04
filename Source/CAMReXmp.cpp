@@ -1803,7 +1803,7 @@ CAMReXmp::read_params ()
   ppn.get("Maxwell",MaxwellOrder);
   amrex::Print() << "Reading Maxwell method: " << std::endl;
   if (MaxwellOrder==0){
-    amrex::Print() << "Maxwell 2nd order TVD" << std::endl;
+    amrex::Print() << "no Maxwell solver" << std::endl;
     MaxwellSolverWithChosenOrder = &CAMReXmp::MaxwellSolverDivFreeNothing;
   }
   else if (MaxwellOrder==2){

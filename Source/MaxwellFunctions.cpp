@@ -3682,8 +3682,8 @@ void CAMReXmp::MaxwellSolverDivFreeWENO(Array<MultiFab,AMREX_SPACEDIM>& S_EM_des
   slopes[EY_LOCAL].define(convert(grids,IntVect{AMREX_D_DECL(0,1,0)}), dmap, nSlopes, 1);
 #else  
   // For 1D code it is cell-centred
-  slopes[BZ_LOCAL].define(grids, dmap, nSlopes, 1);
-  slopes[EZ_LOCAL].define(grids, dmap, nSlopes, 1);
+  slopes[BY_LOCAL].define(grids, dmap, nSlopes, 1);
+  slopes[EY_LOCAL].define(grids, dmap, nSlopes, 1);
 #endif
   
 #if (AMREX_SPACEDIM != 3)  
@@ -4653,8 +4653,8 @@ void CAMReXmp::MaxwellSolverDivFreeTVD(Array<MultiFab,AMREX_SPACEDIM>& S_EM_dest
   slopes[EY_LOCAL].define(convert(grids,IntVect{AMREX_D_DECL(0,1,0)}), dmap, nSlopes, 1);
 #else  
   // For 1D code it is cell-centred
-  slopes[BZ_LOCAL].define(grids, dmap, nSlopes, 1);
-  slopes[EZ_LOCAL].define(grids, dmap, nSlopes, 1);
+  slopes[BY_LOCAL].define(grids, dmap, nSlopes, 1);
+  slopes[EY_LOCAL].define(grids, dmap, nSlopes, 1);
 #endif
   
 #if (AMREX_SPACEDIM != 3)  
@@ -5253,8 +5253,8 @@ void CAMReXmp::MaxwellSolverDivFreeWENOcharacteristic(Array<MultiFab,AMREX_SPACE
   slopes[EY_LOCAL].define(convert(grids,IntVect{AMREX_D_DECL(0,1,0)}), dmap, nSlopes, 1);
 #else  
   // For 1D code it is cell-centred
-  slopes[BZ_LOCAL].define(grids, dmap, nSlopes, 1);
-  slopes[EZ_LOCAL].define(grids, dmap, nSlopes, 1);
+  slopes[BY_LOCAL].define(grids, dmap, nSlopes, 1);
+  slopes[EY_LOCAL].define(grids, dmap, nSlopes, 1);
 #endif
   
 #if (AMREX_SPACEDIM != 3)  
