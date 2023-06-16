@@ -339,6 +339,19 @@ void CAMReXmp::sourceUpdateANEX(Array4<Real>& arr, int i, int j, int k, Real dt)
   
   arr(i,j,k,ENER_I) = E_i + dt*r_i*rho_i/l_r*(E_x*v_i_new[0] + E_y*v_i_new[1] + E_z*v_i_new[2]);
   arr(i,j,k,ENER_E) = E_e + dt*r_e*rho_e/l_r*(E_x*v_e_new[0] + E_y*v_e_new[1] + E_z*v_e_new[2]);
+
+  // Resistivity
+  Real currentX = r_i*rho_i*v_i_new[0] + r_e*rho_e*v_e_new[0];
+  Real currentY = r_i*rho_i*v_i_new[1] + r_e*rho_e*v_e_new[1];
+  Real currentZ = r_i*rho_i*v_i_new[2] + r_e*rho_e*v_e_new[2];
+
+  arr(i,j,k,1) -= dt/l_r*eta*r_i*rho_i*currentX;
+  arr(i,j,k,2) -= dt/l_r*eta*r_i*rho_i*currentX;
+  arr(i,j,k,3) -= dt/l_r*eta*r_i*rho_i*currentX;
+  
+  arr(i,j,k,MOMX_E) -= dt/l_r*eta*r_e*rho_e*currentX;
+  arr(i,j,k,MOMY_E) -= dt/l_r*eta*r_e*rho_e*currentX;
+  arr(i,j,k,MOMZ_E) -= dt/l_r*eta*r_e*rho_e*currentX;
   
   //if (MaxwellMethod=="HYP")
     {

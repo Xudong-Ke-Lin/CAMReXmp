@@ -32,6 +32,8 @@ Real l_r = 0.0;
 Real c = 0.0;
 // normalized Debye length
 Real lambda_d = 0.0;
+// resistivity
+Real eta = 0.01;
 
 // functions to compute the magnitudes
 Real get_magnitude_squared(Real x, Real y, Real z){

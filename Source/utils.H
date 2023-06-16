@@ -19,6 +19,7 @@ extern Real m;
 extern Real l_r;
 extern Real c; 
 extern Real lambda_d;
+extern Real eta;
 
 // functions to compute the magnitudes
 Real get_magnitude_squared(Real x, Real y, Real z);

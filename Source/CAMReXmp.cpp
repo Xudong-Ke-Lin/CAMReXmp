@@ -1376,16 +1376,15 @@ CAMReXmp::estTimeStep (Real)
       // 0.5 means subcycling two times
       //dt_est = std::min(dt_est, dx[d]/std::max(c_h, c/2.0));
     if (EMconstraint && fluidconstraint)
-      dt_est = std::min(dt_est, cfl*dx[d]/std::max(c_h, c));
+      dt_est = std::min(dt_est, dx[d]/std::max(c_h, c));
     else if (EMconstraint && !fluidconstraint)
-      dt_est = std::min(dt_est, cfl*dx[d]/c);
+      dt_est = std::min(dt_est, dx[d]/c);
     else
-      dt_est = std::min(dt_est, cfl*dx[d]/c_h);
+      dt_est = std::min(dt_est, dx[d]/c_h);
     
     // dt also needs to resolve plasma and cyclotron frequencies
-    //dt_est = std::min(dt_est, 0.5*std::min(omega_pe,omega_ce));
-    //dt_est = std::min(dt_est, 0.5/std::max(omega_pe,omega_ce));
-    //dt_est = std::min(dt_est, 1.0/std::max(omega_pe,omega_ce));
+    //dt_est = std::min(dt_est, 0.5/std::max(omega_pe,omega_ce)*1.0/cfl);
+    //dt_est = std::min(dt_est, 1.0/std::max(omega_pe,omega_ce)*1.0/cfl);
 
     //if (1.0/std::max(omega_pe,omega_ce)<cfl*dx[d]/std::max(c_h, c))
     //std::cout << 1.0/std::max(omega_pe,omega_ce) << " " << cfl*dx[d]/std::max(c_h, c) << std::endl;
@@ -1396,7 +1395,7 @@ CAMReXmp::estTimeStep (Real)
   ParallelDescriptor::ReduceRealMin(dt_est);
   ParallelDescriptor::ReduceRealMax(c_h);
 
-  //dt_est *= cfl;
+  dt_est *= cfl;
   amrex::Print() << c_h << " " << dt_est << std::endl;
   
   if (c_h>c && EMconstraint && fluidconstraint)

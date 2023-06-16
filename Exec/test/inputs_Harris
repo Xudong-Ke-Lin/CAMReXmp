@@ -4,8 +4,8 @@ Gamma = 1.6666666667
 r_i = 1.0
 m = 25.0
 l_r = 1.0
-c = 100.0
-lambda_d = 0.01
+c = 10.0
+lambda_d = 0.1
 test = "Harris_sheet"
 
 # PROBLEM SIZE & GEOMETRY
@@ -15,9 +15,9 @@ geometry.coord_sys   =  0                     # 0 -> Cartesian geometry
 geometry.prob_lo     =  -12.8  -6.4  0.0         # Physical minimum extents
 geometry.prob_hi     =  12.8  6.4  1.0         # Physical maximum extents
 amr.n_cell           =  512  256  256         # Number of cells in each dimension
-#amr.n_cell           =  256  128  256
+
 # TIME STEP CONTROL
-adv.cfl            = 0.2     # cfl number for hyperbolic system
+adv.cfl            = 0.4     # cfl number for hyperbolic system
 
 # VERBOSITY - controls the number of messages output to screen
 adv.v              = 1       # verbosity in Adv
@@ -28,7 +28,7 @@ amr.max_level       = 0       # maximum level number allowed
 amr.ref_ratio       = 2 2 2 2 # refinement ratio
 amr.regrid_int      = 1       # how often to regrid (number of coarse timesteps between regrid)
 amr.blocking_factor = 8       # block factor in grid generation
-amr.max_grid_size   = 32
+amr.max_grid_size   = 16
 
 # CHECKPOINT FILES
 amr.checkpoint_files_output = 0     # 0 will disable checkpoint files
@@ -50,5 +50,5 @@ amr.probin_file = probin
 num.Strang      = 2
 num.RK		= 2
 num.source 	= "ANEX"
-num.fluid       = 3
-num.Maxwell	= 3
+num.fluid       = 2
+num.Maxwell	= 2
