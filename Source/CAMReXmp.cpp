@@ -1344,7 +1344,7 @@ CAMReXmp::estTimeStep (Real)
 		    {
 		      omega_pe_array.push_back(std::sqrt(m*m*arr(i,j,k,RHO_E)/(lambda_d*lambda_d*l_r*l_r)));
 		      Real B = get_magnitude(arr(i,j,k,BX),arr(i,j,k,BY),arr(i,j,k,BZ));
-		      omega_ce_array.push_back(m*B);
+		      omega_ce_array.push_back(std::abs(r_e/l_r)*B);
 		    }
 		}
 	    }
@@ -1376,7 +1376,8 @@ CAMReXmp::estTimeStep (Real)
       // 0.5 means subcycling two times
       //dt_est = std::min(dt_est, dx[d]/std::max(c_h, c/2.0));
     if (EMconstraint && fluidconstraint)
-      dt_est = std::min(dt_est, dx[d]/std::max(c_h, c));
+      //dt_est = std::min(dt_est, dx[d]/std::max(c_h, c));
+      dt_est = std::min(dt_est, dx[d]/c_h);
     else if (EMconstraint && !fluidconstraint)
       dt_est = std::min(dt_est, dx[d]/c);
     else
@@ -1772,7 +1773,7 @@ CAMReXmp::read_params ()
   }
   else if (RKOrder==2){
     amrex::Print() << "2nd order RK" << std::endl;
-    RKWithChosenUpdateOrder = &CAMReXmp::RK2;
+    RKWithChosenUpdateOrder = &CAMReXmp::RK2SubCycle;
     //tau = 0.5;
   }
   else if (RKOrder==3){

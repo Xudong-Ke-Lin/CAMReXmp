@@ -23,7 +23,6 @@ void CAMReXmp::RK1(MultiFab& S_dest, MultiFab& S_source, MultiFab (&fluxes)[AMRE
 #endif    
 
 }
-
 void CAMReXmp::RK2(MultiFab& S_dest, MultiFab& S_source, MultiFab (&fluxes)[AMREX_SPACEDIM], Array<MultiFab,AMREX_SPACEDIM>& S_EM_dest, Array<MultiFab,AMREX_SPACEDIM>& S_EM_source, MultiFab& fluxesEM, const Real* dx, Real time, Real dt)
 {
   MultiFab S1(grids, dmap, NUM_STATE+2, NUM_GROW);
@@ -69,6 +68,119 @@ void CAMReXmp::RK2(MultiFab& S_dest, MultiFab& S_source, MultiFab (&fluxes)[AMRE
   S_EM_dest[1].FillBoundary(geom.periodicity());
   FillDomainBoundary(S_EM_dest[1], geom, bc_EM);  
 #endif    
+}
+void CAMReXmp::RK2SubCycle(MultiFab& S_dest, MultiFab& S_source, MultiFab (&fluxes)[AMREX_SPACEDIM], Array<MultiFab,AMREX_SPACEDIM>& S_EM_dest, Array<MultiFab,AMREX_SPACEDIM>& S_EM_source, MultiFab& fluxesEM, const Real* dx, Real time, Real dt)
+{
+  // Set up a dimensional multifab that will contain the fluxes
+  MultiFab fluxesCycle[amrex::SpaceDim];
+  
+  // Define the appropriate size for the flux MultiFab.
+  // Fluxes are defined at cell faces - this is taken care of by the
+  // surroundingNodes(j) command, ensuring the size of the flux
+  for (int j = 0; j < amrex::SpaceDim; j++)
+  {
+    BoxArray ba = S_dest.boxArray();
+    ba.surroundingNodes(j);
+    fluxesCycle[j].define(ba, dmap, NUM_STATE, 0);
+  }
+  
+  MultiFab S1(grids, dmap, NUM_STATE+2, NUM_GROW);
+  Array<MultiFab,AMREX_SPACEDIM> S_EM1;
+  S_EM1[0].define(convert(grids,IntVect{AMREX_D_DECL(1,0,0)}), dmap, 6, NUM_GROW);  
+#if (AMREX_SPACEDIM >= 2)
+  S_EM1[1].define(convert(grids,IntVect{AMREX_D_DECL(0,1,0)}), dmap, 6, NUM_GROW);
+#endif
+
+  (this->*fluidSolverWithChosenOrder)(S1,S_source,fluxes,dx,dt);  
+  linearCombination(fluxesCycle[0], fluxes[0], 1.0/2.0, fluxes[0], 1.0/2.0, 0, NUM_STATE_FLUID);
+  linearCombination(fluxesCycle[1], fluxes[1], 1.0/2.0, fluxes[1], 1.0/2.0, 0, NUM_STATE_FLUID);
+  
+  MultiFab S2(grids, dmap, NUM_STATE+2, NUM_GROW);
+  Array<MultiFab,AMREX_SPACEDIM> S_EM2;
+  S_EM2[0].define(convert(grids,IntVect{AMREX_D_DECL(1,0,0)}), dmap, 6, NUM_GROW);
+#if (AMREX_SPACEDIM >= 2)
+  S_EM2[1].define(convert(grids,IntVect{AMREX_D_DECL(0,1,0)}), dmap, 6, NUM_GROW);
+#endif
+
+  (this->*fluidSolverWithChosenOrder)(S2,S1,fluxes,dx,dt);
+  linearCombination(fluxesCycle[0], fluxesCycle[0], 1.0/2.0, fluxes[0], 1.0/2.0, 0, NUM_STATE_FLUID);
+  linearCombination(fluxesCycle[1], fluxesCycle[1], 1.0/2.0, fluxes[1], 1.0/2.0, 0, NUM_STATE_FLUID);
+
+  linearCombination(S_dest, S_source, 1.0/2.0, S2, 1.0/2.0, 0, NUM_STATE+2);
+  
+  S_dest.FillBoundary(geom.periodicity());
+  FillDomainBoundary(S_dest, geom, bc);  
+  /////////////////////////////////////////////////////////////////////////////////////////////
+  // sub-cycling Maxwell equations
+  /////////////////////////////////////////////////////////////////////////////////////////////
+  // CC input of 1st step in RK2
+  MultiFab S_sourceCycle(grids, dmap, NUM_STATE+2, NUM_GROW);
+  MultiFab::Copy(S_sourceCycle, S_source, 0, 0, NUM_STATE+2, NUM_GROW);
+  // CC fluid input of 2nd step in RK2
+  MultiFab::Copy(S1, S_source, 0, 0, NUM_STATE_FLUID, NUM_GROW);
+  // FC input of 1st step in RK2
+  Array<MultiFab,AMREX_SPACEDIM> S_EM_sourceCycle;
+  S_EM_sourceCycle[0].define(convert(grids,IntVect{AMREX_D_DECL(1,0,0)}), dmap, 6, NUM_GROW);  
+#if (AMREX_SPACEDIM >= 2)
+  S_EM_sourceCycle[1].define(convert(grids,IntVect{AMREX_D_DECL(0,1,0)}), dmap, 6, NUM_GROW);
+#endif
+  MultiFab::Copy(S_EM_sourceCycle[0], S_EM_source[0], 0, 0, 6, NUM_GROW);
+  MultiFab::Copy(S_EM_sourceCycle[1], S_EM_source[1], 0, 0, 6, NUM_GROW);  
+
+  Real dtEM = cfl*std::min(dx[0],dx[1])/c;
+  int cycles = std::ceil(dt/dtEM);
+  Real dtCycle = dt/cycles;
+  amrex::Print() << cycles << " " << dtCycle << " " << dt << " " << dtEM << " " << dt/dtEM;
+
+  for (int cycle=1; cycle<=cycles; cycle++)
+    {
+      // inputs: S*sourceCycle, outputs: S_EM1 & S1[Maxwell]
+      (this->*MaxwellSolverWithChosenOrder)(S_EM1,S_EM_sourceCycle,fluxesEM,S1,S_sourceCycle,fluxesCycle,dx,dtCycle);
+
+      MultiFab& S_EM_X_int = get_new_data(EM_X_Type);
+      MultiFab& S_EM_Y_int = get_new_data(EM_Y_Type);  
+      MultiFab::Copy(S_EM_X_int, S_EM1[0], 0, 0, 6, 0);
+      FillPatch(*this, S_EM1[0], NUM_GROW, time+dt, EM_X_Type, 0, 6);
+#if (AMREX_SPACEDIM >= 2)
+      MultiFab::Copy(S_EM_Y_int, S_EM1[1], 0, 0, 6, 0);
+      FillPatch(*this, S_EM1[1], NUM_GROW, time+dt, EM_Y_Type, 0, 6);
+#endif
+
+      // inputs: S*1, outputs: S_EM2 & S2[Maxwell]
+      (this->*MaxwellSolverWithChosenOrder)(S_EM2,S_EM1,fluxesEM,S2,S1,fluxesCycle,dx,dtCycle);
+
+      // inputs for next cycle
+      // S2[Maxwell]
+      linearCombination(S_sourceCycle, S_sourceCycle, 1.0/2.0, S2, 1.0/2.0, BX, NUM_STATE_MAXWELL); 
+      linearCombination(S_EM_sourceCycle[0], S_EM_sourceCycle[0], 1.0/2.0, S_EM2[0], 1.0/2.0, 0, 6);
+#if (AMREX_SPACEDIM >= 2)
+      linearCombination(S_EM_sourceCycle[1], S_EM_sourceCycle[1], 1.0/2.0, S_EM2[1], 1.0/2.0, 0, 6);
+#endif
+
+      S_sourceCycle.FillBoundary(geom.periodicity());
+      FillDomainBoundary(S_sourceCycle, geom, bc);
+      
+      MultiFab::Copy(S_EM_X_int, S_EM_sourceCycle[0], 0, 0, 6, 0);
+      FillPatch(*this, S_EM_sourceCycle[0], NUM_GROW, time+dt, EM_X_Type, 0, 6);
+#if (AMREX_SPACEDIM >= 2)
+      MultiFab::Copy(S_EM_Y_int, S_EM_sourceCycle[1], 0, 0, 6, 0);
+      FillPatch(*this, S_EM_sourceCycle[1], NUM_GROW, time+dt, EM_Y_Type, 0, 6);
+#endif
+  
+    }
+  linearCombination(S_dest, S_sourceCycle, 1.0, S2, 0.0, BX, NUM_STATE_MAXWELL);
+  linearCombination(S_EM_dest[0], S_EM_sourceCycle[0], 1.0, S_EM2[0], 0.0, 0, 6);
+#if (AMREX_SPACEDIM >= 2)
+  linearCombination(S_EM_dest[1], S_EM_sourceCycle[1], 1.0, S_EM2[1], 0.0, 0, 6);
+#endif
+
+  S_EM_dest[0].FillBoundary(geom.periodicity());
+  FillDomainBoundary(S_EM_dest[0], geom, bc_EM);
+#if (AMREX_SPACEDIM >= 2)
+  S_EM_dest[1].FillBoundary(geom.periodicity());
+  FillDomainBoundary(S_EM_dest[1], geom, bc_EM);  
+#endif
+  
 }
 // RK2 with subcycling
 // void CAMReXmp::RK2(MultiFab& S_dest, MultiFab& S_source, MultiFab (&fluxes)[AMREX_SPACEDIM], Array<MultiFab,AMREX_SPACEDIM>& S_EM_dest, Array<MultiFab,AMREX_SPACEDIM>& S_EM_source, MultiFab& fluxesEM, const Real* dx, Real time, Real dt)
