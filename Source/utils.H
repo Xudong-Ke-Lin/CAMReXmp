@@ -187,6 +187,8 @@ Vector<Real> EM_linearFunc(const Array4<Real>& Bc, const Array4<Real>& Ec,  int 
 			   const Real* dx);
 Vector<Real> EM_quadraticFunc(const Array4<Real>& Bc, const Array4<Real>& Ec,  int i, int j, int k, Real x, Real y, Real z,
 			   const Real* dx);
+Vector<Real> EMxSlope_linearFunc(const Array4<Real>& Bc, const Array4<Real>& Ec,  int i, int j, int k);
+Vector<Real> EMySlope_linearFunc(const Array4<Real>& Bc, const Array4<Real>& Ec,  int i, int j, int k);
 Vector<Real> get_data_zone(const Array4<Real>& arr, int i, int j, int k, int start, int length);
 Vector<Real> get_data_stencil(const Array4<Real>& arr, int i, int j, int k, int iOffset, int jOffset, int kOffset, int n);
 Real TVD_slope(Vector<Real> u, Vector<Real> limiter);

@@ -4951,21 +4951,29 @@ void CAMReXmp::MaxwellSolverDivFreeTVD(Array<MultiFab,AMREX_SPACEDIM>& S_EM_dest
 		  x = dx[0]/2.0, y = dx[1]/2.0;
 		  iOffset = -1, jOffset = -1;
 		  Vector<Real> EM_LD = EM_linearFunc(Bc,Ec,i+iOffset,j+jOffset,k+kOffset,x,y,z,dx);
-		  		  
+		  Vector<Real> EMxSlope_LD = EMxSlope_linearFunc(Bc,Ec,i+iOffset,j+jOffset,k+kOffset);
+		  Vector<Real> EMySlope_LD = EMySlope_linearFunc(Bc,Ec,i+iOffset,j+jOffset,k+kOffset);
+		    
 		  // RD state
 		  x = -dx[0]/2.0, y = dx[1]/2.0;
 		  iOffset = 0, jOffset = -1;
 		  Vector<Real> EM_RD = EM_linearFunc(Bc,Ec,i+iOffset,j+jOffset,k+kOffset,x,y,z,dx);
+		  Vector<Real> EMxSlope_RD = EMxSlope_linearFunc(Bc,Ec,i+iOffset,j+jOffset,k+kOffset);
+		  Vector<Real> EMySlope_RD = EMySlope_linearFunc(Bc,Ec,i+iOffset,j+jOffset,k+kOffset);
 
 		  // LU state
 		  x = dx[0]/2.0, y = -dx[1]/2.0;
 		  iOffset = -1, jOffset = 0;
 		  Vector<Real> EM_LU = EM_linearFunc(Bc,Ec,i+iOffset,j+jOffset,k+kOffset,x,y,z,dx);
+		  Vector<Real> EMxSlope_LU = EMxSlope_linearFunc(Bc,Ec,i+iOffset,j+jOffset,k+kOffset);
+		  Vector<Real> EMySlope_LU = EMySlope_linearFunc(Bc,Ec,i+iOffset,j+jOffset,k+kOffset);
 		  
 		  // RU state
 		  x = -dx[0]/2.0, y = -dx[1]/2.0;
 		  iOffset = 0, jOffset = 0;
 		  Vector<Real> EM_RU = EM_linearFunc(Bc,Ec,i+iOffset,j+jOffset,k+kOffset,x,y,z,dx);
+		  Vector<Real> EMxSlope_RU = EMxSlope_linearFunc(Bc,Ec,i+iOffset,j+jOffset,k+kOffset);
+		  Vector<Real> EMySlope_RU = EMySlope_linearFunc(Bc,Ec,i+iOffset,j+jOffset,k+kOffset);
 		  
 		  // If the reconstruction is consistent, then EyRU=EyRD
 		  Real EyR = (EM_RU[EY_LOCAL]+EM_RD[EY_LOCAL])/2.0;
@@ -4981,6 +4989,36 @@ void CAMReXmp::MaxwellSolverDivFreeTVD(Array<MultiFab,AMREX_SPACEDIM>& S_EM_dest
 		  Real BxD = (EM_RD[BX_LOCAL]+EM_LD[BX_LOCAL])/2.0;
 		  fluxArrEM(i,j,k,EZ_LOCAL) = 0.25*(EM_RU[EZ_LOCAL]+EM_RD[EZ_LOCAL]+EM_LU[EZ_LOCAL]+EM_LD[EZ_LOCAL])
 		    + 0.5*c*(ByR-ByL) - 0.5*c*(BxU-BxD);
+		  /*
+		  // Star states for the slopes		  
+		  Real EyXSlopeR = (EMxSlope_RU[EY_LOCAL]+EMxSlope_RD[EY_LOCAL])/2.0;
+		  Real EyXSlopeL = (EMxSlope_LU[EY_LOCAL]+EMxSlope_LD[EY_LOCAL])/2.0;
+		  Real ExYSlopeU = (EMySlope_RU[EX_LOCAL]+EMySlope_LU[EX_LOCAL])/2.0;
+		  Real ExYSlopeD = (EMySlope_RD[EX_LOCAL]+EMySlope_LD[EX_LOCAL])/2.0;
+
+		  Real EzXSlopeR = (EMxSlope_RU[EZ_LOCAL]+EMxSlope_RD[EZ_LOCAL])/2.0 - 0.5*c*(EMxSlope_RU[BX_LOCAL]-EMxSlope_RD[BX_LOCAL]);
+		  Real EzXSlopeL = (EMxSlope_LU[EZ_LOCAL]+EMxSlope_LD[EZ_LOCAL])/2.0 - 0.5*c*(EMxSlope_LU[BX_LOCAL]-EMxSlope_LD[BX_LOCAL]);
+		  Real EzYSlopeU = (EMySlope_RU[EZ_LOCAL]+EMySlope_LU[EZ_LOCAL])/2.0 + 0.5*c*(EMySlope_RU[BY_LOCAL]-EMySlope_LU[BY_LOCAL]);
+		  Real EzYSlopeD = (EMySlope_RD[EZ_LOCAL]+EMySlope_LD[EZ_LOCAL])/2.0 + 0.5*c*(EMySlope_RD[BY_LOCAL]-EMySlope_LD[BY_LOCAL]);
+
+		  Real ByXSlopeR = (EMxSlope_RU[BY_LOCAL]+EMxSlope_RD[BY_LOCAL])/2.0;
+		  Real ByXSlopeL = (EMxSlope_LU[BY_LOCAL]+EMxSlope_LD[BY_LOCAL])/2.0;
+		  Real BxYSlopeU = (EMySlope_RU[BX_LOCAL]+EMySlope_LU[BX_LOCAL])/2.0;
+		  Real BxSYlopeD = (EMySlope_RD[BX_LOCAL]+EMySlope_LD[BX_LOCAL])/2.0;
+
+		  Real BzXSlopeR = (EMxSlope_RU[BZ_LOCAL]+EMxSlope_RD[BZ_LOCAL])/2.0 + 0.5/c*(EMxSlope_RU[EX_LOCAL]-EMxSlope_RD[EX_LOCAL]);
+		  Real BzXSlopeL = (EMxSlope_LU[BZ_LOCAL]+EMxSlope_LD[BZ_LOCAL])/2.0 + 0.5/c*(EMxSlope_LU[EX_LOCAL]-EMxSlope_LD[EX_LOCAL]);
+		  Real BzYSlopeU = (EMySlope_RU[BZ_LOCAL]+EMySlope_LU[BZ_LOCAL])/2.0 - 0.5/c*(EMySlope_RU[EY_LOCAL]-EMySlope_LU[EY_LOCAL]);
+		  Real BzSYlopeD = (EMySlope_RD[BZ_LOCAL]+EMySlope_LD[BZ_LOCAL])/2.0 - 0.5/c*(EMySlope_RD[EY_LOCAL]-EMySlope_LD[EY_LOCAL]);
+
+		  Real dxEy = 0.5*(EyXSlopeL+EyXSlopeR) + 0.5*c*(BzXSlopeR-BzXSlopeL);
+		  Real dxBy = 0.5*(ByXSlopeL+ByXSlopeR) - 0.5/c*(EzXSlopeR-EzXSlopeL);
+		  Real dyEx = 0.5*(ExYSlopeD+ExYSlopeU) - 0.5*c*(BzYSlopeU-BzSYlopeD);
+		  Real dyBx = 0.5*(BxSYlopeD+BxYSlopeU) + 0.5/c*(EzYSlopeU-EzYSlopeD);
+
+		  fluxArrEM(i,j,k,BZ_LOCAL) -= 0.5*dt*(dxEy-dyEx);
+		  fluxArrEM(i,j,k,EZ_LOCAL) -= 0.5*dt*c*c*(-dxBy+dyBx);
+		  */
 		}
 	    }
 	}       
@@ -5034,7 +5072,11 @@ void CAMReXmp::MaxwellSolverDivFreeTVD(Array<MultiFab,AMREX_SPACEDIM>& S_EM_dest
 		      
 		      // source terms
 		      Real currentFace = r_i*fluxArr(i,j,k,RHO_I) + r_e*fluxArr(i,j,k,RHO_E);
+		      // conductivity
+		      Real sigma = currentFace/(arrEM(i,j,k,EX_LOCAL+d_EM)+1e-12);
+		      //std::cout << sigma << " " << std::exp(-sigma*dt/(lambda_d*lambda_d*l_r)) << " end ";
 		      arrEM(i,j,k,EX_LOCAL+d_EM) -= dt*1.0/(lambda_d*lambda_d*l_r)*currentFace;
+		      //arrEM(i,j,k,EX_LOCAL+d_EM) *= std::exp(-sigma*dt/(lambda_d*lambda_d*l_r));
 		    }
 		}
 	    }      
@@ -5119,17 +5161,27 @@ void CAMReXmp::MaxwellSolverDivFreeTVD(Array<MultiFab,AMREX_SPACEDIM>& S_EM_dest
   		  x = dx[0]/2.0, y = 0.0;
 		  iOffset = -1, jOffset = 0;
 		  Vector<Real> EM_L = EM_linearFunc(Bc,Ec,i+iOffset,j+jOffset,k+kOffset,x,y,z,dx);
-		   
+		  Vector<Real> EMxSlope_L = EMxSlope_linearFunc(Bc,Ec,i+iOffset,j+jOffset,k+kOffset);
+		  
   		  // R state
   		  x = -dx[0]/2.0, y = 0.0;
 		  iOffset = 0, jOffset = 0;
 		  Vector<Real> EM_R = EM_linearFunc(Bc,Ec,i+iOffset,j+jOffset,k+kOffset,x,y,z,dx);
+		  Vector<Real> EMxSlope_R = EMxSlope_linearFunc(Bc,Ec,i+iOffset,j+jOffset,k+kOffset);
 
 		  // Note that this is not the flux, but the star states
   		  fluxArrX(i,j,k,BY) = 0.5*(EM_R[BY_LOCAL]+EM_L[BY_LOCAL])
 		    + 0.5/c*(EM_R[EZ_LOCAL]-EM_L[EZ_LOCAL]);
   		  fluxArrX(i,j,k,EY) = 0.5*(EM_R[EY_LOCAL]+EM_L[EY_LOCAL])
 		    - 0.5*c*(EM_R[BZ_LOCAL]-EM_L[BZ_LOCAL]);
+
+		  /*// Start states for the slopes
+		  Real dxEz = 0.5*(EMxSlope_L[EZ_LOCAL]+EMxSlope_R[EZ_LOCAL]) - 0.5*c*(EMxSlope_R[BX_LOCAL]-EMxSlope_L[BX_LOCAL]);
+		  Real dxBz = 0.5*(EMxSlope_L[BZ_LOCAL]+EMxSlope_R[BZ_LOCAL]) + 0.5/c*(EMxSlope_R[EX_LOCAL]-EMxSlope_L[EX_LOCAL]);
+
+		  fluxArrX(i,j,k,BY) -= 0.5*dt*(-dxEz);
+		  fluxArrX(i,j,k,EY) -= 0.5*dt*c*c*dxBz;
+		  */
   		}
   	    }
   	}
@@ -5167,17 +5219,27 @@ void CAMReXmp::MaxwellSolverDivFreeTVD(Array<MultiFab,AMREX_SPACEDIM>& S_EM_dest
   		  x = 0.0, y = dx[1]/2.0;
 		  iOffset = 0, jOffset = -1;
 		  Vector<Real> EM_D = EM_linearFunc(Bc,Ec,i+iOffset,j+jOffset,k+kOffset,x,y,z,dx);
+		  Vector<Real> EMySlope_D = EMySlope_linearFunc(Bc,Ec,i+iOffset,j+jOffset,k+kOffset);
 		  
   		  // U state
   		  x = 0.0, y = -dx[1]/2.0;
 		  iOffset = 0, jOffset = 0;
 		  Vector<Real> EM_U = EM_linearFunc(Bc,Ec,i+iOffset,j+jOffset,k+kOffset,x,y,z,dx);
+		  Vector<Real> EMySlope_U = EMySlope_linearFunc(Bc,Ec,i+iOffset,j+jOffset,k+kOffset);
 
 		  // Note that this is not the flux, but the star states		  
   		  fluxArrY(i,j,k,BX) = 0.5*(EM_U[BX_LOCAL]+EM_D[BX_LOCAL])
 		    - 0.5/c*(EM_U[EZ_LOCAL]-EM_D[EZ_LOCAL]);
   		  fluxArrY(i,j,k,EX) = 0.5*(EM_U[EX_LOCAL]+EM_D[EX_LOCAL])
-		    + 0.5*c*(EM_U[BZ_LOCAL]-EM_D[BZ_LOCAL]); 
+		    + 0.5*c*(EM_U[BZ_LOCAL]-EM_D[BZ_LOCAL]);
+
+		  /*// Start states for the slopes
+		  Real dyEz = 0.5*(EMySlope_D[EZ_LOCAL]+EMySlope_U[EZ_LOCAL]) + 0.5*c*(EMySlope_U[BY_LOCAL]-EMySlope_D[BY_LOCAL]);
+		  Real dyBz = 0.5*(EMySlope_D[BZ_LOCAL]+EMySlope_U[BZ_LOCAL]) - 0.5/c*(EMySlope_U[EY_LOCAL]-EMySlope_D[EY_LOCAL]);
+
+		  fluxArrY(i,j,k,BX) -= 0.5*dt*dyEz;
+		  fluxArrY(i,j,k,EX) -= 0.5*dt*c*c*(-dyBz);
+		  */
   		}
   	    }
   	}
@@ -5198,23 +5260,55 @@ void CAMReXmp::MaxwellSolverDivFreeTVD(Array<MultiFab,AMREX_SPACEDIM>& S_EM_dest
       const auto& arrOld = S_source.array(mfi);
       const auto& fluxArrX = fluxes[0].array(mfi);
       const auto& fluxArrY = fluxes[1].array(mfi);
-	        
+      const auto& fluxArrEM = fluxesEM.array(mfi);
+      
       for(int k = lo.z; k <= hi.z; k++)
   	{
   	  for(int j = lo.y; j <= hi.y; j++)
   	    {
   	      for(int i = lo.x; i <= hi.x; i++)
   		{
-  		  // Update cell-centred z-components becuause it is 2D code
+
+		  // Update cell-centred z-components becuause it is 2D code
   		  arr(i,j,k,BZ) = arrOld(i,j,k,BZ) - (dt / dx[0]) * (fluxArrX(i+1,j,k,EY) - fluxArrX(i,j,k,EY)) + (dt / dx[1]) * (fluxArrY(i,j+1,k,EX) - fluxArrY(i,j,k,EX));
-  		  arr(i,j,k,EZ) = arrOld(i,j,k,EZ) + c*c*(dt / dx[0]) * (fluxArrX(i+1,j,k,BY) - fluxArrX(i,j,k,BY)) - c*c*(dt / dx[1]) * (fluxArrY(i,j+1,k,BX) - fluxArrY(i,j,k,BX));		  
+  		  arr(i,j,k,EZ) = arrOld(i,j,k,EZ) + c*c*(dt / dx[0]) * (fluxArrX(i+1,j,k,BY) - fluxArrX(i,j,k,BY)) - c*c*(dt / dx[1]) * (fluxArrY(i,j+1,k,BX) - fluxArrY(i,j,k,BX));
+
+  		  //arr(i,j,k,EZ) = arr(i,j,k,EZ) - dt*1.0/(lambda_d*lambda_d*l_r)*(r_i*arr(i,j,k,MOMZ_I) + r_e*arr(i,j,k,MOMZ_E));
+		  //std::cout << arr(i,j,k,EZ) - dt*1.0/(lambda_d*lambda_d*l_r)*(r_i*arr(i,j,k,MOMZ_I) + r_e*arr(i,j,k,MOMZ_E)) << " " << arr(i,j,k,EZ)*std::exp(-sigma*dt/(lambda_d*lambda_d*l_r)) << " end ";
+		  //arr(i,j,k,EZ) = arr(i,j,k,EZ)*0.5*(std::exp(-sigma*0.5*dt/(lambda_d*lambda_d*l_r))*0.0+2.0/(1.0+sigma*0.5*dt/(lambda_d*lambda_d*l_r)));
+		  //arr(i,j,k,EZ) = arr(i,j,k,EZ)*std::exp(- dt*1.0/(lambda_d*lambda_d*l_r)*currentCell/arr(i,j,k,EZ));
 
   		  // source terms
-  		  arr(i,j,k,EZ) = arr(i,j,k,EZ) - dt*1.0/(lambda_d*lambda_d*l_r)*(r_i*arr(i,j,k,MOMZ_I) + r_e*arr(i,j,k,MOMZ_E));
+		  Real currentCell = get_magnitude(r_i*arrOld(i,j,k,MOMX_I) + r_e*arrOld(i,j,k,MOMX_E),
+						   r_i*arrOld(i,j,k,MOMY_I) + r_e*arrOld(i,j,k,MOMY_E),
+						   r_i*arrOld(i,j,k,MOMZ_I) + r_e*arrOld(i,j,k,MOMZ_E));
+		  //Real EzStarHalf = 0.25*(fluxArrEM(i,j,k,EZ_LOCAL)+fluxArrEM(i+1,j,k,EZ_LOCAL)+fluxArrEM(i,j+1,k,EZ_LOCAL)+fluxArrEM(i+1,j+1,k,EZ_LOCAL));
+		  Real eFieldCell = get_magnitude(arrOld(i,j,k,EX),arrOld(i,j,k,EY),arrOld(i,j,k,EZ));
+		  // conductivity
+		  Real sigma = currentCell/(eFieldCell+1e-12);
+		  
+		  Real chi = dt*sigma/(lambda_d*lambda_d*l_r);
+		  
+		  Real EzStarHalfStiff = arr(i,j,k,EZ)*0.5*(std::exp(-chi)+1.0/(1.0+chi));
+		  //arr(i,j,k,EZ) *= 0.5*(std::exp(-chi)+1.0/(1.0+chi));
+		  //std::cout << currentCell << " " << r_i*arrOld(i,j,k,MOMZ_I) + r_e*arrOld(i,j,k,MOMZ_E) << " " << eFieldCell << " " << arrOld(i,j,k,EZ) << " " << sigma << std::endl;
+		  //arr(i,j,k,EZ) -= dt*sigma/(lambda_d*lambda_d*l_r)*arrOld(i,j,k,EZ);
+		  //std::cout << dt*sigma/(lambda_d*lambda_d*l_r)*arrOld(i,j,k,EZ) << " " << dt*(r_i*arrOld(i,j,k,MOMZ_I) + r_e*arrOld(i,j,k,MOMZ_E))/(lambda_d*lambda_d*l_r) << std::endl;
+		  //arr(i,j,k,EZ) *= 0.5*(std::exp(-chi)+1.0/(1.0+chi));
+		  arr(i,j,k,EZ) -= dt*(r_i*arrOld(i,j,k,MOMZ_I) + r_e*arrOld(i,j,k,MOMZ_E))/(lambda_d*lambda_d*l_r)*0.5*(std::exp(-chi)+1.0/(1.0+chi));
+		  //sigma = currentCell/(arrOld(i,j,k,EZ)+1e-12);
+		  //chi = 0.5*dt*sigma/(lambda_d*lambda_d*l_r);
+		  //EzStarHalfStiff = arrOld(i,j,k,EZ)*0.5*(std::exp(-chi)+1.0/(1.0+chi));
+		  //if (i==249 && j==38)
+		  //std::cout << currentCell << " " << sigma << " " << chi << " " << EzStarHalf << " " << EzStarHalfStiff << " " << dt*sigma/(lambda_d*lambda_d*l_r)*EzStarHalfStiff << " " << arr(i,j,k,EZ) << std::endl;
+
+		  //arr(i,j,k,EZ) -= dt*sigma/(lambda_d*lambda_d*l_r)*EzStarHalfStiff;
+		  //std::cout << 0.5*(1.0/(1.0+chi)+std::exp(-chi)) << " ";
   		}
   	    }
   	}
     }
+
   // We need to compute boundary conditions again after each update
   S_dest.FillBoundary(geom.periodicity());
      

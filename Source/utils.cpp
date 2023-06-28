@@ -33,7 +33,7 @@ Real c = 0.0;
 // normalized Debye length
 Real lambda_d = 0.0;
 // resistivity
-Real eta = 0.01;
+Real eta = 0.0;
 
 // functions to compute the magnitudes
 Real get_magnitude_squared(Real x, Real y, Real z){
@@ -2183,6 +2183,48 @@ Vector<Real> EM_linearFunc(const Array4<Real>& Bc, const Array4<Real>& Ec,  int 
     + Ec(i,j,k,bxy)*xdx*ydy; // + bxz*
   EM[EZ_LOCAL] = Ec(i,j,k,c0) + Ec(i,j,k,cx)*xdx
     + Ec(i,j,k,cy)*ydy; // + cz* + cxz* + cyz* + czz		  
+
+  return EM;
+  
+}
+Vector<Real> EMxSlope_linearFunc(const Array4<Real>& Bc, const Array4<Real>& Ec,  int i, int j, int k)
+{
+  // For second order, there are 27 coeff.
+  // i.e. a0,ax,ay,az,axx,...,b0,bx,...,c0,cx,...,czz  
+  int ax=1;
+  int bx=8;
+  int cx=15;
+  
+  Vector<Real> EM(NUM_STATE_MAXWELL,0.0);
+  
+  EM[BX_LOCAL] = Bc(i,j,k,ax);
+  EM[BY_LOCAL] = Bc(i,j,k,bx);
+  EM[BZ_LOCAL] = Bc(i,j,k,cx);
+
+  EM[EX_LOCAL] = Ec(i,j,k,ax);
+  EM[EY_LOCAL] = Ec(i,j,k,bx);
+  EM[EZ_LOCAL] = Ec(i,j,k,cx);
+
+  return EM;
+  
+}
+Vector<Real> EMySlope_linearFunc(const Array4<Real>& Bc, const Array4<Real>& Ec,  int i, int j, int k)
+{
+  // For second order, there are 27 coeff.
+  // i.e. a0,ax,ay,az,axx,...,b0,bx,...,c0,cx,...,czz  
+  int ay=2;
+  int by=9;
+  int cy=16;
+  
+  Vector<Real> EM(NUM_STATE_MAXWELL,0.0);
+  
+  EM[BX_LOCAL] = Bc(i,j,k,ay);
+  EM[BY_LOCAL] = Bc(i,j,k,by);
+  EM[BZ_LOCAL] = Bc(i,j,k,cy);
+
+  EM[EX_LOCAL] = Ec(i,j,k,ay);
+  EM[EY_LOCAL] = Ec(i,j,k,by);
+  EM[EZ_LOCAL] = Ec(i,j,k,cy);
 
   return EM;
   
