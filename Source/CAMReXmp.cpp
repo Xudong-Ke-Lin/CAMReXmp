@@ -1330,8 +1330,8 @@ CAMReXmp::estTimeStep (Real)
 		  // compute fastest speeds
 		  Real v = arr(i,j,k,MOMX_I+d+fluid)/arr(i,j,k,RHO_I+fluid);
 		  Vector<Real> u_i = get_data_zone(arr,i,j,k,fluid,NUM_STATE_FLUID/2);
-		  Real c = get_speed(u_i);
-		  c_array.push_back(std::abs(v)+c);
+		  Real a = get_speed(u_i);
+		  c_array.push_back(std::abs(v)+a);
 		  /*if (MaxwellMethod=="IM")
 		    c_array.push_back(std::abs(v_x_e)+c_e);
 		  else
