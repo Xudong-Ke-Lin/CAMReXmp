@@ -26,6 +26,20 @@ void CAMReXmp::RK1(MultiFab& S_dest, MultiFab& S_source, MultiFab (&fluxes)[AMRE
 
 void CAMReXmp::RK2(MultiFab& S_dest, MultiFab& S_source, MultiFab (&fluxes)[AMREX_SPACEDIM], Array<MultiFab,AMREX_SPACEDIM>& S_EM_dest, Array<MultiFab,AMREX_SPACEDIM>& S_EM_source, MultiFab& fluxesEM, const Real* dx, Real time, Real dt)
 {
+  //plasmaSolverTVD(S_dest,S_source,fluxes,dx,dt); 
+  //return;
+  MultiFab S1(grids, dmap, NUM_STATE, NUM_GROW);
+  plasmaSolverTVD(S1,S_source,fluxes,dx,dt);  
+  
+  MultiFab S2(grids, dmap, NUM_STATE, NUM_GROW);
+  plasmaSolverTVD(S2,S1,fluxes,dx,dt);
+
+  linearCombination(S_dest, S_source, 1.0/2.0, S2, 1.0/2.0, 0, NUM_STATE);
+  
+  S_dest.FillBoundary(geom.periodicity());
+  FillDomainBoundary(S_dest, geom, bc);  
+
+  /*
   MultiFab S1(grids, dmap, NUM_STATE+2, NUM_GROW);
   Array<MultiFab,AMREX_SPACEDIM> S_EM1;
   S_EM1[0].define(convert(grids,IntVect{AMREX_D_DECL(1,0,0)}), dmap, 6, NUM_GROW);  
@@ -69,6 +83,7 @@ void CAMReXmp::RK2(MultiFab& S_dest, MultiFab& S_source, MultiFab (&fluxes)[AMRE
   S_EM_dest[1].FillBoundary(geom.periodicity());
   FillDomainBoundary(S_EM_dest[1], geom, bc_EM);  
 #endif    
+  */
 }
 // RK2 with subcycling
 // void CAMReXmp::RK2(MultiFab& S_dest, MultiFab& S_source, MultiFab (&fluxes)[AMREX_SPACEDIM], Array<MultiFab,AMREX_SPACEDIM>& S_EM_dest, Array<MultiFab,AMREX_SPACEDIM>& S_EM_source, MultiFab& fluxesEM, const Real* dx, Real time, Real dt)

@@ -20,6 +20,8 @@ extern Real l_r;
 extern Real c; 
 extern Real lambda_d;
 extern Real eta;
+extern Real cb;
+extern Real ce;
 
 // functions to compute the magnitudes
 Real get_magnitude_squared(Real x, Real y, Real z);
@@ -147,7 +149,7 @@ Vector<Real> MUSCL_Hancock_HLLC_flux(const Array4<Real>& arr, int i, int j, int 
 				     Real dx, Real dt, int d);
 
 Vector<Real> HLLC(Vector<Real> uL, Vector<Real> uR, int d);
-Vector<Real> Godunov(Vector<Real> uL, Vector<Real> uR, int d);
+Vector<Real> RankineHugoniot(Vector<Real> uL, Vector<Real> uR, int d);
 Vector<Real> MUSCL_Hancock_TVD_flux(const Array4<Real>& arr, const Array4<Real>& slopes,
 				    int i, int j, int k, int iOffset, int jOffset, int kOffset,
 				    int start, int len,
@@ -161,10 +163,10 @@ Vector<Real> MUSCL_Hancock_WENO_flux(const Array4<Real>& arr, const Array4<Real>
 				     std::function<Vector<Real> (const Vector<Real>&, int)> flux_function,
 				     std::function<Vector<Real> (Vector<Real>,Vector<Real>,int)> solver);
 Vector<Real> TVD_flux(const Array4<Real>& arr, const Array4<Real>& slopes,
-		       int i, int j, int k, int iOffset, int jOffset, int kOffset,
-		       int start, int len,
-		       Real dx, Real dt, int d,
-		       std::function<Vector<Real> (Vector<Real>,Vector<Real>,int)> solver);
+		      int i, int j, int k, int iOffset, int jOffset, int kOffset,
+		      int start, int len, int startSlope,
+		      Real dx, Real dt, int d,
+		      std::function<Vector<Real> (Vector<Real>,Vector<Real>,int)> solver);
 Vector<Real> WENO_flux(const Array4<Real>& arr, const Array4<Real>& slopes,
 		       int i, int j, int k, int iOffset, int jOffset, int kOffset,
 		       int start, int len,

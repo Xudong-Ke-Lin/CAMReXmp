@@ -35,6 +35,10 @@ Real lambda_d = 0.0;
 // resistivity
 Real eta = 0.0;
 
+// parameters of the divergence cleaning
+Real cb = 1.0;
+Real ce = 1.0;
+
 // functions to compute the magnitudes
 Real get_magnitude_squared(Real x, Real y, Real z){
     return x*x + y*y + z*z;
@@ -197,21 +201,35 @@ Vector<Real> fluidFlux(const Vector<Real>& u_i, int d){
 }
 Vector<Real> MaxwellFlux(const Vector<Real>& u_i, int d){
   // define conserved variables
-  Real B_x = u_i[BX+d-NUM_STATE_FLUID];
-  Real B_y = u_i[BX+(1+d)%3-NUM_STATE_FLUID];
-  Real B_z = u_i[BX+(2+d)%3-NUM_STATE_FLUID];
-  Real E_x = u_i[EX+d-NUM_STATE_FLUID];
-  Real E_y = u_i[EX+(1+d)%3-NUM_STATE_FLUID];
-  Real E_z = u_i[EX+(2+d)%3-NUM_STATE_FLUID];
+  Real B_x = u_i[BX_LOCAL+d];
+  Real B_y = u_i[BX_LOCAL+(1+d)%3];
+  Real B_z = u_i[BX_LOCAL+(2+d)%3];
+  Real E_x = u_i[EX_LOCAL+d];
+  Real E_y = u_i[EX_LOCAL+(1+d)%3];
+  Real E_z = u_i[EX_LOCAL+(2+d)%3];
+#if (AMREX_SPACEDIM >= 2)
+  Real psi_b = u_i[DIVB_LOCAL];
+  Real psi_e = u_i[DIVE_LOCAL];
+#endif
 
   // flux function
   Vector<Real> function(u_i.size(),0.0);
-  function[BX+d-NUM_STATE_FLUID] = 0.0;
-  function[BX+(1+d)%3-NUM_STATE_FLUID] = -E_z;
-  function[BX+(2+d)%3-NUM_STATE_FLUID] = E_y;
-  function[EX+d-NUM_STATE_FLUID] = 0.0;
-  function[EX+(1+d)%3-NUM_STATE_FLUID] = c*c*B_z;
-  function[EX+(2+d)%3-NUM_STATE_FLUID] = -c*c*B_y;
+
+  function[BX_LOCAL+(1+d)%3] = -E_z;
+  function[BX_LOCAL+(2+d)%3] = E_y;
+  function[EX_LOCAL+(1+d)%3] = c*c*B_z;
+  function[EX_LOCAL+(2+d)%3] = -c*c*B_y;
+
+#if (AMREX_SPACEDIM == 1)
+  function[BX_LOCAL+d] = 0.0;
+  function[EX_LOCAL+d] = 0.0;
+#else
+  function[BX_LOCAL+d] = cb*psi_b;
+  function[EX_LOCAL+d] = ce*c*c*psi_e;
+  function[DIVB_LOCAL] = cb*c*c*B_x;
+  function[DIVE_LOCAL] = ce*E_x;
+#endif
+  
   return function;
 }
 
@@ -1806,20 +1824,20 @@ Vector<Real> MUSCL_Hancock_HLLC_flux(const Array4<Real>& arr, int i, int j, int 
 }
 Vector<Real> TVD_flux(const Array4<Real>& arr, const Array4<Real>& slopes,
 		      int i, int j, int k, int iOffset, int jOffset, int kOffset,
-		      int start, int len,
+		      int start, int len, int startSlope,
 		      Real dx, Real dt, int d,
 		      std::function<Vector<Real> (Vector<Real>,Vector<Real>,int)> solver){
 
   Vector<Real> u_iMinus1, u_i;
 
   Vector<Real> slopes_iMinus1, slopes_i;
-
+  /*
   int offset;
   if (d==0)
     offset = 0;
   else if (d==1)
-    offset = NUM_STATE_FLUID;
-  
+    offset = NUM_STATE;//_FLUID;
+  */
   for (int n = start; n<start+len; n++)
     {
       //ui_iMinus2.push_back(arr(i-2*iOffset,j-2*jOffset,k-2*kOffset,n));
@@ -1827,8 +1845,14 @@ Vector<Real> TVD_flux(const Array4<Real>& arr, const Array4<Real>& slopes,
       u_i.push_back(arr(i,j,k,n));
       //ui_iPlus1.push_back(arr(i+iOffset,j+jOffset,k+kOffset,n));
 
-      slopes_iMinus1.push_back(slopes(i-iOffset,j-jOffset,k-kOffset,n+offset));
-      slopes_i.push_back(slopes(i,j,k,n+offset)); 
+      //slopes_iMinus1.push_back(slopes(i-iOffset,j-jOffset,k-kOffset,n+offset));
+      //slopes_i.push_back(slopes(i,j,k,n+offset)); 
+    }
+  for (int n = startSlope; n<startSlope+len; n++)
+    {
+
+      slopes_iMinus1.push_back(slopes(i-iOffset,j-jOffset,k-kOffset,n));
+      slopes_i.push_back(slopes(i,j,k,n)); 
     }
 
   // Slope limiting variable index
@@ -1838,7 +1862,7 @@ Vector<Real> TVD_flux(const Array4<Real>& arr, const Array4<Real>& slopes,
   //Vector<Real> slopes_iMinus1_i = TVD_slopes(ui_iMinus2, ui_iMinus1, ui_i, limiting_idx);
   //Vector<Real> slopes_i_i = TVD_slopes(ui_iMinus1, ui_i, ui_iPlus1, limiting_idx);
   Vector<Real> u_iMinus1R,u_iL;
-  for (int n = 0; n<NUM_STATE_FLUID/2; n++)
+  for (int n = 0; n<len; n++)
     {
       u_iMinus1R.push_back(u_iMinus1[n] + 0.5*slopes_iMinus1[n]);
       u_iL.push_back(u_i[n] - 0.5*slopes_i[n]);
@@ -1884,7 +1908,7 @@ Vector<Real> MUSCL_Hancock_TVD_flux(const Array4<Real>& arr, const Array4<Real>&
   //Vector<Real> slopes_iMinus1_i = TVD_slopes(ui_iMinus2, ui_iMinus1, ui_i, limiting_idx);
   //Vector<Real> slopes_i_i = TVD_slopes(ui_iMinus1, ui_i, ui_iPlus1, limiting_idx);
   Vector<Real> u_iMinus1L,u_iMinus1R,u_iL,u_iR;
-  for (int n = 0; n<NUM_STATE_FLUID/2; n++)
+  for (int n = 0; n<len; n++)
     {
       u_iMinus1L.push_back(u_iMinus1[n] - 0.5*slopes_iMinus1[n]);
       u_iMinus1R.push_back(u_iMinus1[n] + 0.5*slopes_iMinus1[n]);
@@ -2231,7 +2255,7 @@ Vector<Real> HLLC(Vector<Real> uL, Vector<Real> uR, int d)
 
   return flux;
 }
-Vector<Real> Godunov(Vector<Real> uL, Vector<Real> uR, int d)
+Vector<Real> RankineHugoniot(Vector<Real> uL, Vector<Real> uR, int d)
 {
   Vector<Real> flux(NUM_STATE_MAXWELL,0.0);
   
@@ -2243,15 +2267,30 @@ Vector<Real> Godunov(Vector<Real> uL, Vector<Real> uR, int d)
     -0.5*c*(uR[BX_LOCAL+(2+d)%3]-uL[BX_LOCAL+(2+d)%3]);
   Real E_z_star = 0.5*(uR[EX_LOCAL+(2+d)%3]+uL[EX_LOCAL+(2+d)%3])
     +0.5*c*(uR[BX_LOCAL+(1+d)%3]-uL[BX_LOCAL+(1+d)%3]);  
+
+#if (AMREX_SPACEDIM != 1)  
+  Real B_x_star = 0.5*(uR[BX_LOCAL+d]+uL[BX_LOCAL+d])-0.5/c*(uR[DIVB_LOCAL]-uL[DIVB_LOCAL]);
+  Real E_x_star = 0.5*(uR[EX_LOCAL+d]+uL[EX_LOCAL+d])-0.5*c*(uR[DIVE_LOCAL]-uL[DIVE_LOCAL]);
+  Real psi_b_star = 0.5*(uR[DIVB_LOCAL]+uL[DIVB_LOCAL])-0.5*c*(uR[BX_LOCAL+d]-uL[BX_LOCAL+d]);
+  Real psi_e_star = 0.5*(uR[DIVE_LOCAL]+uL[DIVE_LOCAL])-0.5/c*(uR[EX_LOCAL+d]-uL[EX_LOCAL+d]);
+#endif
   
   // EM HLLC states
-  flux[BX_LOCAL+d] = 0.0;
   flux[BX_LOCAL+(1+d)%3] = -E_z_star;
   flux[BX_LOCAL+(2+d)%3] = E_y_star;
-  flux[EX_LOCAL+d] = 0.0;
   flux[EX_LOCAL+(1+d)%3] = c*c*B_z_star;
   flux[EX_LOCAL+(2+d)%3] =  -c*c*B_y_star;
 
+#if (AMREX_SPACEDIM == 1)
+  flux[BX_LOCAL+d] = 0.0;
+  flux[EX_LOCAL+d] = 0.0;  
+#else
+  flux[BX_LOCAL+d] = cb*psi_b_star;
+  flux[EX_LOCAL+d] = ce*c*c*psi_e_star;
+  flux[DIVB_LOCAL] = cb*c*c*B_x_star;
+  flux[DIVE_LOCAL] = ce*E_x_star; 
+#endif
+  
   return flux;
 }
 Vector<Real> MUSCL_Hancock_WENO_flux(const Array4<Real>& arr, const Array4<Real>& slopes,

@@ -32,7 +32,7 @@ enum StateVariable {
 		    DIVB = 16, DIVE = 17
 };
 enum StateVariableMaxwell {
-			   BX_LOCAL = 0, BY_LOCAL = 1, BZ_LOCAL = 2, EX_LOCAL = 3, EY_LOCAL = 4, EZ_LOCAL = 5
+			   BX_LOCAL = 0, BY_LOCAL = 1, BZ_LOCAL = 2, EX_LOCAL = 3, EY_LOCAL = 4, EZ_LOCAL = 5, DIVB_LOCAL = 6, DIVE_LOCAL = 7
 };
 
 class CAMReXmp;
@@ -175,6 +175,7 @@ public:
   void sourceUpdate(MultiFab& Sborder, MultiFab (&fluxes)[AMREX_SPACEDIM], const Real* dx, Real dt);
   void sourceUpdateEX(Array4<Real>& arr, int i, int j, int k, Real dt);
   void sourceUpdateIM(Array4<Real>& arr, int i, int j, int k, Real dt);
+  void sourceUpdateIMMidpoint(Array4<Real>& arr, int i, int j, int k, Real dt);
   void sourceUpdateANEX(Array4<Real>& arr, int i, int j, int k, Real dt);
   void sourceUpdateStiff(Array4<Real>& arr, int i, int j, int k, Real dt);
   void cylSourceUpdate(Array4<Real>& arr, int i, int j, int k, Real dt, Real x);
@@ -280,6 +281,8 @@ private:
   void MUSCLHancokFluidSolverTVD(MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], const Real*, Real);
   void fluidSolverWENO(MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], const Real*, Real);
   void flattenerAlgorithm(MultiFab&, MultiFab&, MultiFab&, int, int);
+  void plasmaSolverTVD(MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], const Real*, Real);
+  void MUSCLHancokPlasmaSolverTVD(MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], const Real*, Real);
   void hyperbolicMaxwellSolver(amrex::MultiFab&, amrex::MultiFab (&)[AMREX_SPACEDIM], const amrex::Real*, amrex::Real);
   void implicitMaxwellSolverSetUp();  
   void implicitMaxwellSolver(amrex::MultiFab&, const amrex::Real*, amrex::Real);

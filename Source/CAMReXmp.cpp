@@ -15,7 +15,7 @@ int      CAMReXmp::verbose         = 0;
 Real     CAMReXmp::cfl             = 0.9; // Default value - can be overwritten in settings file
 int      CAMReXmp::do_reflux       = 1;  
 
-int      CAMReXmp::NUM_STATE       = 16;  // Number of variables in the state
+int      CAMReXmp::NUM_STATE       = 18;  // Number of variables in the state
 int      CAMReXmp::NUM_GROW        = 3;  // number of ghost cells
 
 int CAMReXmp::NUM_STATE_FLUID = 10;
@@ -157,7 +157,7 @@ CAMReXmp::variableSetUp ()
   // NUM_STATE: Number of variables in the variable vector (1 in the case of advection equation)
   // cell_cons_interp: Controls interpolation between levels - cons_interp is good for finite volume
   desc_lst.addDescriptor(Phi_Type,IndexType::TheCellType(),
-			 StateDescriptor::Point,storedGhostZones,NUM_STATE+2,
+			 StateDescriptor::Point,storedGhostZones,NUM_STATE,
 			 &cell_cons_interp);
   // from IAMR (https://github.com/AMReX-Codes/IAMR/blob/main/Source/NS_setup.cpp):
   // StateDescriptor::Interval and &node_bilinear_interp
@@ -190,7 +190,7 @@ CAMReXmp::variableSetUp ()
 
   // added by 2020D
 
-  bc.resize(NUM_STATE+2);
+  bc.resize(NUM_STATE);
   bc_EM.resize(6);
   
   ParmParse pp;
@@ -201,7 +201,7 @@ CAMReXmp::variableSetUp ()
     {
       for (int idim = 0; idim < amrex::SpaceDim; ++idim)
 	{
-	  for (int n = 0; n < NUM_STATE+2; ++n)
+	  for (int n = 0; n < NUM_STATE; ++n)
 	    {
 	      bc[n].setLo(idim, BCType::foextrap); // transmissive
 	      bc[n].setHi(idim, BCType::foextrap);
@@ -228,7 +228,7 @@ CAMReXmp::variableSetUp ()
     {
       for (int idim = 0; idim < amrex::SpaceDim; ++idim)
 	{
-	  for (int n = 0; n < NUM_STATE+2; ++n)
+	  for (int n = 0; n < NUM_STATE; ++n)
 	    {
 	      bc[n].setLo(idim, BCType::int_dir); // interior
 	      bc[n].setHi(idim, BCType::int_dir);
@@ -238,7 +238,7 @@ CAMReXmp::variableSetUp ()
     {
       for (int idim = 0; idim < amrex::SpaceDim; ++idim)
 	{
-	  for (int n = 0; n < NUM_STATE+2; ++n)
+	  for (int n = 0; n < NUM_STATE; ++n)
 	    {
 	      bc[n].setLo(idim, BCType::foextrap);
 	      bc[n].setHi(idim, BCType::foextrap);
@@ -248,7 +248,7 @@ CAMReXmp::variableSetUp ()
     {
       for (int i = 0; i < amrex::SpaceDim; ++i)
 	{
-	  for (int n = 0; n < NUM_STATE+2; ++n)
+	  for (int n = 0; n < NUM_STATE; ++n)
 	    {
 	      bc[n].setLo(i, BCType::int_dir); // interior 
 	      bc[n].setHi(i, BCType::int_dir);
@@ -256,7 +256,7 @@ CAMReXmp::variableSetUp ()
 	}
     } else if (test=="Harris_sheet")
     {
-      for (int n = 0; n < NUM_STATE+2; ++n)
+      for (int n = 0; n < NUM_STATE; ++n)
 	{
 	  bc[n].setLo(0, BCType::int_dir);
 	  bc[n].setHi(0, BCType::int_dir);
@@ -306,14 +306,14 @@ CAMReXmp::variableSetUp ()
 
       bc[DIVB].setLo(1, BCType::foextrap);
       bc[DIVB].setHi(1, BCType::foextrap);
-      bc[DIVE].setLo(1, BCType::foextrap);
-      bc[DIVE].setHi(1, BCType::foextrap);
+      bc[DIVE].setLo(1, BCType::reflect_odd);
+      bc[DIVE].setHi(1, BCType::reflect_odd);
 
     } else if (test=="blast")
     {
       for (int idim = 0; idim < amrex::SpaceDim; ++idim)
 	{
-	  for (int n = 0; n < NUM_STATE+2; ++n)
+	  for (int n = 0; n < NUM_STATE; ++n)
 	    {
 	      bc[n].setLo(idim, BCType::foextrap);
 	      bc[n].setHi(idim, BCType::foextrap);
@@ -579,7 +579,7 @@ CAMReXmp::init ()
     //MultiFab& S_EM_Y_new = get_new_data(EM_Y_Type);
 
     // See first init function for documentation
-    FillCoarsePatch(S_new, 0, cur_time, Phi_Type, 0, NUM_STATE+2);
+    FillCoarsePatch(S_new, 0, cur_time, Phi_Type, 0, NUM_STATE);
     //FillCoarsePatch(S_EM_X_new, 0, cur_time, EM_X_Type, 0, 6);
     //FillCoarsePatch(S_EM_Y_new, 0, cur_time, EM_Y_Type, 0, 6);
     
@@ -668,9 +668,9 @@ CAMReXmp::advance (Real time,
   //fluxesEM = 0.0;
   
   // State with ghost cells - this is used to compute fluxes and perform the update.
-  MultiFab S0(grids, dmap, NUM_STATE+2, NUM_GROW);
+  MultiFab S0(grids, dmap, NUM_STATE, NUM_GROW);
   // See init function for details about the FillPatch function
-  FillPatch(*this, S0, NUM_GROW, time, Phi_Type, 0, NUM_STATE+2);
+  FillPatch(*this, S0, NUM_GROW, time, Phi_Type, 0, NUM_STATE);
   
   // Set up a multifab that will contain the electromagnetic fields
   //MultiFab S_EM[2];
@@ -750,7 +750,7 @@ CAMReXmp::advance (Real time,
   fluidSolverWENO(S2, S1, fluxes, dx, dt);
   MaxwellSolverDivFreeWENO(S_EM2,S_EM1,fluxesEM,S2,S1,fluxes,dx,dt);
   */
-  MultiFab SNew(grids, dmap, NUM_STATE+2, NUM_GROW);  
+  MultiFab SNew(grids, dmap, NUM_STATE, NUM_GROW);  
   Array<MultiFab,AMREX_SPACEDIM> S_EMNew;
   S_EMNew[0].define(convert(grids,IntVect{AMREX_D_DECL(1,0,0)}), dmap, 6, NUM_GROW);
 #if (AMREX_SPACEDIM >= 2)
@@ -969,7 +969,7 @@ CAMReXmp::advance (Real time,
       }      
     }
   */
-  
+  /*  
   // Loop over all the patches at this level
   for (MFIter mfi(SNew, true); mfi.isValid(); ++mfi)
     {
@@ -1030,7 +1030,7 @@ CAMReXmp::advance (Real time,
 	    }      
 	}
     }
-  
+  */  
   /*
   // Density errors for convergence problem
   for (MFIter mfi(S_EMNew[0], true); mfi.isValid(); ++mfi)
@@ -1221,7 +1221,7 @@ CAMReXmp::advance (Real time,
   // Sixth entry: Number of ghost cells to be included in the copy (zero in this case, since only real
   //              data is needed for S_new)
   
-  MultiFab::Copy(S_new, SNew, 0, 0, NUM_STATE+2, 0);
+  MultiFab::Copy(S_new, SNew, 0, 0, NUM_STATE, 0);
   MultiFab::Copy(S_EM_X_new, S_EMNew[0], 0, 0, 6, 0);
 #if (AMREX_SPACEDIM >= 2) 
   MultiFab::Copy(S_EM_Y_new, S_EMNew[1], 0, 0, 6, 0);
@@ -1824,7 +1824,7 @@ CAMReXmp::read_params ()
   }
   else if (sourceMethod=="IM"){
     amrex::Print() << "IM source treatment" << std::endl;
-    sourceUpdateWithChosenMethod = &CAMReXmp::sourceUpdateIM;
+    sourceUpdateWithChosenMethod = &CAMReXmp::sourceUpdateIMMidpoint;
   }
   else if (sourceMethod=="ANEX"){
     amrex::Print() << "ANEX source treatment" << std::endl;

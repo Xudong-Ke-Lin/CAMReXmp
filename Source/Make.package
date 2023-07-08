@@ -1,6 +1,6 @@
 CEXE_sources += CAMReXmp.cpp LevelBldAdv.cpp bc_nullfill.cpp initData.cpp utils.cpp main.cpp
 CEXE_sources += exactRiemannSolverUtils.cpp
-CEXE_sources += StrangFunctions.cpp RKFunctions.cpp fluidFunctions.cpp MaxwellFunctions.cpp sourceFunctions.cpp sourceFunctionsStiff.cpp
+CEXE_sources += StrangFunctions.cpp RKFunctions.cpp fluidFunctions.cpp MaxwellFunctions.cpp sourceFunctions.cpp sourceFunctionsStiff.cpp plasmaFunctions.cpp
 CEXE_headers += CAMReXmp.H utils.H
 
 FEXE_headers += Adv_F.H

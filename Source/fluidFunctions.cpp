@@ -595,11 +595,11 @@ void CAMReXmp::fluidSolverTVD(MultiFab& S_dest, MultiFab& S_source, MultiFab (&f
 	  for(int i = lo.x; i <= hi.x+iOffset; i++)
 	  {
 	    Vector<Real> flux_i = TVD_flux(arr, slopes, i, j, k, iOffset, jOffset, kOffset,
-					   0, NUM_STATE_FLUID/2, dx[d], dt, d,
-					   HLLC);
+					   0, NUM_STATE_FLUID/2, d*NUM_STATE_FLUID,
+					   dx[d], dt, d, HLLC);
 	    Vector<Real> flux_e = TVD_flux(arr, slopes, i, j, k, iOffset, jOffset, kOffset,
-					   NUM_STATE_FLUID/2, NUM_STATE_FLUID/2, dx[d], dt, d,
-					   HLLC);
+					   NUM_STATE_FLUID/2, NUM_STATE_FLUID/2, d*NUM_STATE_FLUID+NUM_STATE_FLUID/2,
+					   dx[d], dt, d, HLLC);
 
 	    for(int n=0; n<NUM_STATE_FLUID/2; n++)
 	      {		

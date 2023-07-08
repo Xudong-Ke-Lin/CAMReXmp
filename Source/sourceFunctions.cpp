@@ -13,7 +13,7 @@ using Eigen::MatrixXd;
 using Eigen::VectorXd;
 
 // 3x3 identity matrix
-MatrixXd identity = MatrixXd::Identity(3, 3);
+MatrixXd identity = MatrixXd::Identity(9, 9);
 
 #include "sourceFunctionsStiff.H"
 
@@ -182,7 +182,7 @@ void CAMReXmp::sourceUpdateIM(Array4<Real>& arr, int i, int j, int k, Real dt)
   Real v_z_e = momZ_e/rho_e;
   Real p_e = get_pressure({rho_e,momX_e,momY_e,momZ_e,E_e});
 
-  /*// matrix for momentum and electric field source terms update
+  // matrix for momentum and electric field source terms update
   MatrixXd matrix = MatrixXd::Constant(9,9,0.0);
   matrix(0,1) = r_i*B_z/l_r, matrix(0,2) = -r_i*B_y/l_r, matrix(0,6) = r_i*rho_i/l_r;
   matrix(1,0) = -r_i*B_z/l_r, matrix(1,2) = r_i*B_x/l_r, matrix(1,7) = r_i*rho_i/l_r;
@@ -201,11 +201,10 @@ void CAMReXmp::sourceUpdateIM(Array4<Real>& arr, int i, int j, int k, Real dt)
   Eigen::FullPivLU<MatrixXd> lu_matrix(finalMatrix);
   // calculate inverse
   MatrixXd inverse_matrix = lu_matrix.inverse();
-  VectorXd source_var(15);
-  source_var << momX_i,momY_i,momZ_i,momX_e,momY_e,momZ_e,E_x,E_y,E_z,rho_i,rho_e,B_x,B_y,B_z,dt;
-  VectorXd source_var_new = inverse_matrix*source_var;
-  */
-
+  VectorXd source_var(9);
+  source_var << momX_i,momY_i,momZ_i,momX_e,momY_e,momZ_e,E_x,E_y,E_z;//,rho_i,rho_e,B_x,B_y,B_z,dt;
+  VectorXd source_var_new = inverse_matrix*source_var;  
+  /*
   // matrix for momentum source terms update
   MatrixXd matrix_i = MatrixXd::Constant(3,3,0.0);
   MatrixXd matrix_e = MatrixXd::Constant(3,3,0.0);
@@ -234,18 +233,18 @@ void CAMReXmp::sourceUpdateIM(Array4<Real>& arr, int i, int j, int k, Real dt)
   source_var_e << momX_e-m*dt*E_x*rho_e/l_r,momY_e-m*dt*E_y*rho_e/l_r,momZ_e-m*dt*E_z*rho_e/l_r;
   VectorXd source_var_new_i = inverse_matrix_i*source_var_i;
   VectorXd source_var_new_e = inverse_matrix_e*source_var_e;
-
+  */
   arr(i,j,k,0) = rho_i;
-  arr(i,j,k,1) = source_var_new_i(0);
-  arr(i,j,k,2) = source_var_new_i(1);
-  arr(i,j,k,3) = source_var_new_i(2);
+  arr(i,j,k,1) = source_var_new(0);
+  arr(i,j,k,2) = source_var_new(1);
+  arr(i,j,k,3) = source_var_new(2);
 
   arr(i,j,k,RHO_E) = rho_e;
-  arr(i,j,k,MOMX_E) = source_var_new_e(0);
-  arr(i,j,k,MOMY_E) = source_var_new_e(1);
-  arr(i,j,k,MOMZ_E) = source_var_new_e(2);
+  arr(i,j,k,MOMX_E) = source_var_new(3);
+  arr(i,j,k,MOMY_E) = source_var_new(4);
+  arr(i,j,k,MOMZ_E) = source_var_new(5);
 
-  /*arr(i,j,k,BX) = B_x;
+  arr(i,j,k,BX) = B_x;
   arr(i,j,k,BY) = B_y;
   arr(i,j,k,BZ) = B_z;
   arr(i,j,k,EX) = source_var_new(6);
@@ -254,7 +253,108 @@ void CAMReXmp::sourceUpdateIM(Array4<Real>& arr, int i, int j, int k, Real dt)
   
   arr(i,j,k,ENER_I) = E_i + dt*r_i/l_r*(arr(i,j,k,EX)*arr(i,j,k,1) + arr(i,j,k,EY)*arr(i,j,k,2) + arr(i,j,k,EZ)*arr(i,j,k,3));
   arr(i,j,k,ENER_E) = E_e + dt*r_e/l_r*(arr(i,j,k,EX)*arr(i,j,k,MOMX_E) + arr(i,j,k,EY)*arr(i,j,k,MOMY_E) + arr(i,j,k,EZ)*arr(i,j,k,MOMZ_E));
-  */
+  
+}
+void CAMReXmp::sourceUpdateIMMidpoint(Array4<Real>& arr, int i, int j, int k, Real dt)
+{
+  
+  // define conserved variables                     
+  Real rho_i = arr(i,j,k,0);
+  Real momX_i = arr(i,j,k,1);
+  Real momY_i = arr(i,j,k,2);
+  Real momZ_i = arr(i,j,k,MOMZ_I);
+  Real E_i = arr(i,j,k,ENER_I);
+  Real rho_e = arr(i,j,k,RHO_E);
+  Real momX_e = arr(i,j,k,MOMX_E);
+  Real momY_e = arr(i,j,k,MOMY_E);
+  Real momZ_e = arr(i,j,k,MOMZ_E);
+  Real E_e = arr(i,j,k,ENER_E);
+  Real B_x = arr(i,j,k,BX);
+  Real B_y = arr(i,j,k,BY);
+  Real B_z = arr(i,j,k,BZ);
+  Real E_x = arr(i,j,k,EX);
+  Real E_y = arr(i,j,k,EY);
+  Real E_z = arr(i,j,k,EZ);
+#if (AMREX_SPACEDIM >= 2)
+  Real psi_b = arr(i,j,k,DIVB);
+  Real psi_e = arr(i,j,k,DIVE);
+#endif
+  
+  // define primitive variables
+  Real v_x_i = momX_i/rho_i;
+  Real v_y_i = momY_i/rho_i;
+  Real v_z_i = momZ_i/rho_i;
+  Real p_i = get_pressure({rho_i,momX_i,momY_i,momZ_i,E_i});
+  Real v_x_e = momX_e/rho_e;
+  Real v_y_e = momY_e/rho_e;
+  Real v_z_e = momZ_e/rho_e;
+  Real p_e = get_pressure({rho_e,momX_e,momY_e,momZ_e,E_e});
+
+  // matrix for momentum and electric field source terms update
+  MatrixXd matrix = MatrixXd::Constant(9,9,0.0);
+  matrix(0,1) = r_i*B_z/l_r, matrix(0,2) = -r_i*B_y/l_r, matrix(0,6) = r_i*rho_i/l_r;
+  matrix(1,0) = -r_i*B_z/l_r, matrix(1,2) = r_i*B_x/l_r, matrix(1,7) = r_i*rho_i/l_r;
+  matrix(2,0) = r_i*B_y/l_r, matrix(2,1) = -r_i*B_x/l_r, matrix(2,8) = r_i*rho_i/l_r;
+  matrix(3,4) = r_e*B_z/l_r, matrix(3,5) = -r_e*B_y/l_r, matrix(3,6) = r_e*rho_e/l_r;
+  matrix(4,3) = -r_e*B_z/l_r, matrix(4,5) = r_e*B_x/l_r, matrix(4,7) = r_e*rho_e/l_r;
+  matrix(5,3) = r_e*B_y/l_r, matrix(5,4) = -r_e*B_x/l_r, matrix(5,8) = r_e*rho_e/l_r;
+  matrix(6,0) = -r_i/(lambda_d*lambda_d*l_r), matrix(6,3) = -r_e/(lambda_d*lambda_d*l_r);
+  matrix(7,1) = -r_i/(lambda_d*lambda_d*l_r), matrix(7,4) = -r_e/(lambda_d*lambda_d*l_r);
+  matrix(8,2) = -r_i/(lambda_d*lambda_d*l_r), matrix(8,5) = -r_e/(lambda_d*lambda_d*l_r);
+
+  // calculate the matrix used in to invert
+  MatrixXd finalMatrix = identity - 0.5*dt*matrix;
+
+  // LU decomposition, useful to calculate the inverse
+  Eigen::FullPivLU<MatrixXd> lu_matrix(finalMatrix);
+  // calculate inverse
+  MatrixXd inverse_matrix = lu_matrix.inverse();
+  VectorXd source_var(9);
+  source_var << momX_i,momY_i,momZ_i,momX_e,momY_e,momZ_e,E_x,E_y,E_z;//,rho_i,rho_e,B_x,B_y,B_z,dt;
+  VectorXd source_var_new = inverse_matrix*source_var;  
+
+  // flux function
+  Vector<Real> functionInt(NUM_STATE,0.0);
+  functionInt[0] = rho_i;
+  functionInt[1] = source_var_new(0);
+  functionInt[2] = source_var_new(1);
+  functionInt[3] = source_var_new(2);
+
+  functionInt[RHO_E] = rho_e;
+  functionInt[MOMX_E] = source_var_new(3);
+  functionInt[MOMY_E] = source_var_new(4);
+  functionInt[MOMZ_E] = source_var_new(5);
+
+  functionInt[BX] = B_x;
+  functionInt[BY] = B_y;
+  functionInt[BZ] = B_z;
+  functionInt[EX] = source_var_new(6);
+  functionInt[EY] = source_var_new(7);
+  functionInt[EZ] = source_var_new(8);
+  
+  functionInt[ENER_I] = E_i + 0.5*dt*r_i/l_r*(functionInt[EX]*functionInt[1] + functionInt[EY]*functionInt[2] + functionInt[EZ]*functionInt[3]);
+  functionInt[ENER_E] = E_e + 0.5*dt*r_e/l_r*(functionInt[EX]*functionInt[MOMX_E] + functionInt[EY]*functionInt[MOMY_E] + functionInt[EZ]*functionInt[MOMZ_E]);
+#if (AMREX_SPACEDIM >= 2)
+  functionInt[DIVB] = psi_b;
+  functionInt[DIVE] = psi_e + ce*0.5*dt*1.0/(lambda_d*lambda_d*l_r)*(r_i*rho_i + r_e*rho_e);
+#endif
+  
+  for (int n=0; n<NUM_STATE; n++)
+    arr(i,j,k,n) = 2.0*functionInt[n]-arr(i,j,k,n);
+
+  // Resistivity
+  Real currentX = r_i*arr(i,j,k,1) + r_e*arr(i,j,k,MOMX_E);
+  Real currentY = r_i*arr(i,j,k,2) + r_e*arr(i,j,k,MOMY_E);
+  Real currentZ = r_i*arr(i,j,k,3) + r_e*arr(i,j,k,MOMZ_E);
+
+  arr(i,j,k,1) -= dt/l_r*eta*r_i*rho_i*currentX;
+  arr(i,j,k,2) -= dt/l_r*eta*r_i*rho_i*currentX;
+  arr(i,j,k,3) -= dt/l_r*eta*r_i*rho_i*currentX;
+  
+  arr(i,j,k,MOMX_E) -= dt/l_r*eta*r_e*rho_e*currentX;
+  arr(i,j,k,MOMY_E) -= dt/l_r*eta*r_e*rho_e*currentX;
+  arr(i,j,k,MOMZ_E) -= dt/l_r*eta*r_e*rho_e*currentX;
+  
 }
 void CAMReXmp::sourceUpdateANEX(Array4<Real>& arr, int i, int j, int k, Real dt)
 {
@@ -361,7 +461,7 @@ void CAMReXmp::sourceUpdateANEX(Array4<Real>& arr, int i, int j, int k, Real dt)
       //arr(i,j,k,EX) = E_x - dt*1.0/(lambda_d*lambda_d*l_r)*(r_i*rho_i*v_x_i + r_e*rho_e*v_x_e);
       //arr(i,j,k,EY) = E_y - dt*1.0/(lambda_d*lambda_d*l_r)*(r_i*rho_i*v_y_i + r_e*rho_e*v_y_e);
       //arr(i,j,k,EZ) = E_z - dt*1.0/(lambda_d*lambda_d*l_r)*(r_i*rho_i*v_z_i + r_e*rho_e*v_z_e);
-      
+
 
       /*
       arr(i,j,k,EX) -= dt*1.0/(lambda_d*lambda_d*l_r)*(r_i*rho_i*v_i_new[0] + r_e*rho_e*v_e_new[0]);

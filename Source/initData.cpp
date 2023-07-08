@@ -195,7 +195,7 @@ CAMReXmp::initData ()
       }
     }
   }
-  
+#if (AMREX_SPACEDIM >= 2)   
   // Set values for the y-components of the EM fields at the y-faces
   for (MFIter mfi(S_EM_Y); mfi.isValid(); ++mfi)
   {
@@ -324,7 +324,7 @@ CAMReXmp::initData ()
       }
     }
   }
-  
+#endif  
   // Set values for cell-centred fluid and EM fields
   for (MFIter mfi(S_new); mfi.isValid(); ++mfi)
   {
@@ -500,6 +500,8 @@ CAMReXmp::initData ()
 	    arr(i,j,k,EX) = 0.5*(arrEMX(i,j,k,EX_LOCAL)+arrEMX(i+1,j,k,EX_LOCAL));
 	    arr(i,j,k,EY) = 0.5*(arrEMY(i,j,k,EY_LOCAL)+arrEMY(i,j+1,k,EY_LOCAL));
 	    arr(i,j,k,EZ) = 0.0;
+	    arr(i,j,k,DIVB) = 0.0;	    
+	    arr(i,j,k,DIVE) = 0.0;
 
 	  } else if (test=="blast"){
 
