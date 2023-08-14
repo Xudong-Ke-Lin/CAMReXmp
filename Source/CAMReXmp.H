@@ -307,7 +307,7 @@ private:
                    amrex::Real, amrex::Real);
   void computeRhsZ(amrex::MultiFab&, amrex::MultiFab&, amrex::MultiFab&, amrex::Real, amrex::Real,
 		   amrex::Real, amrex::Real);
-
+  void Projection(MultiFab&, Array<MultiFab,AMREX_SPACEDIM>&, const Real*, Real);
 };    
 
 /**

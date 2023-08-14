@@ -26,7 +26,7 @@ Vector<BCRec> CAMReXmp::bc_EM;
 
 int  CAMReXmp::max_order = 2;
 int CAMReXmp::max_fmg_iter = 0;
-Real CAMReXmp::soln_tol = 1e-10;
+Real CAMReXmp::soln_tol = 1e-12;
 Real CAMReXmp::tau = 1.0;
 MultiFab CAMReXmp::acoef;
 std::array<MultiFab, BL_SPACEDIM> CAMReXmp::bcoeffs;
@@ -756,6 +756,7 @@ CAMReXmp::advance (Real time,
 #if (AMREX_SPACEDIM >= 2)
   S_EMNew[1].define(convert(grids,IntVect{AMREX_D_DECL(0,1,0)}), dmap, 6, NUM_GROW);
 #endif
+
   (this->*StrangWithChosenUpdateOrder)(SNew, S0, fluxes, S_EMNew, S_EM0, fluxesEM, dx, time, dt);
   //(this->*RKWithChosenUpdateOrder)(SNew, S0, fluxes, S_EMNew, S_EM0, fluxesEM, dx, time, dt);
   //SSPRK3(SNew, S0, fluxes, S_EMNew, S_EM0, fluxesEM, dx, dt);
@@ -969,7 +970,7 @@ CAMReXmp::advance (Real time,
       }      
     }
   */
-  /*  
+  /*
   // Loop over all the patches at this level
   for (MFIter mfi(SNew, true); mfi.isValid(); ++mfi)
     {
@@ -1030,7 +1031,7 @@ CAMReXmp::advance (Real time,
 	    }      
 	}
     }
-  */  
+  */
   /*
   // Density errors for convergence problem
   for (MFIter mfi(S_EMNew[0], true); mfi.isValid(); ++mfi)
@@ -1240,6 +1241,7 @@ CAMReXmp::advance (Real time,
   // Second: Direction, to ensure the correct vertices are being corrected
   // Third: Source component - the first entry of the flux MultiFab that is to be copied (it is possible that
   //        some variables will not need refluxing, or will be computed elsewhere (not in this example though)
+
   // Fourth: Destinatinon component - the first entry of the flux register that this call to FineAdd sends to
   // Fifth: NUM_STATE - number of states being added to the flux register
   // Sixth: Multiplier - in general, the least accurate (coarsest) flux is subtracted (-1) and the most
