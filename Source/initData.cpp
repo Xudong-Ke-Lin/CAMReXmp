@@ -25,12 +25,14 @@ CAMReXmp::initData ()
   // Set up a multifab that will contain the electromagnetic fields
   MultiFab& S_EM_X = get_new_data(EM_X_Type);
   MultiFab& S_EM_Y = get_new_data(EM_Y_Type);
+  MultiFab& S_EM_XY = get_new_data(EM_XY_Type);
 
   BoxArray ba = S_new.boxArray();
   const DistributionMapping& dm = S_new.DistributionMap();
   
   S_EM_X.define(convert(ba,IntVect{AMREX_D_DECL(1,0,0)}), dm, 6, 2);
   S_EM_Y.define(convert(ba,IntVect{AMREX_D_DECL(0,1,0)}), dm, 6, 2);
+  S_EM_XY.define(convert(ba,IntVect{AMREX_D_DECL(1,1,0)}), dm, 6, 2);
 
   // amrex::Print works like std::cout, but in parallel only prints from the root processor
   if (verbose) {
@@ -58,6 +60,8 @@ CAMReXmp::initData ()
   pp.query("c",c);
   pp.query("lambda_d",lambda_d);
   r_e = -r_i*m;
+  
+  implicitMaxwellSolverSetUp();
   /*
   if (MaxwellMethod=="IM"){  
     // set up boundary conditions and coefficients for the implicit solver
@@ -103,7 +107,7 @@ CAMReXmp::initData ()
 	      }*/
 
 	    arr(i,j,k,BX_LOCAL) = B_x;	    
-	    arr(i,j,k,BY_LOCAL) = 0.0;
+	    arr(i,j,k,BY_LOCAL) = B_y;
 	    arr(i,j,k,BZ_LOCAL) = 0.0;
 	    arr(i,j,k,EX_LOCAL) = 0.0;
 	    arr(i,j,k,EY_LOCAL) = 0.0;
@@ -119,7 +123,7 @@ CAMReXmp::initData ()
 	    Vector<Real> vcrossB = cross_product({v_x,v_y,v_z},{B_x,B_y,B_z});	    
 	    
 	    arr(i,j,k,BX_LOCAL) = B_x;
-	    arr(i,j,k,BY_LOCAL) = 0.0;
+	    arr(i,j,k,BY_LOCAL) = B_y;
 	    arr(i,j,k,BZ_LOCAL) = 0.0;
 	    arr(i,j,k,EX_LOCAL) = -vcrossB[0];
 	    arr(i,j,k,EY_LOCAL) = 0.0;
@@ -231,7 +235,7 @@ CAMReXmp::initData ()
   	      B_x = B_y_R, B_y = B_x_R, B_z = B_z_R;
 	      }*/
 	    
-  	    arr(i,j,k,BX_LOCAL) = 0.0;
+  	    arr(i,j,k,BX_LOCAL) = B_x;
   	    arr(i,j,k,BY_LOCAL) = B_y;
   	    arr(i,j,k,BZ_LOCAL) = 0.0;
   	    arr(i,j,k,EX_LOCAL) = 0.0;
@@ -247,7 +251,7 @@ CAMReXmp::initData ()
   	    B_z = 0.0;
   	    Vector<Real> vcrossB = cross_product({v_x,v_y,v_z},{B_x,B_y,B_z});	    
 
-  	    arr(i,j,k,BX_LOCAL) = 0.0;
+  	    arr(i,j,k,BX_LOCAL) = B_x;
   	    arr(i,j,k,BY_LOCAL) = B_y;
   	    arr(i,j,k,BZ_LOCAL) = 0.0;
   	    arr(i,j,k,EX_LOCAL) = 0.0;
@@ -321,6 +325,133 @@ CAMReXmp::initData ()
 
 	  } 
   	}
+      }
+    }
+  }  
+  for (MFIter mfi(S_EM_XY); mfi.isValid(); ++mfi)
+  {
+    Box bx = mfi.tilebox();
+    const Dim3 lo = lbound(bx);
+    const Dim3 hi = ubound(bx);
+
+    const auto& arr = S_EM_XY.array(mfi);
+    
+    for(int k = lo.z; k <= hi.z; k++)
+    {
+      const Real z = probLoZ + (double(k)+0.5) * dZ;
+      for(int j = lo.y; j <= hi.y; j++)
+      {
+	const Real y = probLoY + (double(j)) * dY;
+	for(int i = lo.x; i <= hi.x; i++)
+	{
+	  // only x-face has no 0.5 shift
+	  const Real x = probLoX + (double(i)) * dX;
+	
+	  if (test=="BrioWu"){
+	    Real B_x_L = 0.75, B_y_L = 1.0, B_z_L = 0.0;
+	    Real B_x_R = 0.75, B_y_R = -1.0, B_z_R = 0.0;
+	    
+	    if (x<=(geom.ProbLo()[0]+geom.ProbHi()[0])/2.0){
+	      B_x = B_x_L, B_y = B_y_L, B_z = B_z_L;
+	    } else{
+	      B_x = B_x_R, B_y = B_y_R, B_z = B_z_R;
+	    }
+	    /*if (y<=(geom.ProbLo()[1]+geom.ProbHi()[1])/2.0){
+	      B_x = B_y_L, B_y = B_x_L, B_z = B_z_L;
+	    } else{
+	      B_x = B_y_R, B_y = B_x_R, B_z = B_z_R;
+	      }*/
+
+	    arr(i,j,k,BX_LOCAL) = B_x;	    
+	    arr(i,j,k,BY_LOCAL) = B_y;
+	    arr(i,j,k,BZ_LOCAL) = B_z;
+	    arr(i,j,k,EX_LOCAL) = 0.0;
+	    arr(i,j,k,EY_LOCAL) = 0.0;
+	    arr(i,j,k,EZ_LOCAL) = 0.0;	    
+	    
+	  } else if (test=="OT" || test=="OTideal"){
+	    v_x = -std::sin(y);
+	    v_y = std::sin(x);
+	    v_z = 0.0;	    
+	    B_x = -std::sin(y);
+	    B_y = std::sin(2.0*x);
+	    B_z = 0.0;
+	    Vector<Real> vcrossB = cross_product({v_x,v_y,v_z},{B_x,B_y,B_z});	    
+	    
+	    arr(i,j,k,BX_LOCAL) = B_x;
+	    arr(i,j,k,BY_LOCAL) = 0.0;
+	    arr(i,j,k,BZ_LOCAL) = B_z;
+	    arr(i,j,k,EX_LOCAL) = -vcrossB[0];
+	    arr(i,j,k,EY_LOCAL) = 0.0;
+	    arr(i,j,k,EZ_LOCAL) = -vcrossB[2];
+
+	  } else if (test=="Harris_sheet"){
+	    Real Lx = geom.ProbHi()[0]-geom.ProbLo()[0], Ly = geom.ProbHi()[1]-geom.ProbLo()[1];
+	    Real lambda = 0.5, n0 = 1.0, nInf = 0.2, B0 = 1.0, B1 = 0.1;
+	    B_x = B0*std::tanh(y/lambda) - B1*(M_PI/Ly)*std::cos(2*M_PI*x/Lx)*std::sin(M_PI*y/Ly);
+
+	    arr(i,j,k,BX_LOCAL) = B_x;
+	    arr(i,j,k,BY_LOCAL) = 0.0;
+	    arr(i,j,k,BZ_LOCAL) = 0.0;
+	    arr(i,j,k,EX_LOCAL) = 0.0;
+	    arr(i,j,k,EY_LOCAL) = 0.0;
+	    arr(i,j,k,EZ_LOCAL) = 0.0;
+	    
+	  } else if (test=="blast"){
+	    Real B0 = 100.0/std::sqrt(4.0*M_PI);
+	    
+	    arr(i,j,k,BX_LOCAL) = B0;
+	    arr(i,j,k,BY_LOCAL) = 0.0;
+	    arr(i,j,k,BZ_LOCAL) = 0.0;
+	    arr(i,j,k,EX_LOCAL) = 0.0;
+	    arr(i,j,k,EY_LOCAL) = 0.0;
+	    arr(i,j,k,EZ_LOCAL) = 0.0;
+	    
+	  } else if (test=="convergence"){
+
+	    arr(i,j,k,BX_LOCAL) = 0.0;
+	    arr(i,j,k,BY_LOCAL) = 0.0;
+	    arr(i,j,k,BZ_LOCAL) = 0.0;
+	    arr(i,j,k,EX_LOCAL) = 0.0;
+	    arr(i,j,k,EY_LOCAL) = 0.0;
+	    arr(i,j,k,EZ_LOCAL) = -std::sin(2*M_PI*x);
+
+	  } else if (test=="convergence2D"){
+
+	    arr(i,j,k,BX_LOCAL) = 0.0;
+	    arr(i,j,k,BY_LOCAL) = 0.0;
+	    arr(i,j,k,BZ_LOCAL) = 0.0;
+	    arr(i,j,k,EX_LOCAL) = -c*std::cos(2.0*M_PI*(x+y))/std::sqrt(2.0);
+	    arr(i,j,k,EY_LOCAL) = 0.0;
+	    arr(i,j,k,EZ_LOCAL) = 0.0;
+
+	  } else if (test=="EMwave"){
+
+	    arr(i,j,k,BX_LOCAL) = 0.0;
+	    arr(i,j,k,BY_LOCAL) = 0.0;
+	    arr(i,j,k,BZ_LOCAL) = 0.0;
+	    arr(i,j,k,EX_LOCAL) = -c*std::cos(2.0*M_PI*(x+y))/std::sqrt(2.0);
+	    arr(i,j,k,EY_LOCAL) = 0.0;
+	    arr(i,j,k,EZ_LOCAL) = 0.0;
+
+	  } else if (test=="gaussianEM"){
+
+	    Real lambda = 1.5, chi = 1.5, a = -2.5, b = -2.5;
+	    Real COS = std::cos(2.0*M_PI*(x+y)/lambda);
+	    Real SIN = std::sin(2.0*M_PI*(x+y)/lambda);
+	    Real FACTOR = ((x-a)*(x-a)+(y-b)*(y-b))/(chi*chi);
+	    Real EXP = std::exp(-FACTOR);
+	    Real epsilon = 5.0 - 4.0*std::tanh((std::sqrt(x*x+y*y)-0.75)/0.08);
+
+	    arr(i,j,k,BX_LOCAL) = 0.0;
+	    arr(i,j,k,BY_LOCAL) = 0.0;
+	    arr(i,j,k,BZ_LOCAL) = 0.0;
+	    arr(i,j,k,EX_LOCAL) = -COS*EXP + lambda*SIN*EXP*(y-b)/(chi*chi*M_PI);
+	    arr(i,j,k,EX_LOCAL) *= c/(epsilon*std::sqrt(2.0));
+	    arr(i,j,k,EY_LOCAL) = 0.0;
+	    arr(i,j,k,EZ_LOCAL) = 0.0;
+	  } 
+	}
       }
     }
   }

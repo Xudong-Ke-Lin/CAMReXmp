@@ -23,7 +23,7 @@
 #include <AMReX_Utility.H>
 #include <AMReX_MLLinOp.H>
 
-enum StateType { Phi_Type = 0, EM_X_Type = 1, EM_Y_Type = 2, 
+enum StateType { Phi_Type = 0, EM_X_Type = 1, EM_Y_Type = 2, EM_XY_Type = 3,
 		 NUM_STATE_TYPE };
 enum StateVariable {
 		    RHO_I = 0, MOMX_I = 1, MOMY_I = 2, MOMZ_I = 3, ENER_I = 4,
@@ -308,6 +308,7 @@ private:
   void computeRhsZ(amrex::MultiFab&, amrex::MultiFab&, amrex::MultiFab&, amrex::Real, amrex::Real,
 		   amrex::Real, amrex::Real);
   void Projection(MultiFab&, Array<MultiFab,AMREX_SPACEDIM>&, const Real*, Real);
+  void implicitYeeMaxwellSolver(Array<MultiFab,AMREX_SPACEDIM>&, Array<MultiFab,AMREX_SPACEDIM>&, MultiFab&, MultiFab&, const Real*, Real, Real);
 };    
 
 /**

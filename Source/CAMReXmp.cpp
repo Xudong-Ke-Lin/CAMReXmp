@@ -166,12 +166,16 @@ CAMReXmp::variableSetUp ()
   // can use .ixType() to check the type, xface will give (N,C) -> Nodal in x and center in y
   IndexType xface(IntVect{AMREX_D_DECL(1,0,0)});
   IndexType yface(IntVect{AMREX_D_DECL(0,1,0)});
+  IndexType edge(IntVect{AMREX_D_DECL(1,1,0)});
   desc_lst.addDescriptor(EM_X_Type,xface,
 			 StateDescriptor::Point,storedGhostZones,6,
 			 &face_linear_interp);
   desc_lst.addDescriptor(EM_Y_Type,yface,
 			 StateDescriptor::Point,storedGhostZones,6,
 			 &face_linear_interp);
+  desc_lst.addDescriptor(EM_XY_Type,edge,
+			 StateDescriptor::Point,storedGhostZones,6,
+			 &node_bilinear_interp);
   
   /*//Set up boundary conditions, all boundaries can be set
   //independently, including for individual variables, but lo (left) and hi (right) are useful ways to
@@ -477,9 +481,13 @@ CAMReXmp::variableSetUp ()
 			StateDescriptor::BndryFunc(nullfill));
 
   // face-cenctred primary variables in 2D
-  desc_lst.setComponent(EM_X_Type, BX_LOCAL, "magxFace", bc[BX],
-                        StateDescriptor::BndryFunc(nullfill));
-  desc_lst.setComponent(EM_Y_Type, BY_LOCAL, "magyFace", bc[BY],
+  //desc_lst.setComponent(EM_X_Type, BX_LOCAL, "magxFace", bc[BX],
+  //                      StateDescriptor::BndryFunc(nullfill));
+  desc_lst.setComponent(EM_Y_Type, BX_LOCAL, "magxFace", bc[BX],
+			StateDescriptor::BndryFunc(nullfill));
+  //desc_lst.setComponent(EM_Y_Type, BY_LOCAL, "magyFace", bc[BY],
+  //                      StateDescriptor::BndryFunc(nullfill));
+  desc_lst.setComponent(EM_X_Type, BY_LOCAL, "magyFace", bc[BY],
                         StateDescriptor::BndryFunc(nullfill));
   desc_lst.setComponent(EM_X_Type, EX_LOCAL, "elecxFace", bc[EX],
                         StateDescriptor::BndryFunc(nullfill));
@@ -487,11 +495,15 @@ CAMReXmp::variableSetUp ()
                         StateDescriptor::BndryFunc(nullfill));
   // face-centred moments of the primary variables in 2D
   // used for the divergence-free (second or higher order) reconstruction
-  desc_lst.setComponent(EM_X_Type, BY_LOCAL, "magyFaceX", bc[BY],
+  //desc_lst.setComponent(EM_X_Type, BY_LOCAL, "magyFaceX", bc[BY],
+  //                      StateDescriptor::BndryFunc(nullfill));
+  desc_lst.setComponent(EM_Y_Type, BY_LOCAL, "magyFaceY", bc[BY],
                         StateDescriptor::BndryFunc(nullfill));
   desc_lst.setComponent(EM_X_Type, BZ_LOCAL, "magzFaceX", bc[BZ],
                         StateDescriptor::BndryFunc(nullfill));
-  desc_lst.setComponent(EM_Y_Type, BX_LOCAL, "magxFaceY", bc[BX],
+  //desc_lst.setComponent(EM_Y_Type, BX_LOCAL, "magxFaceY", bc[BX],
+  //                      StateDescriptor::BndryFunc(nullfill));
+  desc_lst.setComponent(EM_X_Type, BX_LOCAL, "magxFaceX", bc[BX],
                         StateDescriptor::BndryFunc(nullfill));
   desc_lst.setComponent(EM_Y_Type, BZ_LOCAL, "magzFaceY", bc[BZ],
                         StateDescriptor::BndryFunc(nullfill));
@@ -503,7 +515,20 @@ CAMReXmp::variableSetUp ()
                         StateDescriptor::BndryFunc(nullfill));
   desc_lst.setComponent(EM_Y_Type, EZ_LOCAL, "eleczFaceY", bc[EZ],
                         StateDescriptor::BndryFunc(nullfill));
-  
+
+  desc_lst.setComponent(EM_XY_Type, BX_LOCAL, "magxEdge", bc[BX],
+                        StateDescriptor::BndryFunc(nullfill));
+  desc_lst.setComponent(EM_XY_Type, BY_LOCAL, "magyEdge", bc[BY],
+                        StateDescriptor::BndryFunc(nullfill));
+  desc_lst.setComponent(EM_XY_Type, BZ_LOCAL, "magzEdge", bc[BZ],
+                        StateDescriptor::BndryFunc(nullfill));
+  desc_lst.setComponent(EM_XY_Type, EX_LOCAL, "elecxEdge", bc[EX],
+                        StateDescriptor::BndryFunc(nullfill));
+  desc_lst.setComponent(EM_XY_Type, EY_LOCAL, "elecyEdge", bc[EY],
+                        StateDescriptor::BndryFunc(nullfill));
+  desc_lst.setComponent(EM_XY_Type, EZ_LOCAL, "eleczEdge", bc[EZ],
+                        StateDescriptor::BndryFunc(nullfill));
+
 }
 
 //

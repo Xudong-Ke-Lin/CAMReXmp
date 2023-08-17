@@ -6673,3 +6673,477 @@ void CAMReXmp::Projection(MultiFab& S_dest, Array<MultiFab,AMREX_SPACEDIM>& S_EM
   // Fill non-periodic physical boundaries                      
   FillDomainBoundary(S_dest, geom, bc);  
 }
+void CAMReXmp::implicitYeeMaxwellSolver(Array<MultiFab,AMREX_SPACEDIM>& S_EM_dest, Array<MultiFab,AMREX_SPACEDIM>& S_EM_source, MultiFab& S_dest, MultiFab& S_source, const Real* dx, Real dt, Real time) 
+{
+  MultiFab& S_EM_XY_new = get_new_data(EM_XY_Type);
+  MultiFab S_EM_sourceEdge, S_EM_destEdge;
+  S_EM_sourceEdge.define(convert(grids,IntVect{AMREX_D_DECL(1,1,0)}), dmap, 6, NUM_GROW);
+  S_EM_destEdge.define(convert(grids,IntVect{AMREX_D_DECL(1,1,0)}), dmap, 6, NUM_GROW);
+  FillPatch(*this, S_EM_sourceEdge, NUM_GROW, time, EM_XY_Type, 0, 6);
+
+  LPInfo info;
+  info.setAgglomeration(1);
+  info.setConsolidation(1);
+  info.setMetricTerm(false);
+  
+  // Implicit solve using MLABecLaplacian class
+  MLABecLaplacian mlabecX({geom}, {grids}, {dmap}, info);
+  mlabecX.setMaxOrder(max_order);
+  MLABecLaplacian mlabecY({geom}, {grids}, {dmap}, info);
+  mlabecY.setMaxOrder(max_order);
+  MLABecLaplacian mlabecZ({geom}, {grids}, {dmap}, info);
+  mlabecZ.setMaxOrder(max_order);
+    
+  // Set boundary conditions for MLABecLaplacian  
+  mlabecX.setDomainBC(mlmg_lobc_X, mlmg_hibc_X);
+  mlabecY.setDomainBC(mlmg_lobc_Y, mlmg_hibc_Y);
+  mlabecZ.setDomainBC(mlmg_lobc_Z, mlmg_hibc_Z);
+  
+  /*MultiFab S_X(S_EM_dest[1], amrex::make_alias, BX_LOCAL, 1);
+    MultiFab S_Y(S_EM_dest[0], amrex::make_alias, BY_LOCAL, 1);*/
+  MultiFab S_Z(S_EM_destEdge, amrex::make_alias, BZ_LOCAL, 1);  
+  
+  MultiFab S_X(S_dest, amrex::make_alias, BX, 1);
+  MultiFab S_Y(S_dest, amrex::make_alias, BY, 1);
+  //MultiFab S_Z(S_dest, amrex::make_alias, BZ, 1);  
+
+  // Set boundary conditions for the current patch 
+  mlabecX.setLevelBC(0,&S_X);
+  mlabecY.setLevelBC(0,&S_Y);
+  mlabecZ.setLevelBC(0,&S_Z);  
+  
+  // Coefficients a, b, are constant multipliers within the heat
+  // equation, for all cases so far considered, these are a=1, b=dt
+  // (any other coefficients can be placed within matrix multipliers).
+  // Therefore we give these hard-coded values.
+  Real a = 1.0;
+  Real b = 0.5*0.5*c*c*dt*dt;
+  
+  mlabecX.setScalars(a, b);
+  mlabecX.setACoeffs(0, acoef);
+  mlabecY.setScalars(a, b);
+  mlabecY.setACoeffs(0, acoef);
+  mlabecZ.setScalars(a, b);
+  mlabecZ.setACoeffs(0, acoef);
+  
+  mlabecX.setBCoeffs(0,amrex::GetArrOfConstPtrs(bcoeffs));
+  mlabecY.setBCoeffs(0,amrex::GetArrOfConstPtrs(bcoeffs));
+  mlabecZ.setBCoeffs(0,amrex::GetArrOfConstPtrs(bcoeffs));  
+  
+  // Set the RHS to be multiplied appropriately (by rho * c_v, i.e.\ acoef)
+  // for(MFIter RHSmfi(Rhs,true); RHSmfi.isValid(); ++RHSmfi)
+  // {
+  //   const Box& box = RHSmfi.tilebox();
+  //   Rhs[RHSmfi].mult(acoef[RHSmfi],box,0,0,1);
+  // }
+  std::array<MultiFab,3> Rhs;
+  /*Rhs[0].define(convert(grids,IntVect{AMREX_D_DECL(0,1,0)}), dmap, 1, 0);
+    Rhs[1].define(convert(grids,IntVect{AMREX_D_DECL(1,0,0)}), dmap, 1, 0);*/
+  Rhs[2].define(convert(grids,IntVect{AMREX_D_DECL(1,1,0)}), dmap, 1, 0);
+  Rhs[0].define(grids, dmap, 1, 0);
+  Rhs[1].define(grids, dmap, 1, 0);
+  //Rhs[2].define(grids, dmap, 1, 0);
+
+  //MultiFab::Copy(Rhs[0], S_EM_source[1], 0, BX_LOCAL, 1, 0);
+  //MultiFab::Copy(Rhs[1], S_EM_source[0], 0, BY_LOCAL, 1, 0);
+  //MultiFab::Copy(Rhs[2], S_EM_sourceEdge, 0, BZ_LOCAL, 1, 0);
+  for(MFIter mfi(Rhs[0], true); mfi.isValid(); ++mfi)
+    {
+      const Box& bx = mfi.tilebox();
+      
+      const Dim3 lo = lbound(bx);
+      const Dim3 hi = ubound(bx);
+
+      // Indexable arrays for the data, and the directional flux
+      // Based on the vertex-centred definition of the flux array, the
+      // data array runs from e.g. [0,N] and the flux array from [0,N+1]
+      const auto& rhs = Rhs[0].array(mfi);
+      const auto& arr = S_source.array(mfi);
+      const auto& arrEM = S_EM_source[1].array(mfi);
+
+      for(int k = lo.z; k <= hi.z; k++)
+	{
+	  for(int j = lo.y; j <= hi.y; j++)
+	    {
+	      for(int i = lo.x; i <= hi.x; i++)
+		{
+		  /////////////////////////////////////////////////////////////////////////
+		  // 2D
+		  /*Real dyEz = (arr(i,j,k,EZ)-arr(i,j-1,k,EZ))/dx[1];
+		  Real dxdxBx = computeSecondDerivative(arrEM(i-1,j,k,BX_LOCAL), arrEM(i,j,k,BX_LOCAL), arrEM(i+1,j,k,BX_LOCAL), dx[0]);
+		  Real dydyBx = computeSecondDerivative(arrEM(i,j-1,k,BX_LOCAL), arrEM(i,j,k,BX_LOCAL), arrEM(i,j+1,k,BX_LOCAL), dx[1]);
+		  rhs(i,j,k) = arrEM(i,j,k,BX_LOCAL) + 0.25*c*c*dt*dt*(dxdxBx+dydyBx) - dt*dyEz;
+		  */
+		  Real dyEz = computeDerivative(arr(i,j-1,k,EZ), arr(i,j+1,k,EZ), dx[1]);
+		  Real dxdxBx = computeSecondDerivative(arr(i-1,j,k,BX), arr(i,j,k,BX), arr(i+1,j,k,BX), dx[0]);
+		  Real dydyBx = computeSecondDerivative(arr(i,j-1,k,BX), arr(i,j,k,BX), arr(i,j+1,k,BX), dx[0]);		  
+		  rhs(i,j,k) = arr(i,j,k,BX) + 0.25*c*c*dt*dt*(dxdxBx+dydyBx) - dt*dyEz;
+
+		  /////////////////////////////////////////////////////////////////////////
+		  if (rhs(i,j,k) != rhs(i,j,k))
+		    //std::cout << "NaN value at " << i << " " << j << std::endl;
+		    amrex::Abort("0");
+		  
+		}
+	    }
+	}
+    }
+  for(MFIter mfi(Rhs[1], true); mfi.isValid(); ++mfi)
+    {
+      const Box& bx = mfi.tilebox();
+
+      const Dim3 lo = lbound(bx);
+      const Dim3 hi = ubound(bx);
+	  
+      // Indexable arrays for the data, and the directional flux
+      // Based on the vertex-centred definition of the flux array, the
+      // data array runs from e.g. [0,N] and the flux array from [0,N+1]
+      const auto& rhs = Rhs[1].array(mfi);
+      const auto& arr = S_source.array(mfi);
+      const auto& arrEM = S_EM_source[0].array(mfi);
+      
+      for(int k = lo.z; k <= hi.z; k++)
+	{
+	  for(int j = lo.y; j <= hi.y; j++)
+	    {
+	      for(int i = lo.x; i <= hi.x; i++)
+		{
+		  /*Real dxEz = (arr(i,j,k,EZ)-arr(i-1,j,k,EZ))/dx[0];
+		  Real dxdxBy = computeSecondDerivative(arrEM(i-1,j,k,BY_LOCAL), arrEM(i,j,k,BY_LOCAL), arrEM(i+1,j,k,BY_LOCAL), dx[0]);
+		  Real dydyBy = computeSecondDerivative(arrEM(i,j-1,k,BY_LOCAL), arrEM(i,j,k,BY_LOCAL), arrEM(i,j+1,k,BY_LOCAL), dx[1]);
+		  rhs(i,j,k) = arrEM(i,j,k,BY_LOCAL) + 0.25*c*c*dt*dt*(dxdxBy+dydyBy) + dt*dxEz;
+		  */
+		  Real dxEz = computeDerivative(arr(i-1,j,k,EZ), arr(i+1,j,k,EZ), dx[0]);
+		  Real dxdxBy = computeSecondDerivative(arr(i-1,j,k,BY), arr(i,j,k,BY), arr(i+1,j,k,BY), dx[0]);
+		  Real dydyBy = computeSecondDerivative(arr(i,j-1,k,BY), arr(i,j,k,BY), arr(i,j+1,k,BY), dx[1]);		 
+		  rhs(i,j,k) = arr(i,j,k,BY) + 0.25*c*c*dt*dt*(dxdxBy+dydyBy) + dt*dxEz;
+		  if (rhs(i,j,k) != rhs(i,j,k))
+		    //std::cout << "NaN value at " << i << " " << j << std::endl;
+		    amrex::Abort("1");
+		  //if ((parent->levelSteps(0))>1)
+		    {
+		      //std::cout << rhs(i,j,k) << " ";
+		    }
+
+		}
+	    }
+	}
+    }
+  for(MFIter mfi(Rhs[2], true); mfi.isValid(); ++mfi)
+    {
+      const Box& bx = mfi.tilebox();
+      
+      const Dim3 lo = lbound(bx);
+      const Dim3 hi = ubound(bx);
+	  
+      // Indexable arrays for the data, and the directional flux
+      // Based on the vertex-centred definition of the flux array, the
+      // data array runs from e.g. [0,N] and the flux array from [0,N+1]
+      const auto& rhs = Rhs[2].array(mfi);
+      const auto& arr = S_source.array(mfi);
+      const auto& arrEMX = S_EM_source[0].array(mfi);
+      const auto& arrEMY = S_EM_source[1].array(mfi);
+      const auto& arrEMXY = S_EM_sourceEdge.array(mfi);
+      
+      for(int k = lo.z; k <= hi.z; k++)
+	{
+	  for(int j = lo.y; j <= hi.y; j++)
+	    {
+	      for(int i = lo.x; i <= hi.x; i++)
+		{
+		  Real dyEx = (arrEMX(i,j,k,EX_LOCAL)-arrEMX(i,j-1,k,EX_LOCAL))/dx[1];
+		  Real dxEy = (arrEMY(i,j,k,EY_LOCAL)-arrEMY(i-1,j,k,EY_LOCAL))/dx[0];
+		  Real dxdxBz = computeSecondDerivative(arrEMXY(i-1,j,k,BZ_LOCAL), arrEMXY(i,j,k,BZ_LOCAL), arrEMXY(i+1,j,k,BZ_LOCAL), dx[0]);
+		  Real dydyBz = computeSecondDerivative(arrEMXY(i,j-1,k,BZ_LOCAL), arrEMXY(i,j,k,BZ_LOCAL), arrEMXY(i,j+1,k,BZ_LOCAL), dx[1]);
+		  rhs(i,j,k) = arrEMXY(i,j,k,BZ_LOCAL) + 0.25*c*c*dt*dt*(dxdxBz+dydyBz) - dt*(dxEy-dyEx);
+
+		  /*Real dyEx = computeDerivative(arr(i,j-1,k,EX), arr(i,j+1,k,EX), dx[1]);
+		  Real dxEy = computeDerivative(arr(i-1,j,k,EY), arr(i+1,j,k,EY), dx[0]);
+		  Real dxdxBz = computeSecondDerivative(arr(i-1,j,k,BZ), arr(i,j,k,BZ), arr(i+1,j,k,BZ), dx[0]);
+		  Real dydyBz = computeSecondDerivative(arr(i,j-1,k,BZ), arr(i,j,k,BZ), arr(i,j+1,k,BZ), dx[1]);
+		  rhs(i,j,k) = arr(i,j,k,BZ) + 0.25*c*c*dt*dt*(dxdxBz+dydyBz) - dt*(dxEy-dyEx);
+		  */
+		  if (rhs(i,j,k) != rhs(i,j,k))
+		    //std::cout << "NaN value at " << i << " " << j << std::endl;
+		    amrex::Abort("2");
+
+		}
+	    }
+	}
+    }
+  
+  MLMG mlmgX(mlabecX);
+  MLMG mlmgY(mlabecY);
+  MLMG mlmgZ(mlabecZ);
+  
+  mlmgX.setMaxFmgIter(max_fmg_iter);
+  mlmgX.setVerbose(verbose);
+  mlmgY.setMaxFmgIter(max_fmg_iter);
+  mlmgY.setVerbose(verbose);
+  mlmgZ.setMaxFmgIter(max_fmg_iter);
+  mlmgZ.setVerbose(verbose);
+  
+  const Real S_X_abs = soln_tol*Rhs[0].norm0();
+  const Real S_Y_abs = soln_tol*Rhs[1].norm0();
+  const Real S_Z_abs = soln_tol*Rhs[2].norm0();  
+
+  // Solve to get S^(n+1)
+  mlmgX.solve({&S_X}, {&Rhs[0]}, soln_tol, S_X_abs);
+  mlmgY.solve({&S_Y}, {&Rhs[1]}, soln_tol, S_Y_abs);
+  mlmgZ.solve({&S_Z}, {&Rhs[2]}, soln_tol, S_Z_abs);
+  //MultiFab::Copy(S_EM_destEdge, Rhs[2], 0, BZ_LOCAL, 1, 0);
+
+  MultiFab& S_EM_X_int = get_new_data(EM_X_Type);
+  MultiFab& S_EM_Y_int = get_new_data(EM_Y_Type);
+  MultiFab& S_EM_XY_int = get_new_data(EM_XY_Type);
+  //MultiFab::Copy(S_EM_X_int, S_EM_dest[0], BY_LOCAL, BY_LOCAL, 1, 0);
+  //FillPatch(*this, S_EM_dest[0], NUM_GROW, time+dt, EM_X_Type, BY_LOCAL, 1);
+#if (AMREX_SPACEDIM >= 2)
+  //MultiFab::Copy(S_EM_Y_int, S_EM_dest[1], BX_LOCAL, BX_LOCAL, 1, 0);
+  //FillPatch(*this, S_EM_dest[1], NUM_GROW, time+dt, EM_Y_Type, BX_LOCAL, 1);
+  //MultiFab::Copy(S_EM_XY_int, S_EM_destEdge, BZ_LOCAL, BZ_LOCAL, 1, 0);
+  //FillPatch(*this, S_EM_destEdge, NUM_GROW, time+dt, EM_XY_Type, BZ_LOCAL, 1);
+#endif
+
+  // We need to compute boundary conditions again after each update
+  S_EM_dest[0].FillBoundary(geom.periodicity());
+  S_EM_dest[1].FillBoundary(geom.periodicity());
+  //S_EM_destEdge.FillBoundary(geom.periodicity());
+  // added by 2020D 
+  // Fill non-periodic physical boundaries                          
+  FillDomainBoundary(S_EM_dest[0], geom, bc_EM);    
+  FillDomainBoundary(S_EM_dest[1], geom, bc_EM);
+  //FillDomainBoundary(S_EM_destEdge, geom, bc_EM);
+
+  MultiFab::Copy(S_EM_X_int, S_EM_dest[0], 0, 0, 6, 0);
+  FillPatch(*this, S_EM_dest[0], NUM_GROW, time+dt, EM_X_Type, 0, 6);
+#if (AMREX_SPACEDIM >= 2)
+  MultiFab::Copy(S_EM_Y_int, S_EM_dest[1], 0, 0, 6, 0);
+  FillPatch(*this, S_EM_dest[1], NUM_GROW, time+dt, EM_Y_Type, 0, 6);
+  MultiFab::Copy(S_EM_XY_int, S_EM_destEdge, 0, 0, 6, 0);
+  //FillPatch(*this, S_EM_destEdge, NUM_GROW, time+dt, EM_XY_Type, 0, 6);
+  //MultiFab::Copy(S_EM_XY_int, S_EM_destEdge, 0, 0, 6, 0);
+#endif
+
+  // We need to compute boundary conditions again after each update
+  S_dest.FillBoundary(geom.periodicity());
+     
+  // added by 2020D 
+  // Fill non-periodic physical boundaries                      
+  FillDomainBoundary(S_dest, geom, bc);  
+
+  MultiFab::Copy(S_dest, S_source, EX, EX, 3, 0);
+  
+  for (int d = 0; d < amrex::SpaceDim ; d++)
+    {
+      const int iOffset = ( d == 0 ? 1 : 0);
+      const int jOffset = ( d == 1 ? 1 : 0);
+      const int kOffset = ( d == 2 ? 1 : 0);
+      
+      for (MFIter mfi(S_dest, true); mfi.isValid(); ++mfi)
+	{
+	  const Box& bx = mfi.tilebox();
+      
+	  const Dim3 lo = lbound(bx);
+	  const Dim3 hi = ubound(bx);
+
+	  const auto& arr = S_dest.array(mfi);
+	  const auto& arr_old = S_source.array(mfi);
+
+	  for(int k = lo.z; k <= hi.z; k++)
+	    {
+	      for(int j = lo.y; j <= hi.y; j++)
+		{
+		  for(int i = lo.x; i <= hi.x; i++)
+		    {
+		      Real dxBy = computeDerivative(arr(i-iOffset,j-jOffset,k-kOffset,BX+(1+d)%3),
+						    arr(i+iOffset,j+jOffset,k+kOffset,BX+(1+d)%3),dx[d]);
+		      Real dxBz = computeDerivative(arr(i-iOffset,j-jOffset,k-kOffset,BX+(2+d)%3),
+						    arr(i+iOffset,j+jOffset,k+kOffset,BX+(2+d)%3),dx[d]);
+		      // when using implicit source treatment do not include the current
+
+		      arr(i,j,k,EX+d) += 0.0;
+		      arr(i,j,k,EX+(1+d)%3) -= 0.5*dt*c*c*dxBz;
+		      arr(i,j,k,EX+(2+d)%3) += 0.5*dt*c*c*dxBy;
+
+		      Real dxByOld = computeDerivative(arr_old(i-iOffset,j-jOffset,k-kOffset,BX+(1+d)%3),
+						       arr_old(i+iOffset,j+jOffset,k+kOffset,BX+(1+d)%3),dx[d]);
+		      Real dxBzOld = computeDerivative(arr_old(i-iOffset,j-jOffset,k-kOffset,BX+(2+d)%3),
+						       arr_old(i+iOffset,j+jOffset,k+kOffset,BX+(2+d)%3),dx[d]);
+		      
+		      arr(i,j,k,EX+d) += 0.0;
+		      arr(i,j,k,EX+(1+d)%3) -= 0.5*dt*c*c*dxBzOld;
+		      arr(i,j,k,EX+(2+d)%3) += 0.5*dt*c*c*dxByOld;
+		    }
+		}
+	    }
+	}
+    }
+
+  //return;
+  
+  // Update electric field
+  for (MFIter mfi(S_EM_dest[0], true); mfi.isValid(); ++mfi)
+    {
+      const Box& bx = mfi.tilebox();
+      
+      const Dim3 lo = lbound(bx);
+      const Dim3 hi = ubound(bx);
+
+      const auto& arrX = S_EM_dest[0].array(mfi);
+      const auto& arrXY = S_EM_destEdge.array(mfi);
+      const auto& arrX_old = S_EM_source[0].array(mfi);
+      const auto& arrXY_old = S_EM_sourceEdge.array(mfi);
+
+      for(int k = lo.z; k <= hi.z; k++)
+	{
+	  for(int j = lo.y; j <= hi.y; j++)
+	    {
+	      for(int i = lo.x; i <= hi.x; i++)
+		{
+		  //Real dyBz = computeDerivative(arrXY(i,j-1,k,BZ_LOCAL),
+		  //				arrXY(i,j+1,k,BZ_LOCAL),dx[1]);
+		  Real dyBz = (arrXY(i,j+1,k,BZ_LOCAL)-arrXY(i,j,k,BZ_LOCAL))/dx[1];
+
+		  //Real dyBzOld = computeDerivative(arrXY_old(i,j-1,k,BZ_LOCAL),
+		  //				   arrXY_old(i,j+1,k,BZ_LOCAL),dx[1]);
+		  Real dyBzOld = (arrXY_old(i,j+1,k,BZ_LOCAL)-arrXY_old(i,j,k,BZ_LOCAL))/dx[1];
+
+		  arrX(i,j,k,EX_LOCAL) = arrX_old(i,j,k,EX_LOCAL) + 0.5*dt*c*c*dyBz + 0.5*dt*c*c*dyBzOld;
+
+		}
+	    }
+	}
+    }
+  for (MFIter mfi(S_EM_dest[1], true); mfi.isValid(); ++mfi)
+    {
+      const Box& bx = mfi.tilebox();
+      
+      const Dim3 lo = lbound(bx);
+      const Dim3 hi = ubound(bx);
+
+      const auto& arrY = S_EM_dest[1].array(mfi);
+      const auto& arrXY = S_EM_destEdge.array(mfi);
+      const auto& arrY_old = S_EM_source[1].array(mfi);
+      const auto& arrXY_old = S_EM_sourceEdge.array(mfi);
+
+      for(int k = lo.z; k <= hi.z; k++)
+	{
+	  for(int j = lo.y; j <= hi.y; j++)
+	    {
+	      for(int i = lo.x; i <= hi.x; i++)
+		{		  
+		  //Real dxBz = computeDerivative(arrXY(i-1,j,k,BZ_LOCAL),
+		  //				arrXY(i+1,j,k,BZ_LOCAL),dx[0]);
+		  Real dxBz = (arrXY(i+1,j,k,BZ_LOCAL)-arrXY(i,j,k,BZ_LOCAL))/dx[0];
+
+		  //Real dxBzOld = computeDerivative(arrXY_old(i-1,j,k,BZ_LOCAL),
+		  //				   arrXY_old(i+1,j,k,BZ_LOCAL),dx[0]);
+		  Real dxBzOld = (arrXY_old(i+1,j,k,BZ_LOCAL)-arrXY_old(i,j,k,BZ_LOCAL))/dx[0];
+		  
+		  arrY(i,j,k,EY_LOCAL) = arrY_old(i,j,k,EY_LOCAL) - 0.5*dt*c*c*dxBz - 0.5*dt*c*c*dxBzOld;
+		}
+	    }
+	}
+    }
+  /*for (MFIter mfi(S_dest, true); mfi.isValid(); ++mfi)
+    {
+      const Box& bx = mfi.tilebox();
+      
+      const Dim3 lo = lbound(bx);
+      const Dim3 hi = ubound(bx);
+
+      const auto& arr = S_dest.array(mfi);
+      const auto& arr_old = S_source.array(mfi);
+      const auto& arrX = S_EM_dest[0].array(mfi);
+      const auto& arrY = S_EM_dest[1].array(mfi);
+      const auto& arrX_old = S_EM_source[0].array(mfi);
+      const auto& arrY_old = S_EM_source[1].array(mfi);
+
+      for(int k = lo.z; k <= hi.z; k++)
+	{
+	  for(int j = lo.y; j <= hi.y; j++)
+	    {
+	      for(int i = lo.x; i <= hi.x; i++)
+		{
+		  //Real dxBy = computeDerivative(arrX(i-1,j,k,BY_LOCAL),
+		  //				arrX(i+1,j,k,BY_LOCAL),dx[0]);
+		  Real dxBy = (arrX(i+1,j,k,BY_LOCAL)-arrX(i,j,k,BY_LOCAL))/dx[0];
+		  //Real dyBx = computeDerivative(arrY(i,j-1,k,BX_LOCAL),
+		  //				arrY(i,j+1,k,BX_LOCAL),dx[1]);
+		  Real dyBx = (arrY(i,j+1,k,BX_LOCAL)-arrY(i,j,k,BX_LOCAL))/dx[1];
+
+		  //Real dxByOld = computeDerivative(arrX_old(i-1,j,k,BY_LOCAL),
+		  //				   arrX_old(i+1,j,k,BY_LOCAL),dx[0]);
+		  Real dxByOld = (arrX_old(i+1,j,k,BY_LOCAL)-arrX_old(i,j,k,BY_LOCAL))/dx[0];
+		  //Real dyBxOld = computeDerivative(arrY_old(i,j-1,k,BX_LOCAL),
+		  //				   arrY_old(i,j+1,k,BX_LOCAL),dx[1]);
+		  Real dyBxOld = (arrY_old(i,j+1,k,BX_LOCAL)-arrY_old(i,j,k,BX_LOCAL))/dx[1];
+
+		  arr(i,j,k,EZ) = arr_old(i,j,k,EZ) + 0.5*dt*c*c*dxBy + 0.5*dt*c*c*dxByOld - 0.5*dt*c*c*dyBx - 0.5*dt*c*c*dyBxOld;
+		}
+	    }
+	}
+    }
+  */
+  // We need to compute boundary conditions again after each update
+  S_EM_dest[0].FillBoundary(geom.periodicity());
+  S_EM_dest[1].FillBoundary(geom.periodicity());
+  
+  // added by 2020D 
+  // Fill non-periodic physical boundaries                          
+  FillDomainBoundary(S_EM_dest[0], geom, bc_EM);    
+  FillDomainBoundary(S_EM_dest[1], geom, bc_EM);
+
+  /*MultiFab::Copy(S_EM_X_int, S_EM_dest[0], 0, 0, 6, 0);
+  FillPatch(*this, S_EM_dest[0], NUM_GROW, time+dt, EM_X_Type, 0, 6);
+#if (AMREX_SPACEDIM >= 2)
+  MultiFab::Copy(S_EM_Y_int, S_EM_dest[1], 0, 0, 6, 0);
+  FillPatch(*this, S_EM_dest[1], NUM_GROW, time+dt, EM_Y_Type, 0, 6);
+#endif
+  */
+  // Compute cell-centred EM fields from Yee-grid EM fields
+  for (MFIter mfi(S_dest, true); mfi.isValid(); ++mfi)
+    {
+      const Box& box = mfi.tilebox();
+      
+      const Dim3 lo = lbound(box);
+      const Dim3 hi = ubound(box);
+      
+      // Indexable arrays for the data, and the directional flux
+      // Based on the corner-centred definition of the flux array, the
+      // data array runs from e.g. [0,N+1] and the flux array from [-1,N+1]
+      const auto& arr = S_dest.array(mfi);
+      const auto& arrEM_X = S_EM_dest[0].array(mfi);
+      const auto& arrEM_Y = S_EM_dest[1].array(mfi);
+      const auto& arrEM_XY = S_EM_destEdge.array(mfi);
+      
+      for(int k = lo.z; k <= hi.z; k++)
+  	{
+  	  for(int j = lo.y; j <= hi.y; j++)
+  	    {
+  	      for(int i = lo.x; i <= hi.x; i++)
+  		{		 
+
+  		  //arr(i,j,k,BX) = (arrEM_Y(i,j+1,k,BX_LOCAL)+arrEM_Y(i,j,k,BX_LOCAL))/2.0;
+  		  //arr(i,j,k,BY) = (arrEM_X(i+1,j,k,BY_LOCAL)+arrEM_X(i,j,k,BY_LOCAL))/2.0;
+		  arr(i,j,k,BZ) = (arrEM_XY(i+1,j,k,BZ_LOCAL)+arrEM_XY(i,j+1,k,BZ_LOCAL)+
+				   arrEM_XY(i+1,j+1,k,BZ_LOCAL)+arrEM_XY(i,j,k,BZ_LOCAL))/4.0;
+  		  arr(i,j,k,EX) = (arrEM_X(i+1,j,k,EX_LOCAL)+arrEM_X(i,j,k,EX_LOCAL))/2.0;
+  		  arr(i,j,k,EY) = (arrEM_Y(i,j+1,k,EY_LOCAL)+arrEM_Y(i,j,k,EY_LOCAL))/2.0;
+		  
+  		}
+  	    }
+  	}       
+    }
+    
+  // We need to compute boundary conditions again after each update
+  S_dest.FillBoundary(geom.periodicity());
+     
+  // added by 2020D 
+  // Fill non-periodic physical boundaries                      
+  FillDomainBoundary(S_dest, geom, bc);  
+
+  //MultiFab::Copy(S_EM_XY_new, S_EM_destEdge, BZ_LOCAL, BZ_LOCAL, 1, 0);
+  //MultiFab::Copy(S_EM_XY_new, S_EM_destEdge, 0, 0, 6, 0);
+}
