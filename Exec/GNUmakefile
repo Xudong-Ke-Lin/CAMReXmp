@@ -15,6 +15,9 @@ DEBUG      = FALSE
 
 USE_PARTICLES = TRUE
 
+USE_HYPRE := TRUE
+AMREX_HYPRE_HOME := /lsc/opt/hypre-2.28/
+
 # Dimensionality is specified at compile time - this example has been written for 2D only
 DIM        = 2
 

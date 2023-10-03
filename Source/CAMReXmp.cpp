@@ -228,7 +228,7 @@ CAMReXmp::variableSetUp ()
 	  bc[4].setHi(idim, BCType::foextrap);
 	}
       // EM problem in 2D
-    } else if (test=="EMwave")
+    } else if (test=="EMwave" || test=="EMwave1d")
     {
       for (int idim = 0; idim < amrex::SpaceDim; ++idim)
 	{
@@ -707,7 +707,7 @@ CAMReXmp::advance (Real time,
   S_EM0[1].define(convert(grids,IntVect{AMREX_D_DECL(0,1,0)}), dmap, 6, NUM_GROW);
   FillPatch(*this, S_EM0[1], NUM_GROW, time, EM_Y_Type, 0, 6);
 #endif
-
+  
   //std::cout << Sborder.ixType().cellCentered() << " " << S_EM[0].ixType().cellCentered() << " " << S_EM[1].ixType().cellCentered() << std::endl;
   
   //(this->*advanceWithChosenUpdateOrder)(Sborder,fluxes,dx,dt);  
@@ -995,7 +995,14 @@ CAMReXmp::advance (Real time,
       }      
     }
   */
-  /*
+
+  ParmParse pp;
+  Real stop_time;
+  pp.query("stop_time",stop_time);
+  // conditional used when using hyperbolic divergence cleaning, because DIVB and DIVE will be divergence cleaning parameters
+  //if (cur_time>=stop_time)
+    {
+      //amrex::Print() << "Last time step: calculating divergence errors" << std::endl;
   // Loop over all the patches at this level
   for (MFIter mfi(SNew, true); mfi.isValid(); ++mfi)
     {
@@ -1048,15 +1055,17 @@ CAMReXmp::advance (Real time,
 		  //for(int i = lo.x; i <= hi.x+iOffset; i++)
 		  for(int i = lo.x; i <= hi.x; i++)
 		    {
-		      arr(i,j,k,DIVB) += (arrEM(i+iOffset,j+jOffset,k,BX_LOCAL+d)-arrEM(i,j,k,BX_LOCAL+d))/dx[d];
+		      //arr(i,j,k,DIVB) += (arrEM(i+iOffset,j+jOffset,k,BX_LOCAL+d)-arrEM(i,j,k,BX_LOCAL+d))/ dx[d];
+		      arr(i,j,k,DIVB) += (arr(i+iOffset,j+jOffset,k,BX+d)-arr(i-iOffset,j-jOffset,k,BX+d))/(2.0*dx[d]);
 		      // substract because divEerror was set to be the charge density
-		      arr(i,j,k,DIVE) -= (arrEM(i+iOffset,j+jOffset,k,EX_LOCAL+d)-arrEM(i,j,k,EX_LOCAL+d))/dx[d];
+		      //arr(i,j,k,DIVE) -= (arrEM(i+iOffset,j+jOffset,k,EX_LOCAL+d)-arrEM(i,j,k,EX_LOCAL+d))/dx[d];
+		      arr(i,j,k,DIVE) -= (arr(i+iOffset,j+jOffset,k,EX+d)-arr(i-iOffset,j-jOffset,k,EX+d))/(2.0*dx[d]);
 		    }
 		}
 	    }      
 	}
     }
-  */
+    }
   /*
   // Density errors for convergence problem
   for (MFIter mfi(S_EMNew[0], true); mfi.isValid(); ++mfi)
@@ -1403,12 +1412,13 @@ CAMReXmp::estTimeStep (Real)
       // 0.5 means subcycling two times
       //dt_est = std::min(dt_est, dx[d]/std::max(c_h, c/2.0));
     if (EMconstraint && fluidconstraint)
-      dt_est = std::min(dt_est, dx[d]/std::max(c_h, c));
+      //dt_est = std::min(dt_est, dx[d]/std::max(c_h, c));
+      dt_est = std::min(dt_est, dx[d]/c_h);
     else if (EMconstraint && !fluidconstraint)
       dt_est = std::min(dt_est, dx[d]/c);
     else
       dt_est = std::min(dt_est, dx[d]/c_h);
-    
+
     // dt also needs to resolve plasma and cyclotron frequencies
     //dt_est = std::min(dt_est, 0.5/std::max(omega_pe,omega_ce)*1.0/cfl);
     //dt_est = std::min(dt_est, 1.0/std::max(omega_pe,omega_ce)*1.0/cfl);

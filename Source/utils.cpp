@@ -37,7 +37,7 @@ Real eta = 0.0;
 
 // parameters of the divergence cleaning
 Real cb = 1.0;
-Real ce = 1.0;
+Real ce = 0.5;
 
 // functions to compute the magnitudes
 Real get_magnitude_squared(Real x, Real y, Real z){

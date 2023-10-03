@@ -302,6 +302,14 @@ void CAMReXmp::sourceUpdateIMMidpoint(Array4<Real>& arr, int i, int j, int k, Re
   matrix(7,1) = -r_i/(lambda_d*lambda_d*l_r), matrix(7,4) = -r_e/(lambda_d*lambda_d*l_r);
   matrix(8,2) = -r_i/(lambda_d*lambda_d*l_r), matrix(8,5) = -r_e/(lambda_d*lambda_d*l_r);
 
+  // resistivity
+  /*matrix(0,0) = -eta*r_i*rho_i*r_i/l_r, matrix(0,3) = -eta*r_i*rho_i*r_e/l_r;
+  matrix(1,1) = -eta*r_i*rho_i*r_i/l_r, matrix(1,4) = -eta*r_i*rho_i*r_e/l_r;
+  matrix(2,2) = -eta*r_i*rho_i*r_i/l_r, matrix(2,5) = -eta*r_i*rho_i*r_e/l_r;
+  matrix(3,0) = -eta*r_e*rho_e*r_i/l_r, matrix(3,3) = -eta*r_e*rho_e*r_e/l_r;
+  matrix(4,1) = -eta*r_e*rho_e*r_i/l_r, matrix(4,4) = -eta*r_e*rho_e*r_e/l_r;
+  matrix(5,2) = -eta*r_e*rho_e*r_i/l_r, matrix(5,5) = -eta*r_e*rho_e*r_e/l_r;*/
+
   // calculate the matrix used in to invert
   MatrixXd finalMatrix = identity - 0.5*dt*matrix;
 
@@ -343,7 +351,7 @@ void CAMReXmp::sourceUpdateIMMidpoint(Array4<Real>& arr, int i, int j, int k, Re
     arr(i,j,k,n) = 2.0*functionInt[n]-arr(i,j,k,n);
 
   // Resistivity
-  Real currentX = r_i*arr(i,j,k,1) + r_e*arr(i,j,k,MOMX_E);
+  /*Real currentX = r_i*arr(i,j,k,1) + r_e*arr(i,j,k,MOMX_E);
   Real currentY = r_i*arr(i,j,k,2) + r_e*arr(i,j,k,MOMY_E);
   Real currentZ = r_i*arr(i,j,k,3) + r_e*arr(i,j,k,MOMZ_E);
 
@@ -354,7 +362,7 @@ void CAMReXmp::sourceUpdateIMMidpoint(Array4<Real>& arr, int i, int j, int k, Re
   arr(i,j,k,MOMX_E) -= dt/l_r*eta*r_e*rho_e*currentX;
   arr(i,j,k,MOMY_E) -= dt/l_r*eta*r_e*rho_e*currentX;
   arr(i,j,k,MOMZ_E) -= dt/l_r*eta*r_e*rho_e*currentX;
-  
+  */
 }
 void CAMReXmp::sourceUpdateANEX(Array4<Real>& arr, int i, int j, int k, Real dt)
 {

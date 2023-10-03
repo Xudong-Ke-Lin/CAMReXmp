@@ -120,22 +120,23 @@ CAMReXmp::initData ()
 	    B_x = -std::sin(y);
 	    B_y = std::sin(2.0*x);
 	    B_z = 0.0;
-	    Vector<Real> vcrossB = cross_product({v_x,v_y,v_z},{B_x,B_y,B_z});	    
+	    Vector<Real> vcrossB = cross_product({v_x,v_y,v_z},{B_x,B_y,B_z});
 	    
 	    arr(i,j,k,BX_LOCAL) = B_x;
 	    arr(i,j,k,BY_LOCAL) = B_y;
-	    arr(i,j,k,BZ_LOCAL) = 0.0;
+	    arr(i,j,k,BZ_LOCAL) = B_z;
 	    arr(i,j,k,EX_LOCAL) = -vcrossB[0];
-	    arr(i,j,k,EY_LOCAL) = 0.0;
+	    arr(i,j,k,EY_LOCAL) = -vcrossB[1];
 	    arr(i,j,k,EZ_LOCAL) = -vcrossB[2];
 
 	  } else if (test=="Harris_sheet"){
 	    Real Lx = geom.ProbHi()[0]-geom.ProbLo()[0], Ly = geom.ProbHi()[1]-geom.ProbLo()[1];
 	    Real lambda = 0.5, n0 = 1.0, nInf = 0.2, B0 = 1.0, B1 = 0.1;
 	    B_x = B0*std::tanh(y/lambda) - B1*(M_PI/Ly)*std::cos(2*M_PI*x/Lx)*std::sin(M_PI*y/Ly);
+	    B_y = B1*(2*M_PI/Lx)*std::cos(M_PI*y/Ly)*std::sin(2*M_PI*x/Lx);
 
 	    arr(i,j,k,BX_LOCAL) = B_x;
-	    arr(i,j,k,BY_LOCAL) = 0.0;
+	    arr(i,j,k,BY_LOCAL) = B_y;
 	    arr(i,j,k,BZ_LOCAL) = 0.0;
 	    arr(i,j,k,EX_LOCAL) = 0.0;
 	    arr(i,j,k,EY_LOCAL) = 0.0;
@@ -173,9 +174,18 @@ CAMReXmp::initData ()
 
 	    arr(i,j,k,BX_LOCAL) = 0.0;
 	    arr(i,j,k,BY_LOCAL) = 0.0;
-	    arr(i,j,k,BZ_LOCAL) = 0.0;
+	    arr(i,j,k,BZ_LOCAL) = 0.0;	   
 	    arr(i,j,k,EX_LOCAL) = -c*std::cos(2.0*M_PI*(x+y))/std::sqrt(2.0);
-	    arr(i,j,k,EY_LOCAL) = 0.0;
+	    arr(i,j,k,EY_LOCAL) = c*std::cos(2.0*M_PI*(x+y))/std::sqrt(2.0);
+	    arr(i,j,k,EZ_LOCAL) = 0.0;
+
+	  } else if (test=="EMwave1d"){
+
+	    arr(i,j,k,BX_LOCAL) = 0.0;
+	    arr(i,j,k,BY_LOCAL) = 0.0;
+	    arr(i,j,k,BZ_LOCAL) = 0.0;	   
+	    arr(i,j,k,EX_LOCAL) = 0.0;
+	    arr(i,j,k,EY_LOCAL) = c*std::cos(2.0*M_PI*(x));
 	    arr(i,j,k,EZ_LOCAL) = 0.0;
 
 	  } else if (test=="gaussianEM"){
@@ -251,19 +261,20 @@ CAMReXmp::initData ()
   	    B_z = 0.0;
   	    Vector<Real> vcrossB = cross_product({v_x,v_y,v_z},{B_x,B_y,B_z});	    
 
-  	    arr(i,j,k,BX_LOCAL) = B_x;
-  	    arr(i,j,k,BY_LOCAL) = B_y;
-  	    arr(i,j,k,BZ_LOCAL) = 0.0;
-  	    arr(i,j,k,EX_LOCAL) = 0.0;
-  	    arr(i,j,k,EY_LOCAL) = -vcrossB[1];
-  	    arr(i,j,k,EZ_LOCAL) = -vcrossB[2];
+	    arr(i,j,k,BX_LOCAL) = B_x;
+	    arr(i,j,k,BY_LOCAL) = B_y;
+	    arr(i,j,k,BZ_LOCAL) = B_z;
+	    arr(i,j,k,EX_LOCAL) = -vcrossB[0];
+	    arr(i,j,k,EY_LOCAL) = -vcrossB[1];
+	    arr(i,j,k,EZ_LOCAL) = -vcrossB[2];
 	    	    
   	  } else if (test=="Harris_sheet"){
   	    Real Lx = geom.ProbHi()[0]-geom.ProbLo()[0], Ly = geom.ProbHi()[1]-geom.ProbLo()[1];
   	    Real lambda = 0.5, n0 = 1.0, nInf = 0.2, B0 = 1.0, B1 = 0.1;
-  	    B_y = B1*(2*M_PI/Lx)*std::cos(M_PI*y/Ly)*std::sin(2*M_PI*x/Lx);	    
+  	    B_x = B0*std::tanh(y/lambda) - B1*(M_PI/Ly)*std::cos(2*M_PI*x/Lx)*std::sin(M_PI*y/Ly);
+	    B_y = B1*(2*M_PI/Lx)*std::cos(M_PI*y/Ly)*std::sin(2*M_PI*x/Lx);	    
 
-  	    arr(i,j,k,BX_LOCAL) = 0.0;
+  	    arr(i,j,k,BX_LOCAL) = B_x;
   	    arr(i,j,k,BY_LOCAL) = B_y;
   	    arr(i,j,k,BZ_LOCAL) = 0.0;
   	    arr(i,j,k,EX_LOCAL) = 0.0;
@@ -302,8 +313,17 @@ CAMReXmp::initData ()
 	    arr(i,j,k,BX_LOCAL) = 0.0;
 	    arr(i,j,k,BY_LOCAL) = 0.0;
 	    arr(i,j,k,BZ_LOCAL) = 0.0;
-	    arr(i,j,k,EX_LOCAL) = 0.0;
+	    arr(i,j,k,EX_LOCAL) = -c*std::cos(2.0*M_PI*(x+y))/std::sqrt(2.0);
 	    arr(i,j,k,EY_LOCAL) = c*std::cos(2.0*M_PI*(x+y))/std::sqrt(2.0);
+	    arr(i,j,k,EZ_LOCAL) = 0.0;
+
+	  } else if (test=="EMwave1d"){
+
+	    arr(i,j,k,BX_LOCAL) = 0.0;
+	    arr(i,j,k,BY_LOCAL) = 0.0;
+	    arr(i,j,k,BZ_LOCAL) = 0.0;
+	    arr(i,j,k,EX_LOCAL) = 0.0;
+	    arr(i,j,k,EY_LOCAL) = c*std::cos(2.0*M_PI*(x));
 	    arr(i,j,k,EZ_LOCAL) = 0.0;
 
 	  } else if (test=="gaussianEM"){
@@ -379,20 +399,22 @@ CAMReXmp::initData ()
 	    Vector<Real> vcrossB = cross_product({v_x,v_y,v_z},{B_x,B_y,B_z});	    
 	    
 	    arr(i,j,k,BX_LOCAL) = B_x;
-	    arr(i,j,k,BY_LOCAL) = 0.0;
+	    arr(i,j,k,BY_LOCAL) = B_y;
 	    arr(i,j,k,BZ_LOCAL) = B_z;
 	    arr(i,j,k,EX_LOCAL) = -vcrossB[0];
-	    arr(i,j,k,EY_LOCAL) = 0.0;
+	    arr(i,j,k,EY_LOCAL) = -vcrossB[1];
 	    arr(i,j,k,EZ_LOCAL) = -vcrossB[2];
 
 	  } else if (test=="Harris_sheet"){
 	    Real Lx = geom.ProbHi()[0]-geom.ProbLo()[0], Ly = geom.ProbHi()[1]-geom.ProbLo()[1];
 	    Real lambda = 0.5, n0 = 1.0, nInf = 0.2, B0 = 1.0, B1 = 0.1;
 	    B_x = B0*std::tanh(y/lambda) - B1*(M_PI/Ly)*std::cos(2*M_PI*x/Lx)*std::sin(M_PI*y/Ly);
-
+	    B_y = B1*(2*M_PI/Lx)*std::cos(M_PI*y/Ly)*std::sin(2*M_PI*x/Lx);
+	    B_z = 0.0;
+	    
 	    arr(i,j,k,BX_LOCAL) = B_x;
-	    arr(i,j,k,BY_LOCAL) = 0.0;
-	    arr(i,j,k,BZ_LOCAL) = 0.0;
+	    arr(i,j,k,BY_LOCAL) = B_y;
+	    arr(i,j,k,BZ_LOCAL) = B_z;
 	    arr(i,j,k,EX_LOCAL) = 0.0;
 	    arr(i,j,k,EY_LOCAL) = 0.0;
 	    arr(i,j,k,EZ_LOCAL) = 0.0;
@@ -429,9 +451,18 @@ CAMReXmp::initData ()
 
 	    arr(i,j,k,BX_LOCAL) = 0.0;
 	    arr(i,j,k,BY_LOCAL) = 0.0;
-	    arr(i,j,k,BZ_LOCAL) = 0.0;
+	    arr(i,j,k,BZ_LOCAL) = std::cos(2.0*M_PI*(x+y));
 	    arr(i,j,k,EX_LOCAL) = -c*std::cos(2.0*M_PI*(x+y))/std::sqrt(2.0);
-	    arr(i,j,k,EY_LOCAL) = 0.0;
+	    arr(i,j,k,EY_LOCAL) = c*std::cos(2.0*M_PI*(x+y))/std::sqrt(2.0);
+	    arr(i,j,k,EZ_LOCAL) = 0.0;
+
+	  } else if (test=="EMwave1d"){
+
+	    arr(i,j,k,BX_LOCAL) = 0.0;
+	    arr(i,j,k,BY_LOCAL) = 0.0;
+	    arr(i,j,k,BZ_LOCAL) = std::cos(2.0*M_PI*(x));
+	    arr(i,j,k,EX_LOCAL) = 0.0;
+	    arr(i,j,k,EY_LOCAL) = c*std::cos(2.0*M_PI*(x));
 	    arr(i,j,k,EZ_LOCAL) = 0.0;
 
 	  } else if (test=="gaussianEM"){
@@ -947,6 +978,18 @@ CAMReXmp::initData ()
 	    arr(i,j,k,BZ) = std::cos(2.0*M_PI*(x+y));
 	    arr(i,j,k,EX) = -c*std::cos(2.0*M_PI*(x+y))/std::sqrt(2.0);
 	    arr(i,j,k,EY) = c*std::cos(2.0*M_PI*(x+y))/std::sqrt(2.0);
+	    arr(i,j,k,EZ) = 0.0;
+
+	  } else if (test=="EMwave1d"){
+
+	    for (int n=0; n<NUM_STATE_FLUID; n++)
+	      arr(i,j,k,n) = 0.0;
+	    
+	    arr(i,j,k,BX) = 0.0;
+	    arr(i,j,k,BY) = 0.0;
+	    arr(i,j,k,BZ) = std::cos(2.0*M_PI*(x));
+	    arr(i,j,k,EX) = 0.0;
+	    arr(i,j,k,EY) = c*std::cos(2.0*M_PI*(x));
 	    arr(i,j,k,EZ) = 0.0;
 
 	  } else if (test=="gaussianEM"){

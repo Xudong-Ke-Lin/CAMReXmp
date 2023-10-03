@@ -57,14 +57,9 @@ void CAMReXmp::StrangSecond(MultiFab& S_dest, MultiFab& S_source, MultiFab (&flu
   //(this->*RKWithChosenUpdateOrder)(Sborder, fluxes, dx, dt, &CAMReXmp::fluidSolver, 0, NUM_STATE_FLUID);
     
   //(this->*RKWithChosenUpdateOrder)(Sborder, fluxes, dx, 0.5*dt, &CAMReXmp::sourceUpdate, 0, NUM_STATE);
-  
-  (this->*RKWithChosenUpdateOrder)(S_dest, S_source, fluxes, S_EM_dest, S_EM_source, fluxesEM, dx, time, dt);
-  implicitYeeMaxwellSolver(S_EM_dest,S_EM_source,S_dest,S_source,dx,dt,time);
-
-  return;
 
   sourceUpdate(S_source, fluxes, dx, 0.5*dt);
-
+  
   if (sourceMethod=="IM")
     {
       // Update face-centred EM fields
@@ -123,10 +118,10 @@ void CAMReXmp::StrangSecond(MultiFab& S_dest, MultiFab& S_source, MultiFab (&flu
       FillPatch(*this, S_EM_source[1], NUM_GROW, time+dt, EM_Y_Type, 0, 6);
 #endif
     }
-  
+
   (this->*RKWithChosenUpdateOrder)(S_dest, S_source, fluxes, S_EM_dest, S_EM_source, fluxesEM, dx, time, dt);
   implicitYeeMaxwellSolver(S_EM_dest,S_EM_source,S_dest,S_source,dx,dt,time);
-
+  
   sourceUpdate(S_dest, fluxes, dx, 0.5*dt);
 
   if (sourceMethod=="IM")
@@ -187,10 +182,10 @@ void CAMReXmp::StrangSecond(MultiFab& S_dest, MultiFab& S_source, MultiFab (&flu
       FillPatch(*this, S_EM_dest[1], NUM_GROW, time+dt, EM_Y_Type, 0, 6);
 #endif
 
-      //if ((parent->levelSteps(0))%1==0)// && parent->levelSteps(0)!=0)
+      if ((parent->levelSteps(0))%10==0 && parent->levelSteps(0)!=0)
       {
 	//amrex::Print() << parent->levelSteps(0) << std::endl;
-	//Projection(S_dest,S_EM_dest,dx,time+dt);      
+	Projection(S_dest,S_EM_dest,dx,time+dt);      
       }
     }
 }
