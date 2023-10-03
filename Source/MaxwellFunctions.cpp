@@ -6484,9 +6484,18 @@ void CAMReXmp::Projection(MultiFab& S_dest, Array<MultiFab,AMREX_SPACEDIM>& S_EM
 	}
       else
 	{
-	  //mlmg_lobc[idim] = mlmg_hibc[idim] = LinOpBCType::Neumann;
-	  mlmg_lobc[idim] = mlmg_hibc[idim] = LinOpBCType::Dirichlet;//reflect_odd;
-	  
+	  if ((bc_EM[BX_LOCAL].lo(idim) == FOEXTRAP
+	       && bc_EM[BY_LOCAL].lo(idim) == FOEXTRAP
+	       && bc_EM[BZ_LOCAL].lo(idim) == FOEXTRAP) ||
+	      (bc_EM[BX_LOCAL].lo(idim) == HOEXTRAP
+	       && bc_EM[BY_LOCAL].lo(idim) == HOEXTRAP
+	       && bc_EM[BZ_LOCAL].lo(idim) == HOEXTRAP) ||
+	      (bc_EM[BX_LOCAL].lo(idim) == REFLECT_EVEN
+	       && bc_EM[BY_LOCAL].lo(idim) == REFLECT_EVEN
+	       && bc_EM[BZ_LOCAL].lo(idim) == REFLECT_EVEN))
+	    mlmg_lobc[idim] = mlmg_hibc[idim] = LinOpBCType::Neumann;
+	  else
+	    mlmg_lobc[idim] = mlmg_hibc[idim] = LinOpBCType::Dirichlet;//reflect_odd;
 	}
     }
   
@@ -6678,8 +6687,6 @@ void CAMReXmp::Projection(MultiFab& S_dest, Array<MultiFab,AMREX_SPACEDIM>& S_EM
   FillDomainBoundary(S_dest, geom, bc);  
 }
 std::function<bool(int,int,int,int,int)> markerFunction(const BCRec& bc, const Box& nddom){
-  //const BCRec& bc = get_desc_lst()[Phi_Type].getBC(index);
-  Geometry const* gg = AMReX::top()->getDefaultGeometry();
 
   return [=] AMREX_GPU_DEVICE (int /*boxno*/, int i, int j, int k, int /*n*/)
     -> bool
@@ -6701,6 +6708,283 @@ std::function<bool(int,int,int,int,int)> markerFunction(const BCRec& bc, const B
 	   return true;
 	 };
 }
+std::function<void(int,int,int,int,int,Array4<HYPRE_Int const> const*,HYPRE_Int&,HYPRE_Int*,HYPRE_Real*)> fillerFunction(const BCRec& bc, const Box& nddom, const amrex::GpuArray<double,AMREX_SPACEDIM> dxi, Real dt){
+  
+  Real coeff = 0.5*0.5*c*c*dt*dt;
+  
+  GpuArray<HYPRE_Real,AMREX_SPACEDIM> fac
+    {AMREX_D_DECL(static_cast<HYPRE_Real>(dxi[0]*dxi[0]),
+		  static_cast<HYPRE_Real>(dxi[1]*dxi[1]),
+		  static_cast<HYPRE_Real>(dxi[2]*dxi[2]))};
+
+
+  HYPRE_Real fac0 = HYPRE_Real(-2.)*(AMREX_D_TERM(fac[0],+fac[1],+fac[2]));
+
+  Geometry const* gg = AMReX::top()->getDefaultGeometry();
+
+  // For variable n at (i,j,k) in Box boxno (local index), fill its row in
+  // the matrix.
+  // [in ] gid : gid[n] is the id for variable n at (i,j,k)
+  // [out] ncols: # of columns in this row.
+  // [out] cols: column indices in this row.
+  // [out] mat : matrix elemens in this row.
+  return [=] AMREX_GPU_DEVICE (int /*boxno*/, int i, int j, int k, int n,
+			       Array4<HYPRE_Int const> const* gid,
+			       HYPRE_Int& ncols, HYPRE_Int* cols,
+			       HYPRE_Real* mat)
+	 {
+	   ncols = 0;
+	   ////////////////////////////////////////////////////
+	   // x-direction
+	   ////////////////////////////////////////////////////
+	   // Periodic
+	   if (gg->isPeriodic(0))
+	     {
+	       if (i >= nddom.smallEnd(0)) {
+		 cols[ncols] = gid[n](i-1,j,k);
+		 mat [ncols] = -coeff*fac[0];
+		 ++ncols;
+	       }
+	       if (i <= nddom.bigEnd(0)) {
+		 cols[ncols] = gid[n](i+1,j,k);
+		 mat [ncols] = -coeff*fac[0];
+		 ++ncols;
+	       }
+	     }
+	   // Dirichlet
+	   else if (bc.lo(0)==EXT_DIR && bc.hi(0)==EXT_DIR)
+	     {
+	       if (i > nddom.smallEnd(0)+1) {
+		 cols[ncols] = gid[n](i-1,j,k);
+		 mat [ncols] = -coeff*fac[0];
+		 ++ncols;
+	       }
+	       if (i < nddom.bigEnd(0)-1) {
+		 cols[ncols] = gid[n](i+1,j,k);
+		 mat [ncols] = -coeff*fac[0];
+		 ++ncols;
+	       }
+	     }
+	   // Neumann
+	   else if ((bc.lo(0)==FOEXTRAP && bc.hi(0)==FOEXTRAP)
+		    || (bc.lo(0)==HOEXTRAP && bc.hi(0)==HOEXTRAP)
+		    || (bc.lo(0)==REFLECT_EVEN && bc.hi(0)==REFLECT_EVEN))
+	     {
+	       if (i > nddom.smallEnd(0) && i !=nddom.bigEnd(0)) {
+		 cols[ncols] = gid[n](i-1,j,k);
+		 mat [ncols] = -coeff*fac[0];
+		 ++ncols;
+	       }
+	       if (i < nddom.bigEnd(0) && i !=nddom.smallEnd(0)) {
+		 cols[ncols] = gid[n](i+1,j,k);
+		 mat [ncols] = -coeff*fac[0];
+		 ++ncols;
+	       }
+	       if (i == nddom.smallEnd(0)) {
+		 cols[ncols] = gid[n](i+1,j,k);
+		 mat [ncols] = -2*coeff*fac[0];
+		 ++ncols;
+	       }
+	       if (i == nddom.bigEnd(0)) {
+		 cols[ncols] = gid[n](i-1,j,k);
+		 mat [ncols] = -2*coeff*fac[0];
+		 ++ncols;
+	       }
+	     }
+	   // Reflective
+	   // Note that this is only when it is not nodal
+	   // when it is nodal, it is 0 at the boundaries
+	   else if (bc.lo(0)==REFLECT_ODD && bc.hi(0)==REFLECT_ODD)
+	     {
+	       if (i > nddom.smallEnd(0)) {
+		 cols[ncols] = gid[n](i-1,j,k);
+		 mat [ncols] = -coeff*fac[0];
+		 ++ncols;
+	       }
+	       if (i < nddom.bigEnd(0)) {
+		 cols[ncols] = gid[n](i+1,j,k);
+		 mat [ncols] = -coeff*fac[0];
+		 ++ncols;
+	       }
+	       if (i == nddom.bigEnd(0) || i == nddom.smallEnd(0)) {
+		 cols[ncols] = gid[n](i,j,k);
+		 // opposite sign for reflective boundaries
+		 mat [ncols] = coeff*fac[0];
+		 ++ncols;
+	       }
+	     }
+	   else
+	     amrex::Abort("Unsupported BC in x-direction");
+	   
+	   ////////////////////////////////////////////////////
+	   // y-direction
+	   ////////////////////////////////////////////////////
+	   // Periodic
+	   if (gg->isPeriodic(1))
+	     {
+	       if (j >= nddom.smallEnd(1)) {
+		 cols[ncols] = gid[n](i,j-1,k);
+		 mat [ncols] = -coeff*fac[1];
+		 ++ncols;
+	       }
+	       if (j <= nddom.bigEnd(1)) {
+		 cols[ncols] = gid[n](i,j+1,k);
+		 mat [ncols] = -coeff*fac[1];
+		 ++ncols;
+	       }
+	     }
+	   // Dirichlet
+	   else if (bc.lo(1)==EXT_DIR && bc.hi(1)==EXT_DIR)
+	     {
+	       if (j > nddom.smallEnd(1)+1) {
+		 cols[ncols] = gid[n](i,j-1,k);
+		 mat [ncols] = -coeff*fac[1];
+		 ++ncols;
+	       }
+	       if (j < nddom.bigEnd(1)-1) {
+		 cols[ncols] = gid[n](i,j+1,k);
+		 mat [ncols] = -coeff*fac[1];
+		 ++ncols;
+	       }
+	     }
+	   // Neumann
+	   else if ((bc.lo(1)==FOEXTRAP && bc.hi(1)==FOEXTRAP)
+		    || (bc.lo(1)==HOEXTRAP && bc.hi(1)==HOEXTRAP)
+		    || (bc.lo(1)==REFLECT_EVEN && bc.hi(1)==REFLECT_EVEN))
+	     {
+	       if (j > nddom.smallEnd(1) && j !=nddom.bigEnd(1)) {
+		 cols[ncols] = gid[n](i,j-1,k);
+		 mat [ncols] = -coeff*fac[1];
+		 ++ncols;
+	       }
+	       if (j < nddom.bigEnd(1) && j !=nddom.smallEnd(1)) {
+		 cols[ncols] = gid[n](i,j+1,k);
+		 mat [ncols] = -coeff*fac[1];
+		 ++ncols;
+	       }
+	       if (j == nddom.smallEnd(1)) {
+		 cols[ncols] = gid[n](i,j+1,k);
+		 mat [ncols] = -2*coeff*fac[1];
+		 ++ncols;
+	       }
+	       if (j == nddom.bigEnd(1)) {
+		 cols[ncols] = gid[n](i,j-1,k);
+		 mat [ncols] = -2*coeff*fac[1];
+		 ++ncols;
+	       }
+	     }
+	   // Reflective
+	   // Note that this is only when it is not nodal
+	   // when it is nodal, it is 0 at the boundaries
+	   else if (bc.lo(1)==REFLECT_ODD && bc.hi(1)==REFLECT_ODD)
+	     {
+	       if (j > nddom.smallEnd(1)) {
+		 cols[ncols] = gid[n](i,j-1,k);
+		 mat [ncols] = -coeff*fac[1];
+		 ++ncols;
+	       }
+	       if (j < nddom.bigEnd(1)) {
+		 cols[ncols] = gid[n](i,j+1,k);
+		 mat [ncols] = -coeff*fac[1];
+		 ++ncols;
+	       }
+	       if (j == nddom.bigEnd(1) || j == nddom.smallEnd(1)) {
+		 cols[ncols] = gid[n](i,j,k);
+		 // opposite sign for reflective boundaries
+		 mat [ncols] = coeff*fac[1];
+		 ++ncols;
+	       }
+	     }
+	   else
+	     amrex::Abort("Unsupported BC in y-direction");
+#if (AMREX_SPACEDIM > 2)
+	   ////////////////////////////////////////////////////
+	   // z-direction
+	   ////////////////////////////////////////////////////
+	   // Periodic
+	   if (gg->isPeriodic(2))
+	     {
+	       if (k >= nddom.smallEnd(2)) {
+		 cols[ncols] = gid[n](i,j,k-1);
+		 mat [ncols] = -coeff*fac[2];
+		 ++ncols;
+	       }
+	       if (k <= nddom.bigEnd(2)) {
+		 cols[ncols] = gid[n](i,j,k+1);
+		 mat [ncols] = -coeff*fac[2];
+		 ++ncols;
+	       }
+	     }
+	   // Dirichlet
+	   else if (bc.lo(2)==EXT_DIR && bc.hi(2)==EXT_DIR)
+	     {
+	       if (k > nddom.smallEnd(2)+1) {
+		 cols[ncols] = gid[n](i,j,k-1);
+		 mat [ncols] = -coeff*fac[2];
+		 ++ncols;
+	       }
+	       if (k < nddom.bigEnd(2)-1) {
+		 cols[ncols] = gid[n](i,j,k+1);
+		 mat [ncols] = -coeff*fac[2];
+		 ++ncols;
+	       }
+	     }
+	   // Neumann
+	   else if ((bc.lo(2)==FOEXTRAP && bc.hi(2)==FOEXTRAP)
+		    || (bc.lo(2)==HOEXTRAP && bc.hi(2)==HOEXTRAP)
+		    || (bc.lo(2)==REFLECT_EVEN && bc.hi(2)==REFLECT_EVEN))
+	     {
+	       if (k > nddom.smallEnd(2) && k !=nddom.bigEnd(2)) {
+		 cols[ncols] = gid[n](i,j,k-1);
+		 mat [ncols] = -coeff*fac[2];
+		 ++ncols;
+	       }
+	       if (k < nddom.bigEnd(2) && k !=nddom.smallEnd(2)) {
+		 cols[ncols] = gid[n](i,j,k+1);
+		 mat [ncols] = -coeff*fac[2];
+		 ++ncols;
+	       }
+	       if (k == nddom.smallEnd(2)) {
+		 cols[ncols] = gid[n](i,j,k+1);
+		 mat [ncols] = -2*coeff*fac[2];
+		 ++ncols;
+	       }
+	       if (k == nddom.bigEnd(2)) {
+		 cols[ncols] = gid[n](i,j,k-1);
+		 mat [ncols] = -2*coeff*fac[2];
+		 ++ncols;
+	       }
+	     }
+	   // Reflective
+	   // Note that this is only when it is not nodal
+	   // when it is nodal, it is 0 at the boundaries
+	   else if (bc.lo(2)==REFLECT_ODD && bc.hi(2)==REFLECT_ODD)
+	     {
+	       if (k > nddom.smallEnd(2)) {
+		 cols[ncols] = gid[n](i,j,k-1);
+		 mat [ncols] = -coeff*fac[2];
+		 ++ncols;
+	       }
+	       if (k < nddom.bigEnd(2)) {
+		 cols[ncols] = gid[n](i,j,k+1);
+		 mat [ncols] = -coeff*fac[2];
+		 ++ncols;
+	       }
+	       if (k == nddom.bigEnd(2) || k == nddom.smallEnd(2)) {
+		 cols[ncols] = gid[n](i,j,k);
+		 // opposite sign for reflective boundaries
+		 mat [ncols] = coeff*fac[2];
+		 ++ncols;
+	       }
+	     }
+	   else
+	     amrex::Abort("Unsupported BC in z-direction");
+#endif
+	   cols[ncols] = gid[n](i,j,k);
+	   mat [ncols] = 1. - coeff*fac0;
+	   ++ncols;
+	 };
+}
 void CAMReXmp::implicitYeeMaxwellSolver(Array<MultiFab,AMREX_SPACEDIM>& S_EM_dest, Array<MultiFab,AMREX_SPACEDIM>& S_EM_source, MultiFab& S_dest, MultiFab& S_source, const Real* dx, Real dt, Real time) 
 {
 
@@ -6713,239 +6997,246 @@ void CAMReXmp::implicitYeeMaxwellSolver(Array<MultiFab,AMREX_SPACEDIM>& S_EM_des
   auto const& nddom = amrex::surroundingNodes(geom.Domain());
   auto const& nddomX = amrex::surroundingNodes(geom.Domain(),0);
   auto const& nddomY = amrex::surroundingNodes(geom.Domain(),1);
-  const auto dxi = geom.InvCellSizeArray();
+   const auto dxi = geom.InvCellSizeArray();
 
   GpuArray<HYPRE_Real,AMREX_SPACEDIM> fac
     {AMREX_D_DECL(static_cast<HYPRE_Real>(dxi[0]*dxi[0]),
-		  static_cast<HYPRE_Real>(dxi[1]*dxi[1]),
-		  static_cast<HYPRE_Real>(dxi[2]*dxi[2]))};
+  		  static_cast<HYPRE_Real>(dxi[1]*dxi[1]),
+  		  static_cast<HYPRE_Real>(dxi[2]*dxi[2]))};
 
 
   HYPRE_Real fac0 = HYPRE_Real(-2.)*(AMREX_D_TERM(fac[0],+fac[1],+fac[2]));
 
+   if (bc_EM[BX_LOCAL].lo(1)==REFLECT_ODD || bc_EM[BY_LOCAL].lo(0)==REFLECT_ODD)
+     amrex::Abort("Currently does not support fillerFunction reflec_odd for Bx in y-direction or By in x-direction");
+
+   //functor that returns whether the variable n at (i,j,k) in Box boxno (local index) is valid
+   auto marker = markerFunction(bc_EM[BZ_LOCAL],nddom);
+   auto markerX = markerFunction(bc_EM[BY_LOCAL],nddomX);
+   auto markerY = markerFunction(bc_EM[BX_LOCAL],nddomY);
   // Is variable n at (i,j,k) in Box boxno (local index) valid?
   // (i.e., not exactly on Dirichlet boundary)
-  auto marker = [=] AMREX_GPU_DEVICE (int /*boxno*/, int i, int j, int k, int /*n*/)
-    -> bool
-		{
-		  //return nddom.strictly_contains(i,j,k);
-		  return true;
-		};
-  auto markerX = [=] AMREX_GPU_DEVICE (int /*boxno*/, int i, int j, int k, int /*n*/)
-    -> bool
-		{
-		  //return nddomX.strictly_contains(i,j,k);
-		  return true;
-		  /*if (j==nddomX.smallEnd(1) || j==nddomX.bigEnd(1))
-		    return false;
-		  else
-		    return true;
-		  */
-		};
-  auto markerY = [=] AMREX_GPU_DEVICE (int /*boxno*/, int i, int j, int k, int /*n*/)
-    -> bool
-		{
-		  //return nddomY.strictly_contains(i,j,k);
-		  return true;
-		};
-  //auto markerTest = markerFunction(bc_EM[BZ_LOCAL],nddom);
+  //  auto marker = [=] AMREX_GPU_DEVICE (int /*boxno*/, int i, int j, int k, int /*n*/)
+  //   -> bool
+  // 		{
+  // 		  //return nddom.strictly_contains(i,j,k);
+  // 		  return true;
+  // 		};
+  // auto markerX = [=] AMREX_GPU_DEVICE (int /*boxno*/, int i, int j, int k, int /*n*/)
+  //   -> bool
+  // 		{
+  // 		  //return nddomX.strictly_contains(i,j,k);
+  // 		  return true;
+  // 		  /*if (j==nddomX.smallEnd(1) || j==nddomX.bigEnd(1))
+  // 		    return false;
+  // 		  else
+  // 		    return true;
+  // 		  */
+  // 		};
+  // auto markerY = [=] AMREX_GPU_DEVICE (int /*boxno*/, int i, int j, int k, int /*n*/)
+  //   -> bool
+  // 		{
+  // 		  //return nddomY.strictly_contains(i,j,k);
+  // 		  return true;
+  // 		};  
+
+  // functor that fills the row in the matrix A for variable n at (i,j,k) in Box boxno (local index)
+  // using the CSR format
+  auto filler = fillerFunction(bc_EM[BZ_LOCAL],nddom,dxi,dt);
+  auto fillerX = fillerFunction(bc_EM[BY_LOCAL],nddomX,dxi,dt);
+  auto fillerY = fillerFunction(bc_EM[BX_LOCAL],nddomY,dxi,dt);
+
+//   auto filler = [=] AMREX_GPU_DEVICE (int /*boxno*/, int i, int j, int k, int n,
+// 				      Array4<HYPRE_Int const> const* gid,
+// 				      HYPRE_Int& ncols, HYPRE_Int* cols,
+// 				      HYPRE_Real* mat)
+// 		{
+// 		  ncols = 0;
+// 		  //if (i > nddom.smallEnd(0)+1) {
+// 		  if (i >= nddom.smallEnd(0)) {
+// 		    cols[ncols] = gid[n](i-1,j,k);
+// 		    mat [ncols] = -coeff*fac[0];
+// 		    ++ncols;
+// 		  }
+// 		  //if (i < nddom.bigEnd(0)-1) {
+// 		  if (i <= nddom.bigEnd(0)) {
+// 		    cols[ncols] = gid[n](i+1,j,k);
+// 		    mat [ncols] = -coeff*fac[0];
+// 		    ++ncols;
+// 		  }
+// 		  // Dirichlet
+// 		  //if (j > nddom.smallEnd(1)+1) {
+// 		  // Periodic
+// 		  //if (j >= nddom.smallEnd(1)) {
+// 		  // Neumann
+// 		  if (j > nddom.smallEnd(1) && j!=nddom.bigEnd(1)) {		  
+// 		    cols[ncols] = gid[n](i,j-1,k);
+// 		    mat [ncols] = -coeff*fac[1];
+// 		    ++ncols;
+// 		  }
+// 		  //if (j < nddom.bigEnd(1)-1) {
+// 		  //if (j <= nddom.bigEnd(1)) {
+// 		  if (j < nddom.bigEnd(1) && j!=nddom.smallEnd(1)) {
+// 		    cols[ncols] = gid[n](i,j+1,k);
+// 		    mat [ncols] = -coeff*fac[1];
+// 		    ++ncols;
+// 		  }
+// 		  // Neumann
+// 		  if (j==nddom.smallEnd(1)) {
+// 		    cols[ncols] = gid[n](i,j+1,k);
+// 		    mat [ncols] = -2*coeff*fac[1];
+// 		    ++ncols;
+// 		    /*cols[ncols] = gid[n](i,j+1,k);
+// 		    mat [ncols] = -coeff*fac[1];
+// 		    ++ncols;
+// 		    cols[ncols] = gid[n](i,j,k);
+// 		    mat [ncols] = -coeff*fac[1];
+// 		    ++ncols;*/
+// 		  }
+// 		  if (j==nddom.bigEnd(1)) {
+// 		    cols[ncols] = gid[n](i,j-1,k);
+// 		    mat [ncols] = -2*coeff*fac[1];
+// 		    ++ncols;
+// 		    /*cols[ncols] = gid[n](i,j-1,k);
+// 		    mat [ncols] = -coeff*fac[1];
+// 		    ++ncols;
+// 		    cols[ncols] = gid[n](i,j,k);
+// 		    mat [ncols] = -coeff*fac[1];
+// 		    ++ncols;*/
+// 		  }
+// #if (AMREX_SPACEDIM > 2)
+// 		  if (k > nddom.smallEnd(2)+1) {
+// 		    cols[ncols] = gid[n](i,j,k-1);
+// 		    mat [ncols] = -coeff*fac[2];
+// 		    ++ncols;
+// 		  }
+// 		  if (k < nddom.bigEnd(2)-1) {
+// 		    cols[ncols] = gid[n](i,j,k+1);
+// 		    mat [ncols] = -coeff*fac[2];
+// 		    ++ncols;
+// 		  }
+// #endif
+// 		  cols[ncols] = gid[n](i,j,k);
+// 		  mat [ncols] = 1. - coeff*fac0;
+// 		  ++ncols;
+// 		};
+//   auto fillerX = [=] AMREX_GPU_DEVICE (int /*boxno*/, int i, int j, int k, int n,
+// 				      Array4<HYPRE_Int const> const* gid,
+// 				      HYPRE_Int& ncols, HYPRE_Int* cols,
+// 				      HYPRE_Real* mat)
+// 		{
+// 		  ncols = 0;
+// 		  //if (i > nddomX.smallEnd(0)+1) {
+// 		  if (i >= nddomX.smallEnd(0)) {
+// 		    cols[ncols] = gid[n](i-1,j,k);
+// 		    mat [ncols] = -coeff*fac[0];
+// 		    ++ncols;
+// 		  }
+// 		  //if (i < nddomX.bigEnd(0)-1) {
+// 		  if (i <= nddomX.bigEnd(0)) {
+// 		    cols[ncols] = gid[n](i+1,j,k);
+// 		    mat [ncols] = -coeff*fac[0];
+// 		    ++ncols;
+// 		  }
+// 		  // Dirichlet
+// 		  //if (j > nddomX.smallEnd(1)+1) {
+// 		  // Reflective
+// 		  if (j >= nddomX.smallEnd(1)+1) {
+// 		  // Periodic
+// 		  //if (j >= nddomX.smallEnd(1)) {
+// 		    cols[ncols] = gid[n](i,j-1,k);
+// 		    mat [ncols] = -coeff*fac[1];
+// 		    ++ncols;
+// 		  }
+// 		  //if (j < nddomX.bigEnd(1)-1) {
+// 		  if (j <= nddomX.bigEnd(1)-1) {
+// 		  //if (j <= nddomX.bigEnd(1)) {
+// 		    cols[ncols] = gid[n](i,j+1,k);
+// 		    mat [ncols] = -coeff*fac[1];
+// 		    ++ncols;
+// 		  }
+// 		  // Reflective
+// 		  if (j == nddomX.bigEnd(1) || j == nddomX.smallEnd(1)) {
+// 		    cols[ncols] = gid[n](i,j,k);
+// 		    // opposite sign for reflective boundaries
+// 		    mat [ncols] = coeff*fac[1];
+// 		    ++ncols;
+// 		  }
+// #if (AMREX_SPACEDIM > 2)
+// 		  if (k > nddomX.smallEnd(2)+1) {
+// 		    cols[ncols] = gid[n](i,j,k-1);
+// 		    mat [ncols] = -coeff*fac[2];
+// 		    ++ncols;
+// 		  }
+// 		  if (k < nddomX.bigEnd(2)-1) {
+// 		    cols[ncols] = gid[n](i,j,k+1);
+// 		    mat [ncols] = -coeff*fac[2];
+// 		    ++ncols;
+// 		  }
+// #endif
+// 		  cols[ncols] = gid[n](i,j,k);
+// 		  mat [ncols] = 1. - coeff*fac0;
+// 		  ++ncols;
+// 		};
+//   auto fillerY = [=] AMREX_GPU_DEVICE (int /*boxno*/, int i, int j, int k, int n,
+// 				      Array4<HYPRE_Int const> const* gid,
+// 				      HYPRE_Int& ncols, HYPRE_Int* cols,
+// 				      HYPRE_Real* mat)
+// 		{
+// 		  ncols = 0;
+// 		  //if (i > nddomY.smallEnd(0)+1) {
+// 		  if (i >= nddomY.smallEnd(0)) {
+// 		    cols[ncols] = gid[n](i-1,j,k);
+// 		    mat [ncols] = -coeff*fac[0];
+// 		    ++ncols;
+// 		  }
+// 		  //if (i < nddomY.bigEnd(0)-1) {
+// 		  if (i <= nddomY.bigEnd(0)) {
+// 		    cols[ncols] = gid[n](i+1,j,k);
+// 		    mat [ncols] = -coeff*fac[0];
+// 		    ++ncols;
+// 		  }
+// 		  //if (j > nddomY.smallEnd(1)+1) {
+// 		  //if (j >= nddomY.smallEnd(1)) {
+// 		  if (j > nddomY.smallEnd(1) && j!=nddomY.bigEnd(1)) {
+// 		    cols[ncols] = gid[n](i,j-1,k);
+// 		    mat [ncols] = -coeff*fac[1];
+// 		    ++ncols;
+// 		  }
+// 		  //if (j < nddomY.bigEnd(1)-1) {
+// 		  //if (j <= nddomY.bigEnd(1)) {
+// 		  if (j < nddomY.bigEnd(1) && j!=nddomY.smallEnd(1)) {
+// 		    cols[ncols] = gid[n](i,j+1,k);
+// 		    mat [ncols] = -coeff*fac[1];
+// 		    ++ncols;
+// 		  }
+// 		  if (j==nddomY.smallEnd(1)) {
+// 		    cols[ncols] = gid[n](i,j+1,k);
+// 		    mat [ncols] = -2*coeff*fac[1];
+// 		    ++ncols;		    
+// 		  }
+// 		  if (j==nddomY.bigEnd(1)) {
+// 		    cols[ncols] = gid[n](i,j-1,k);
+// 		    mat [ncols] = -2*coeff*fac[1];
+// 		    ++ncols;
+// 		  }
+// #if (AMREX_SPACEDIM > 2)
+// 		  if (k > nddomY.smallEnd(2)+1) {
+// 		    cols[ncols] = gid[n](i,j,k-1);
+// 		    mat [ncols] = -coeff*fac[2];
+// 		    ++ncols;
+// 		  }
+// 		  if (k < nddomY.bigEnd(2)-1) {
+// 		    cols[ncols] = gid[n](i,j,k+1);
+// 		    mat [ncols] = -coeff*fac[2];
+// 		    ++ncols;
+// 		  }
+// #endif
+// 		  cols[ncols] = gid[n](i,j,k);
+// 		  mat [ncols] = 1. - coeff*fac0;
+// 		  ++ncols;
+// 		};
   
-  // For variable n at (i,j,k) in Box boxno (local index), fill its row in
-  // the matrix.
-  // [in ] gid : gid[n] is the id for variable n at (i,j,k)
-  // [out] ncols: # of columns in this row.
-  // [out] cols: column indices in this row.
-  // [out] mat : matrix elemens in this row.
-  auto filler = [=] AMREX_GPU_DEVICE (int /*boxno*/, int i, int j, int k, int n,
-				      Array4<HYPRE_Int const> const* gid,
-				      HYPRE_Int& ncols, HYPRE_Int* cols,
-				      HYPRE_Real* mat)
-		{
-		  ncols = 0;
-		  //if (i > nddom.smallEnd(0)+1) {
-		  if (i >= nddom.smallEnd(0)) {
-		    cols[ncols] = gid[n](i-1,j,k);
-		    mat [ncols] = -coeff*fac[0];
-		    ++ncols;
-		  }
-		  //if (i < nddom.bigEnd(0)-1) {
-		  if (i <= nddom.bigEnd(0)) {
-		    cols[ncols] = gid[n](i+1,j,k);
-		    mat [ncols] = -coeff*fac[0];
-		    ++ncols;
-		  }
-		  // Dirichlet
-		  //if (j > nddom.smallEnd(1)+1) {
-		  // Periodic
-		  //if (j >= nddom.smallEnd(1)) {
-		  // Neumann
-		  if (j > nddom.smallEnd(1) && j!=nddom.bigEnd(1)) {		  
-		    cols[ncols] = gid[n](i,j-1,k);
-		    mat [ncols] = -coeff*fac[1];
-		    ++ncols;
-		  }
-		  //if (j < nddom.bigEnd(1)-1) {
-		  //if (j <= nddom.bigEnd(1)) {
-		  if (j < nddom.bigEnd(1) && j!=nddom.smallEnd(1)) {
-		    cols[ncols] = gid[n](i,j+1,k);
-		    mat [ncols] = -coeff*fac[1];
-		    ++ncols;
-		  }
-		  // Neumann
-		  if (j==nddom.smallEnd(1)) {
-		    cols[ncols] = gid[n](i,j+1,k);
-		    mat [ncols] = -2*coeff*fac[1];
-		    ++ncols;
-		    /*cols[ncols] = gid[n](i,j+1,k);
-		    mat [ncols] = -coeff*fac[1];
-		    ++ncols;
-		    cols[ncols] = gid[n](i,j,k);
-		    mat [ncols] = -coeff*fac[1];
-		    ++ncols;*/
-		  }
-		  if (j==nddom.bigEnd(1)) {
-		    cols[ncols] = gid[n](i,j-1,k);
-		    mat [ncols] = -2*coeff*fac[1];
-		    ++ncols;
-		    /*cols[ncols] = gid[n](i,j-1,k);
-		    mat [ncols] = -coeff*fac[1];
-		    ++ncols;
-		    cols[ncols] = gid[n](i,j,k);
-		    mat [ncols] = -coeff*fac[1];
-		    ++ncols;*/
-		  }
-#if (AMREX_SPACEDIM > 2)
-		  if (k > nddom.smallEnd(2)+1) {
-		    cols[ncols] = gid[n](i,j,k-1);
-		    mat [ncols] = -coeff*fac[2];
-		    ++ncols;
-		  }
-		  if (k < nddom.bigEnd(2)-1) {
-		    cols[ncols] = gid[n](i,j,k+1);
-		    mat [ncols] = -coeff*fac[2];
-		    ++ncols;
-		  }
-#endif
-		  cols[ncols] = gid[n](i,j,k);
-		  mat [ncols] = 1. - coeff*fac0;
-		  ++ncols;
-		};
-  auto fillerX = [=] AMREX_GPU_DEVICE (int /*boxno*/, int i, int j, int k, int n,
-				      Array4<HYPRE_Int const> const* gid,
-				      HYPRE_Int& ncols, HYPRE_Int* cols,
-				      HYPRE_Real* mat)
-		{
-		  ncols = 0;
-		  //if (i > nddomX.smallEnd(0)+1) {
-		  if (i >= nddomX.smallEnd(0)) {
-		    cols[ncols] = gid[n](i-1,j,k);
-		    mat [ncols] = -coeff*fac[0];
-		    ++ncols;
-		  }
-		  //if (i < nddomX.bigEnd(0)-1) {
-		  if (i <= nddomX.bigEnd(0)) {
-		    cols[ncols] = gid[n](i+1,j,k);
-		    mat [ncols] = -coeff*fac[0];
-		    ++ncols;
-		  }
-		  // Dirichlet
-		  //if (j > nddomX.smallEnd(1)+1) {
-		  // Reflective
-		  if (j >= nddomX.smallEnd(1)+1) {
-		  // Periodic
-		  //if (j >= nddomX.smallEnd(1)) {
-		    cols[ncols] = gid[n](i,j-1,k);
-		    mat [ncols] = -coeff*fac[1];
-		    ++ncols;
-		  }
-		  //if (j < nddomX.bigEnd(1)-1) {
-		  if (j <= nddomX.bigEnd(1)-1) {
-		  //if (j <= nddomX.bigEnd(1)) {
-		    cols[ncols] = gid[n](i,j+1,k);
-		    mat [ncols] = -coeff*fac[1];
-		    ++ncols;
-		  }
-		  // Reflective
-		  if (j == nddomX.bigEnd(1) || j == nddomX.smallEnd(1)) {
-		    cols[ncols] = gid[n](i,j,k);
-		    // opposite sign for reflective boundaries
-		    mat [ncols] = coeff*fac[1];
-		    ++ncols;
-		  }
-#if (AMREX_SPACEDIM > 2)
-		  if (k > nddomX.smallEnd(2)+1) {
-		    cols[ncols] = gid[n](i,j,k-1);
-		    mat [ncols] = -coeff*fac[2];
-		    ++ncols;
-		  }
-		  if (k < nddomX.bigEnd(2)-1) {
-		    cols[ncols] = gid[n](i,j,k+1);
-		    mat [ncols] = -coeff*fac[2];
-		    ++ncols;
-		  }
-#endif
-		  cols[ncols] = gid[n](i,j,k);
-		  mat [ncols] = 1. - coeff*fac0;
-		  ++ncols;
-		};
-  auto fillerY = [=] AMREX_GPU_DEVICE (int /*boxno*/, int i, int j, int k, int n,
-				      Array4<HYPRE_Int const> const* gid,
-				      HYPRE_Int& ncols, HYPRE_Int* cols,
-				      HYPRE_Real* mat)
-		{
-		  ncols = 0;
-		  //if (i > nddomY.smallEnd(0)+1) {
-		  if (i >= nddomY.smallEnd(0)) {
-		    cols[ncols] = gid[n](i-1,j,k);
-		    mat [ncols] = -coeff*fac[0];
-		    ++ncols;
-		  }
-		  //if (i < nddomY.bigEnd(0)-1) {
-		  if (i <= nddomY.bigEnd(0)) {
-		    cols[ncols] = gid[n](i+1,j,k);
-		    mat [ncols] = -coeff*fac[0];
-		    ++ncols;
-		  }
-		  //if (j > nddomY.smallEnd(1)+1) {
-		  //if (j >= nddomY.smallEnd(1)) {
-		  if (j > nddomY.smallEnd(1) && j!=nddomY.bigEnd(1)) {
-		    cols[ncols] = gid[n](i,j-1,k);
-		    mat [ncols] = -coeff*fac[1];
-		    ++ncols;
-		  }
-		  //if (j < nddomY.bigEnd(1)-1) {
-		  //if (j <= nddomY.bigEnd(1)) {
-		  if (j < nddomY.bigEnd(1) && j!=nddomY.smallEnd(1)) {
-		    cols[ncols] = gid[n](i,j+1,k);
-		    mat [ncols] = -coeff*fac[1];
-		    ++ncols;
-		  }
-		  if (j==nddomY.smallEnd(1)) {
-		    cols[ncols] = gid[n](i,j+1,k);
-		    mat [ncols] = -2*coeff*fac[1];
-		    ++ncols;		    
-		  }
-		  if (j==nddomY.bigEnd(1)) {
-		    cols[ncols] = gid[n](i,j-1,k);
-		    mat [ncols] = -2*coeff*fac[1];
-		    ++ncols;
-		  }
-#if (AMREX_SPACEDIM > 2)
-		  if (k > nddomY.smallEnd(2)+1) {
-		    cols[ncols] = gid[n](i,j,k-1);
-		    mat [ncols] = -coeff*fac[2];
-		    ++ncols;
-		  }
-		  if (k < nddomY.bigEnd(2)-1) {
-		    cols[ncols] = gid[n](i,j,k+1);
-		    mat [ncols] = -coeff*fac[2];
-		    ++ncols;
-		  }
-#endif
-		  cols[ncols] = gid[n](i,j,k);
-		  mat [ncols] = 1. - coeff*fac0;
-		  ++ncols;
-		};
   constexpr int max_stencil_size = 2*AMREX_SPACEDIM+1;
   HypreSolver<max_stencil_size> hypre_solverX
     ({xface}, IntVect(1), geom, grids, dmap,
@@ -6956,8 +7247,8 @@ void CAMReXmp::implicitYeeMaxwellSolver(Array<MultiFab,AMREX_SPACEDIM>& S_EM_des
   HypreSolver<max_stencil_size> hypre_solverXY
     //({IndexType::TheNodeType()}, IntVect(1), geom, grids, dmap,
     ({edge}, IntVect(1), geom, grids, dmap,
-     marker, filler, 2);  
-  
+     marker, filler, 2);
+      
   MultiFab& S_EM_XY_new = get_new_data(EM_XY_Type);
   MultiFab S_EM_sourceEdge, S_EM_destEdge;
   S_EM_sourceEdge.define(convert(grids,IntVect{AMREX_D_DECL(1,1,0)}), dmap, 6, NUM_GROW);
