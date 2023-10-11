@@ -343,8 +343,8 @@ void CAMReXmp::sourceUpdateIMMidpoint(Array4<Real>& arr, int i, int j, int k, Re
   functionInt[ENER_I] = E_i + 0.5*dt*r_i/l_r*(functionInt[EX]*functionInt[1] + functionInt[EY]*functionInt[2] + functionInt[EZ]*functionInt[3]);
   functionInt[ENER_E] = E_e + 0.5*dt*r_e/l_r*(functionInt[EX]*functionInt[MOMX_E] + functionInt[EY]*functionInt[MOMY_E] + functionInt[EZ]*functionInt[MOMZ_E]);
 #if (AMREX_SPACEDIM >= 2)
-  functionInt[DIVB] = psi_b;
-  functionInt[DIVE] = psi_e + ce*0.5*dt*1.0/(lambda_d*lambda_d*l_r)*(r_i*rho_i + r_e*rho_e);
+  //functionInt[DIVB] = psi_b;
+  //functionInt[DIVE] = psi_e + ce*0.5*dt*1.0/(lambda_d*lambda_d*l_r)*(r_i*rho_i + r_e*rho_e);
 #endif
   
   for (int n=0; n<NUM_STATE; n++)

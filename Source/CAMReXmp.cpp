@@ -258,6 +258,16 @@ CAMReXmp::variableSetUp ()
 	      bc[n].setHi(i, BCType::int_dir);
 	    }
 	}
+    } else if (test=="Harris_sheet_full")
+    {
+      for (int i = 0; i < amrex::SpaceDim; ++i)
+	{
+	  for (int n = 0; n < NUM_STATE; ++n)
+	    {
+	      bc[n].setLo(i, BCType::int_dir); // interior 
+	      bc[n].setHi(i, BCType::int_dir);
+	    }
+	}
     } else if (test=="Harris_sheet")
     {
       for (int n = 0; n < NUM_STATE; ++n)
@@ -701,8 +711,9 @@ CAMReXmp::advance (Real time,
   //MultiFab S_EM[2];
   Array<MultiFab,AMREX_SPACEDIM> S_EM0;
   S_EM0[0].define(convert(grids,IntVect{AMREX_D_DECL(1,0,0)}), dmap, 6, NUM_GROW);
+  // !!
+  // Comment out fillpatch when HDC
   FillPatch(*this, S_EM0[0], NUM_GROW, time, EM_X_Type, 0, 6);
-
 #if (AMREX_SPACEDIM >= 2) 
   S_EM0[1].define(convert(grids,IntVect{AMREX_D_DECL(0,1,0)}), dmap, 6, NUM_GROW);
   FillPatch(*this, S_EM0[1], NUM_GROW, time, EM_Y_Type, 0, 6);
@@ -1000,9 +1011,9 @@ CAMReXmp::advance (Real time,
   Real stop_time;
   pp.query("stop_time",stop_time);
   // conditional used when using hyperbolic divergence cleaning, because DIVB and DIVE will be divergence cleaning parameters
-  //if (cur_time>=stop_time)
+  if (cur_time>=stop_time)
     {
-      //amrex::Print() << "Last time step: calculating divergence errors" << std::endl;
+      amrex::Print() << "Last time step: calculating divergence errors" << std::endl;
   // Loop over all the patches at this level
   for (MFIter mfi(SNew, true); mfi.isValid(); ++mfi)
     {
@@ -1257,6 +1268,8 @@ CAMReXmp::advance (Real time,
   //              data is needed for S_new)
   
   MultiFab::Copy(S_new, SNew, 0, 0, NUM_STATE, 0);
+  // !!
+  // Coment out for HDC
   MultiFab::Copy(S_EM_X_new, S_EMNew[0], 0, 0, 6, 0);
 #if (AMREX_SPACEDIM >= 2) 
   MultiFab::Copy(S_EM_Y_new, S_EMNew[1], 0, 0, 6, 0);

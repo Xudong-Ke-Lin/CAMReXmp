@@ -142,6 +142,22 @@ CAMReXmp::initData ()
 	    arr(i,j,k,EY_LOCAL) = 0.0;
 	    arr(i,j,k,EZ_LOCAL) = 0.0;
 	    
+	  } else if (test=="Harris_sheet_full"){
+	    Real Lx = geom.ProbHi()[0]-geom.ProbLo()[0], Ly = geom.ProbHi()[1]-geom.ProbLo()[1];
+	    Real lambda = 0.5, n0 = 1.0, nInf = 0.2, B0 = 1.0, B1 = 0.1;
+	    if (y>=0.0)
+	      B_x = B0*std::tanh((y-Ly/4)/lambda) - 2.0*B1*(M_PI/Ly)*std::cos(2*M_PI*x/Lx)*std::sin(M_PI*(y-0.25*Ly)/(Ly/2.0));
+	    else
+	      B_x = - B0*std::tanh((y+Ly/4)/lambda) - 2.0*B1*(M_PI/Ly)*std::cos(2*M_PI*x/Lx)*std::sin(M_PI*(y-0.25*Ly)/(Ly/2.0));
+	    B_y = B1*(2*M_PI/Lx)*std::cos(M_PI*(y-0.25*Ly)/(Ly/2.0))*std::sin(2*M_PI*x/Lx);
+
+	    arr(i,j,k,BX_LOCAL) = B_x;
+	    arr(i,j,k,BY_LOCAL) = B_y;
+	    arr(i,j,k,BZ_LOCAL) = 0.0;
+	    arr(i,j,k,EX_LOCAL) = 0.0;
+	    arr(i,j,k,EY_LOCAL) = 0.0;
+	    arr(i,j,k,EZ_LOCAL) = 0.0;
+	    
 	  } else if (test=="blast"){
 	    Real B0 = 100.0/std::sqrt(4.0*M_PI);
 	    
@@ -281,6 +297,22 @@ CAMReXmp::initData ()
   	    arr(i,j,k,EY_LOCAL) = 0.0;
   	    arr(i,j,k,EZ_LOCAL) = 0.0;
 	    
+  	  } else if (test=="Harris_sheet_full"){
+  	    Real Lx = geom.ProbHi()[0]-geom.ProbLo()[0], Ly = geom.ProbHi()[1]-geom.ProbLo()[1];
+  	    Real lambda = 0.5, n0 = 1.0, nInf = 0.2, B0 = 1.0, B1 = 0.1;
+	    if (y>=0.0)
+	      B_x = B0*std::tanh((y-Ly/4)/lambda) - 2.0*B1*(M_PI/Ly)*std::cos(2*M_PI*x/Lx)*std::sin(M_PI*(y-0.25*Ly)/(Ly/2.0));
+	    else
+	      B_x = - B0*std::tanh((y+Ly/4)/lambda) - 2.0*B1*(M_PI/Ly)*std::cos(2*M_PI*x/Lx)*std::sin(M_PI*(y-0.25*Ly)/(Ly/2.0));
+	    B_y = B1*(2*M_PI/Lx)*std::cos(M_PI*(y-0.25*Ly)/(Ly/2.0))*std::sin(2*M_PI*x/Lx);
+
+  	    arr(i,j,k,BX_LOCAL) = B_x;
+  	    arr(i,j,k,BY_LOCAL) = B_y;
+  	    arr(i,j,k,BZ_LOCAL) = 0.0;
+  	    arr(i,j,k,EX_LOCAL) = 0.0;
+  	    arr(i,j,k,EY_LOCAL) = 0.0;
+  	    arr(i,j,k,EZ_LOCAL) = 0.0;
+	    
   	  } else if (test=="blast"){
 	    
 	    arr(i,j,k,BX_LOCAL) = 0.0;
@@ -410,6 +442,23 @@ CAMReXmp::initData ()
 	    Real lambda = 0.5, n0 = 1.0, nInf = 0.2, B0 = 1.0, B1 = 0.1;
 	    B_x = B0*std::tanh(y/lambda) - B1*(M_PI/Ly)*std::cos(2*M_PI*x/Lx)*std::sin(M_PI*y/Ly);
 	    B_y = B1*(2*M_PI/Lx)*std::cos(M_PI*y/Ly)*std::sin(2*M_PI*x/Lx);
+	    B_z = 0.0;
+	    
+	    arr(i,j,k,BX_LOCAL) = B_x;
+	    arr(i,j,k,BY_LOCAL) = B_y;
+	    arr(i,j,k,BZ_LOCAL) = B_z;
+	    arr(i,j,k,EX_LOCAL) = 0.0;
+	    arr(i,j,k,EY_LOCAL) = 0.0;
+	    arr(i,j,k,EZ_LOCAL) = 0.0;
+	    
+	  } else if (test=="Harris_sheet_full"){
+	    Real Lx = geom.ProbHi()[0]-geom.ProbLo()[0], Ly = geom.ProbHi()[1]-geom.ProbLo()[1];
+	    Real lambda = 0.5, n0 = 1.0, nInf = 0.2, B0 = 1.0, B1 = 0.1;
+	    if (y>=0.0)
+	      B_x = B0*std::tanh((y-Ly/4)/lambda) - 2.0*B1*(M_PI/Ly)*std::cos(2*M_PI*x/Lx)*std::sin(M_PI*(y-0.25*Ly)/(Ly/2.0));
+	    else
+	      B_x = - B0*std::tanh((y+Ly/4)/lambda) - 2.0*B1*(M_PI/Ly)*std::cos(2*M_PI*x/Lx)*std::sin(M_PI*(y-0.25*Ly)/(Ly/2.0));
+	    B_y = B1*(2*M_PI/Lx)*std::cos(M_PI*(y-0.25*Ly)/(Ly/2.0))*std::sin(2*M_PI*x/Lx);
 	    B_z = 0.0;
 	    
 	    arr(i,j,k,BX_LOCAL) = B_x;
@@ -638,6 +687,47 @@ CAMReXmp::initData ()
 	    Real v_z_e = 1.0/(std::cosh(y/lambda)*std::cosh(y/lambda)) * 1.0/(n*lambda);
 	    B_x = B0*std::tanh(y/lambda) - B1*(M_PI/Ly)*std::cos(2*M_PI*x/Lx)*std::sin(M_PI*y/Ly);
 	    B_y = B1*(2*M_PI/Lx)*std::cos(M_PI*y/Ly)*std::sin(2*M_PI*x/Lx);
+	    B_z = 0.0;	    
+
+	    arr(i,j,k,0) = n;
+	    arr(i,j,k,1) = arr(i,j,k,0)*v_x;
+	    arr(i,j,k,2) = arr(i,j,k,0)*v_y;
+	    arr(i,j,k,3) = arr(i,j,k,0)*v_z;
+	    Vector<Real> w_i{arr(i,j,k,0), v_x, v_y, v_z, p*5.0/6.0};
+	    arr(i,j,k,ENER_I) = get_energy(w_i);
+	    
+	    arr(i,j,k,RHO_E) = n/m;
+	    arr(i,j,k,MOMX_E) = arr(i,j,k,RHO_E)*v_x;
+	    arr(i,j,k,MOMY_E) = arr(i,j,k,RHO_E)*v_y;
+	    arr(i,j,k,MOMZ_E) = arr(i,j,k,RHO_E)*v_z_e;
+	    Vector<Real> w_e{arr(i,j,k,RHO_E), v_x, v_y, v_z_e, p/6.0};
+	    arr(i,j,k,ENER_E) = get_energy(w_e);
+
+	    //arr(i,j,k,BX) = 0.5*(arrEMX(i,j,k,BX_LOCAL)+arrEMX(i+1,j,k,BX_LOCAL));
+	    //arr(i,j,k,BY) = 0.5*(arrEMY(i,j,k,BY_LOCAL)+arrEMY(i,j+1,k,BY_LOCAL));
+	    arr(i,j,k,BX) = B_x;
+	    arr(i,j,k,BY) = B_y;
+	    arr(i,j,k,BZ) = B_z;
+	    arr(i,j,k,EX) = 0.5*(arrEMX(i,j,k,EX_LOCAL)+arrEMX(i+1,j,k,EX_LOCAL));
+	    arr(i,j,k,EY) = 0.5*(arrEMY(i,j,k,EY_LOCAL)+arrEMY(i,j+1,k,EY_LOCAL));
+	    arr(i,j,k,EZ) = 0.0;
+	    arr(i,j,k,DIVB) = 0.0;	    
+	    arr(i,j,k,DIVE) = 0.0;
+
+	  } else if (test=="Harris_sheet_full"){
+	    Real Lx = geom.ProbHi()[0]-geom.ProbLo()[0], Ly = geom.ProbHi()[1]-geom.ProbLo()[1];
+	    Real lambda = 0.5, n0 = 1.0, nInf = 0.2, B0 = 1.0, B1 = 0.1;
+	    Real n = n0*(nInf + 1.0/(std::cosh((y-Ly/4)/lambda)*std::cosh((y-Ly/4)/lambda)) +  1.0/(std::cosh((y+Ly/4)/lambda)*std::cosh((y+Ly/4)/lambda)));
+	    p = B0*B0/2.0 * n/n0;
+	    v_x = 0.0, v_y = 0.0, v_z = 0.0;
+	    Real v_z_e = (1.0/(std::cosh((y-Ly/4)/lambda)*std::cosh((y-Ly/4)/lambda)) +  1.0/(std::cosh((y+Ly/4)/lambda)*std::cosh((y+Ly/4)/lambda))) * 1.0/(n*lambda);
+	    if (y<0.0)
+	      v_z_e *= -1.0;
+	    if (y>=0.0)
+	      B_x = B0*std::tanh((y-Ly/4)/lambda) - 2.0*B1*(M_PI/Ly)*std::cos(2*M_PI*x/Lx)*std::sin(M_PI*(y-0.25*Ly)/(Ly/2.0));
+	    else
+	      B_x = - B0*std::tanh((y+Ly/4)/lambda) - 2.0*B1*(M_PI/Ly)*std::cos(2*M_PI*x/Lx)*std::sin(M_PI*(y-0.25*Ly)/(Ly/2.0));
+	    B_y = B1*(2*M_PI/Lx)*std::cos(M_PI*(y-0.25*Ly)/(Ly/2.0))*std::sin(2*M_PI*x/Lx);
 	    B_z = 0.0;	    
 
 	    arr(i,j,k,0) = n;

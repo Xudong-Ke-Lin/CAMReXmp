@@ -6691,20 +6691,28 @@ std::function<bool(int,int,int,int,int)> markerFunction(const BCRec& bc, const B
   return [=] AMREX_GPU_DEVICE (int /*boxno*/, int i, int j, int k, int /*n*/)
     -> bool
 	 {
-	   for (int idim = 0; idim < AMREX_SPACEDIM; ++idim)
+	   //return true;
+	   // Dirichlet or reflective
+	   if ((bc.lo(0)==EXT_DIR || bc.hi(0)==EXT_DIR)
+	       || (bc.lo(0)==REFLECT_ODD && bc.hi(0)==REFLECT_ODD))
 	     {
-	       if (bc.lo(idim)==EXT_DIR || bc.hi(idim)==EXT_DIR)
-		 amrex::Abort("Currently not supporting EXT_DIR or Dirichlet boundary conditions");
-	       /*
-		 // should return for Dirichlet in all boundaries
-		 return nddom.strictly_contains(i,j,k);
-		 // or Dirichlet only in y-boundaries
-		 if (j==nddomX.smallEnd(1) || j==nddomX.bigEnd(1))
-		   return false;
-		 else
-		   return true;
-		*/
+	       if (i==nddom.smallEnd(0) || i==nddom.bigEnd(0))
+		 return false;
 	     }
+	   if ((bc.lo(1)==EXT_DIR || bc.hi(1)==EXT_DIR)
+	       || (bc.lo(1)==REFLECT_ODD && bc.hi(1)==REFLECT_ODD))
+	     {
+	       if (j==nddom.smallEnd(1) || j==nddom.bigEnd(1))
+		 return false;
+	     }
+#if (AMREX_SPACEDIM > 2)
+	   if ((bc.lo(2)==EXT_DIR || bc.hi(2)==EXT_DIR)
+	       || (bc.lo(2)==REFLECT_ODD && bc.hi(2)==REFLECT_ODD))
+	     {
+	       if (k==nddom.smallEnd(2) || k==nddom.bigEnd(2))
+		 return false;
+	     }
+#endif
 	   return true;
 	 };
 }
@@ -6751,8 +6759,9 @@ std::function<void(int,int,int,int,int,Array4<HYPRE_Int const> const*,HYPRE_Int&
 		 ++ncols;
 	       }
 	     }
-	   // Dirichlet
-	   else if (bc.lo(0)==EXT_DIR && bc.hi(0)==EXT_DIR)
+	   // Dirichlet (and reflective)
+	   else if ((bc.lo(0)==EXT_DIR && bc.hi(0)==EXT_DIR)//)
+		    || (bc.lo(0)==REFLECT_ODD && bc.hi(0)==REFLECT_ODD))
 	     {
 	       if (i > nddom.smallEnd(0)+1) {
 		 cols[ncols] = gid[n](i-1,j,k);
@@ -6794,25 +6803,51 @@ std::function<void(int,int,int,int,int,Array4<HYPRE_Int const> const*,HYPRE_Int&
 	   // Reflective
 	   // Note that this is only when it is not nodal
 	   // when it is nodal, it is 0 at the boundaries
-	   else if (bc.lo(0)==REFLECT_ODD && bc.hi(0)==REFLECT_ODD)
-	     {
-	       if (i > nddom.smallEnd(0)) {
-		 cols[ncols] = gid[n](i-1,j,k);
-		 mat [ncols] = -coeff*fac[0];
-		 ++ncols;
-	       }
-	       if (i < nddom.bigEnd(0)) {
-		 cols[ncols] = gid[n](i+1,j,k);
-		 mat [ncols] = -coeff*fac[0];
-		 ++ncols;
-	       }
-	       if (i == nddom.bigEnd(0) || i == nddom.smallEnd(0)) {
-		 cols[ncols] = gid[n](i,j,k);
-		 // opposite sign for reflective boundaries
-		 mat [ncols] = coeff*fac[0];
-		 ++ncols;
-	       }
-	     }
+	   // else if (bc.lo(0)==REFLECT_ODD && bc.hi(0)==REFLECT_ODD)
+	   //   {
+	   //     /*if (i > nddom.smallEnd(0)) {
+	   // 	 cols[ncols] = gid[n](i-1,j,k);
+	   // 	 mat [ncols] = -coeff*fac[0];
+	   // 	 ++ncols;
+	   //     }
+	   //     if (i < nddom.bigEnd(0)) {
+	   // 	 cols[ncols] = gid[n](i+1,j,k);
+	   // 	 mat [ncols] = -coeff*fac[0];
+	   // 	 ++ncols;
+	   //     }
+	   //     if (i == nddom.bigEnd(0) || i == nddom.smallEnd(0)) {
+	   // 	 cols[ncols] = gid[n](i,j,k);
+	   // 	 // opposite sign for reflective boundaries
+	   // 	 mat [ncols] = coeff*fac[0];
+	   // 	 ++ncols;
+	   // 	 }*/
+	   //     if (i > nddom.smallEnd(0) && i !=nddom.bigEnd(0)) {
+	   // 	 cols[ncols] = gid[n](i-1,j,k);
+	   // 	 mat [ncols] = -coeff*fac[0];
+	   // 	 ++ncols;
+	   //     }
+	   //     if (i < nddom.bigEnd(0) && i !=nddom.smallEnd(0)) {
+	   // 	 cols[ncols] = gid[n](i+1,j,k);
+	   // 	 mat [ncols] = -coeff*fac[0];
+	   // 	 ++ncols;
+	   //     }
+	   //     if (i == nddom.smallEnd(0)) {
+	   // 	 cols[ncols] = gid[n](i+1,j,k);
+	   // 	 mat [ncols] = -(4.0/3.0)*coeff*fac[0];
+	   // 	 ++ncols;
+	   // 	 cols[ncols] = gid[n](i,j,k);
+	   // 	 mat [ncols] = 2.0*coeff*fac[0];
+	   // 	 ++ncols;
+	   //     }
+	   //     if (i == nddom.bigEnd(0)) {
+	   // 	 cols[ncols] = gid[n](i-1,j,k);
+	   // 	 mat [ncols] = -(4.0/3.0)*coeff*fac[0];
+	   // 	 ++ncols;
+	   // 	 cols[ncols] = gid[n](i,j,k);
+	   // 	 mat [ncols] = 2.0*coeff*fac[0];
+	   // 	 ++ncols;
+	   //     }	       
+	   //   }
 	   else
 	     amrex::Abort("Unsupported BC in x-direction");
 	   
@@ -6834,7 +6869,8 @@ std::function<void(int,int,int,int,int,Array4<HYPRE_Int const> const*,HYPRE_Int&
 	       }
 	     }
 	   // Dirichlet
-	   else if (bc.lo(1)==EXT_DIR && bc.hi(1)==EXT_DIR)
+	   else if ((bc.lo(1)==EXT_DIR && bc.hi(1)==EXT_DIR)//)
+		    || (bc.lo(1)==REFLECT_ODD && bc.hi(1)==REFLECT_ODD))
 	     {
 	       if (j > nddom.smallEnd(1)+1) {
 		 cols[ncols] = gid[n](i,j-1,k);
@@ -6876,25 +6912,52 @@ std::function<void(int,int,int,int,int,Array4<HYPRE_Int const> const*,HYPRE_Int&
 	   // Reflective
 	   // Note that this is only when it is not nodal
 	   // when it is nodal, it is 0 at the boundaries
-	   else if (bc.lo(1)==REFLECT_ODD && bc.hi(1)==REFLECT_ODD)
-	     {
-	       if (j > nddom.smallEnd(1)) {
-		 cols[ncols] = gid[n](i,j-1,k);
-		 mat [ncols] = -coeff*fac[1];
-		 ++ncols;
-	       }
-	       if (j < nddom.bigEnd(1)) {
-		 cols[ncols] = gid[n](i,j+1,k);
-		 mat [ncols] = -coeff*fac[1];
-		 ++ncols;
-	       }
-	       if (j == nddom.bigEnd(1) || j == nddom.smallEnd(1)) {
-		 cols[ncols] = gid[n](i,j,k);
-		 // opposite sign for reflective boundaries
-		 mat [ncols] = coeff*fac[1];
-		 ++ncols;
-	       }
-	     }
+	   // else if (bc.lo(1)==REFLECT_ODD && bc.hi(1)==REFLECT_ODD)
+	   //   {
+	   //     /*if (j > nddom.smallEnd(1)) {
+	   // 	 cols[ncols] = gid[n](i,j-1,k);
+	   // 	 mat [ncols] = -coeff*fac[1];
+	   // 	 ++ncols;
+	   //     }
+	   //     if (j < nddom.bigEnd(1)) {
+	   // 	 cols[ncols] = gid[n](i,j+1,k);
+	   // 	 mat [ncols] = -coeff*fac[1];
+	   // 	 ++ncols;
+	   //     }
+	   //     if (j == nddom.bigEnd(1) || j == nddom.smallEnd(1)) {
+	   // 	 cols[ncols] = gid[n](i,j,k);
+	   // 	 // opposite sign for reflective boundaries
+	   // 	 mat [ncols] = coeff*fac[1];
+	   // 	 ++ncols;
+	   //     }
+	   //     */
+	   //     if (j > nddom.smallEnd(1) && j !=nddom.bigEnd(1)) {
+	   // 	 cols[ncols] = gid[n](i,j-1,k);
+	   // 	 mat [ncols] = -coeff*fac[1];
+	   // 	 ++ncols;
+	   //     }
+	   //     if (j < nddom.bigEnd(1) && j !=nddom.smallEnd(1)) {
+	   // 	 cols[ncols] = gid[n](i,j+1,k);
+	   // 	 mat [ncols] = -coeff*fac[1];
+	   // 	 ++ncols;
+	   //     }
+	   //     if (j == nddom.smallEnd(1)) {
+	   // 	 cols[ncols] = gid[n](i,j+1,k);
+	   // 	 mat [ncols] = -(4.0/3.0)*coeff*fac[1];
+	   // 	 ++ncols;
+	   // 	 cols[ncols] = gid[n](i,j,k);
+	   // 	 mat [ncols] = 2.0*coeff*fac[1];
+	   // 	 ++ncols;
+	   //     }
+	   //     if (j == nddom.bigEnd(1)) {
+	   // 	 cols[ncols] = gid[n](i,j-1,k);
+	   // 	 mat [ncols] = -(4.0/3.0)*coeff*fac[1];
+	   // 	 ++ncols;
+	   // 	 cols[ncols] = gid[n](i,j,k);
+	   // 	 mat [ncols] = 2.0*coeff*fac[1];
+	   // 	 ++ncols;
+	   //     }	       
+	   //   }
 	   else
 	     amrex::Abort("Unsupported BC in y-direction");
 #if (AMREX_SPACEDIM > 2)
@@ -6916,7 +6979,8 @@ std::function<void(int,int,int,int,int,Array4<HYPRE_Int const> const*,HYPRE_Int&
 	       }
 	     }
 	   // Dirichlet
-	   else if (bc.lo(2)==EXT_DIR && bc.hi(2)==EXT_DIR)
+	   else if ((bc.lo(2)==EXT_DIR && bc.hi(2)==EXT_DIR)
+		    || (bc.lo(2)==REFLECT_ODD && bc.hi(2)==REFLECT_ODD))
 	     {
 	       if (k > nddom.smallEnd(2)+1) {
 		 cols[ncols] = gid[n](i,j,k-1);
@@ -6958,7 +7022,7 @@ std::function<void(int,int,int,int,int,Array4<HYPRE_Int const> const*,HYPRE_Int&
 	   // Reflective
 	   // Note that this is only when it is not nodal
 	   // when it is nodal, it is 0 at the boundaries
-	   else if (bc.lo(2)==REFLECT_ODD && bc.hi(2)==REFLECT_ODD)
+	   /*else if (bc.lo(2)==REFLECT_ODD && bc.hi(2)==REFLECT_ODD)
 	     {
 	       if (k > nddom.smallEnd(2)) {
 		 cols[ncols] = gid[n](i,j,k-1);
@@ -6976,7 +7040,7 @@ std::function<void(int,int,int,int,int,Array4<HYPRE_Int const> const*,HYPRE_Int&
 		 mat [ncols] = coeff*fac[2];
 		 ++ncols;
 	       }
-	     }
+	       }*/
 	   else
 	     amrex::Abort("Unsupported BC in z-direction");
 #endif
@@ -7026,12 +7090,11 @@ void CAMReXmp::implicitYeeMaxwellSolver(Array<MultiFab,AMREX_SPACEDIM>& S_EM_des
   //   -> bool
   // 		{
   // 		  //return nddomX.strictly_contains(i,j,k);
-  // 		  return true;
-  // 		  /*if (j==nddomX.smallEnd(1) || j==nddomX.bigEnd(1))
+  // 		  //return true;
+  // 		  if (j==nddomX.smallEnd(1) || j==nddomX.bigEnd(1))
   // 		    return false;
   // 		  else
   // 		    return true;
-  // 		  */
   // 		};
   // auto markerY = [=] AMREX_GPU_DEVICE (int /*boxno*/, int i, int j, int k, int /*n*/)
   //   -> bool
@@ -7139,29 +7202,29 @@ void CAMReXmp::implicitYeeMaxwellSolver(Array<MultiFab,AMREX_SPACEDIM>& S_EM_des
 // 		    ++ncols;
 // 		  }
 // 		  // Dirichlet
-// 		  //if (j > nddomX.smallEnd(1)+1) {
+// 		  if (j > nddomX.smallEnd(1)+1) {
 // 		  // Reflective
-// 		  if (j >= nddomX.smallEnd(1)+1) {
+// 		  //if (j >= nddomX.smallEnd(1)+1) {
 // 		  // Periodic
 // 		  //if (j >= nddomX.smallEnd(1)) {
 // 		    cols[ncols] = gid[n](i,j-1,k);
 // 		    mat [ncols] = -coeff*fac[1];
 // 		    ++ncols;
 // 		  }
-// 		  //if (j < nddomX.bigEnd(1)-1) {
-// 		  if (j <= nddomX.bigEnd(1)-1) {
+// 		  if (j < nddomX.bigEnd(1)-1) {
+// 		    //if (j <= nddomX.bigEnd(1)-1) {
 // 		  //if (j <= nddomX.bigEnd(1)) {
 // 		    cols[ncols] = gid[n](i,j+1,k);
 // 		    mat [ncols] = -coeff*fac[1];
 // 		    ++ncols;
 // 		  }
 // 		  // Reflective
-// 		  if (j == nddomX.bigEnd(1) || j == nddomX.smallEnd(1)) {
+// 		  /*if (j == nddomX.bigEnd(1) || j == nddomX.smallEnd(1)) {
 // 		    cols[ncols] = gid[n](i,j,k);
 // 		    // opposite sign for reflective boundaries
 // 		    mat [ncols] = coeff*fac[1];
 // 		    ++ncols;
-// 		  }
+// 		    }*/
 // #if (AMREX_SPACEDIM > 2)
 // 		  if (k > nddomX.smallEnd(2)+1) {
 // 		    cols[ncols] = gid[n](i,j,k-1);
@@ -7638,7 +7701,6 @@ void CAMReXmp::implicitYeeMaxwellSolver(Array<MultiFab,AMREX_SPACEDIM>& S_EM_des
 		  //				   arrXY_old(i,j+1,k,BZ_LOCAL),dx[1]);
 		  Real dyBzOld = (arrXY_old(i,j+1,k,BZ_LOCAL)-arrXY_old(i,j,k,BZ_LOCAL))/dx[1];
 		  
-		  //arrX(i,j,k,EX_LOCAL) = -c*std::cos(2.0*M_PI*(x+y-std::sqrt(2.0)*c*time))/std::sqrt(2.0);
 		  arrX(i,j,k,EX_LOCAL) = arrX_old(i,j,k,EX_LOCAL) + 0.5*dt*c*c*dyBz + 0.5*dt*c*c*dyBzOld;
 
 		}
@@ -7673,9 +7735,7 @@ void CAMReXmp::implicitYeeMaxwellSolver(Array<MultiFab,AMREX_SPACEDIM>& S_EM_des
 		  //				   arrXY_old(i+1,j,k,BZ_LOCAL),dx[0]);
 		  Real dxBzOld = (arrXY_old(i+1,j,k,BZ_LOCAL)-arrXY_old(i,j,k,BZ_LOCAL))/dx[0];
 		  
-		  //arrY(i,j,k,EY_LOCAL) = c*std::cos(2.0*M_PI*(x+y-std::sqrt(2.0)*c*time))/std::sqrt(2.0);
 		  arrY(i,j,k,EY_LOCAL) = arrY_old(i,j,k,EY_LOCAL) - 0.5*dt*c*c*dxBz - 0.5*dt*c*c*dxBzOld;
-		  //arrY(i,j,k,EY_LOCAL) = c*std::cos(2.0*M_PI*(x-std::sqrt(2.0)*c*time));
 		}
 	    }
 	}
