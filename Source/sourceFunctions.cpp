@@ -62,6 +62,40 @@ void CAMReXmp::sourceUpdate(MultiFab& Sborder, MultiFab (&fluxes)[AMREX_SPACEDIM
   FillDomainBoundary(Sborder, geom, bc);
   
 }
+void CAMReXmp::sourceUpdate(Real dt, Real time)
+{
+
+  MultiFab S_input(grids, dmap, NUM_STATE, NUM_GROW);
+  FillPatch(*this, S_input, NUM_GROW, time, Phi_Type, 0, NUM_STATE);
+
+  MFIter::allowMultipleMFIters(true);
+  
+  for (MFIter mfi(S_input, true); mfi.isValid(); ++mfi)
+    {
+      const Box& bx = mfi.tilebox();
+      
+      const Dim3 lo = lbound(bx);
+      const Dim3 hi = ubound(bx);
+      
+      Array4<Real> arr = S_input.array(mfi);
+      
+      for(int k = lo.z; k <= hi.z; k++)
+	{
+	  for(int j = lo.y; j <= hi.y; j++)
+	    {
+	      for(int i = lo.x; i <= hi.x; i++)
+		{
+		  (this->*sourceUpdateWithChosenMethod)(arr, i, j, k, dt);
+		}
+	    }
+	}      
+    }
+
+  MultiFab& S_new = get_new_data(Phi_Type);
+  MultiFab::Copy(S_new, S_input, 0, 0, NUM_STATE, 0);
+  //FillPatch(*this, S_old, NUM_GROW, time, Phi_Type, 0, NUM_STATE);
+
+}
 
 void CAMReXmp::cylSourceUpdateImplicitRK2(MultiFab& Sborder, MultiFab& Sold, const Real* dx, Real dt)
 {
@@ -275,10 +309,6 @@ void CAMReXmp::sourceUpdateIMMidpoint(Array4<Real>& arr, int i, int j, int k, Re
   Real E_x = arr(i,j,k,EX);
   Real E_y = arr(i,j,k,EY);
   Real E_z = arr(i,j,k,EZ);
-#if (AMREX_SPACEDIM >= 2)
-  Real psi_b = arr(i,j,k,DIVB);
-  Real psi_e = arr(i,j,k,DIVE);
-#endif
   
   // define primitive variables
   Real v_x_i = momX_i/rho_i;
@@ -301,14 +331,6 @@ void CAMReXmp::sourceUpdateIMMidpoint(Array4<Real>& arr, int i, int j, int k, Re
   matrix(6,0) = -r_i/(lambda_d*lambda_d*l_r), matrix(6,3) = -r_e/(lambda_d*lambda_d*l_r);
   matrix(7,1) = -r_i/(lambda_d*lambda_d*l_r), matrix(7,4) = -r_e/(lambda_d*lambda_d*l_r);
   matrix(8,2) = -r_i/(lambda_d*lambda_d*l_r), matrix(8,5) = -r_e/(lambda_d*lambda_d*l_r);
-
-  // resistivity
-  /*matrix(0,0) = -eta*r_i*rho_i*r_i/l_r, matrix(0,3) = -eta*r_i*rho_i*r_e/l_r;
-  matrix(1,1) = -eta*r_i*rho_i*r_i/l_r, matrix(1,4) = -eta*r_i*rho_i*r_e/l_r;
-  matrix(2,2) = -eta*r_i*rho_i*r_i/l_r, matrix(2,5) = -eta*r_i*rho_i*r_e/l_r;
-  matrix(3,0) = -eta*r_e*rho_e*r_i/l_r, matrix(3,3) = -eta*r_e*rho_e*r_e/l_r;
-  matrix(4,1) = -eta*r_e*rho_e*r_i/l_r, matrix(4,4) = -eta*r_e*rho_e*r_e/l_r;
-  matrix(5,2) = -eta*r_e*rho_e*r_i/l_r, matrix(5,5) = -eta*r_e*rho_e*r_e/l_r;*/
 
   // calculate the matrix used in to invert
   MatrixXd finalMatrix = identity - 0.5*dt*matrix;
@@ -343,26 +365,17 @@ void CAMReXmp::sourceUpdateIMMidpoint(Array4<Real>& arr, int i, int j, int k, Re
   functionInt[ENER_I] = E_i + 0.5*dt*r_i/l_r*(functionInt[EX]*functionInt[1] + functionInt[EY]*functionInt[2] + functionInt[EZ]*functionInt[3]);
   functionInt[ENER_E] = E_e + 0.5*dt*r_e/l_r*(functionInt[EX]*functionInt[MOMX_E] + functionInt[EY]*functionInt[MOMY_E] + functionInt[EZ]*functionInt[MOMZ_E]);
 #if (AMREX_SPACEDIM >= 2)
-  //functionInt[DIVB] = psi_b;
-  //functionInt[DIVE] = psi_e + ce*0.5*dt*1.0/(lambda_d*lambda_d*l_r)*(r_i*rho_i + r_e*rho_e);
+  if (MaxwellDivMethod=="HDC")
+    {
+      Real psi_b = arr(i,j,k,DIVB);
+      Real psi_e = arr(i,j,k,DIVE);
+      functionInt[DIVB] = psi_b;
+      functionInt[DIVE] = psi_e + ce*0.5*dt*1.0/(lambda_d*lambda_d*l_r)*(r_i*rho_i + r_e*rho_e);
+    }
 #endif
   
   for (int n=0; n<NUM_STATE; n++)
     arr(i,j,k,n) = 2.0*functionInt[n]-arr(i,j,k,n);
-
-  // Resistivity
-  /*Real currentX = r_i*arr(i,j,k,1) + r_e*arr(i,j,k,MOMX_E);
-  Real currentY = r_i*arr(i,j,k,2) + r_e*arr(i,j,k,MOMY_E);
-  Real currentZ = r_i*arr(i,j,k,3) + r_e*arr(i,j,k,MOMZ_E);
-
-  arr(i,j,k,1) -= dt/l_r*eta*r_i*rho_i*currentX;
-  arr(i,j,k,2) -= dt/l_r*eta*r_i*rho_i*currentX;
-  arr(i,j,k,3) -= dt/l_r*eta*r_i*rho_i*currentX;
-  
-  arr(i,j,k,MOMX_E) -= dt/l_r*eta*r_e*rho_e*currentX;
-  arr(i,j,k,MOMY_E) -= dt/l_r*eta*r_e*rho_e*currentX;
-  arr(i,j,k,MOMZ_E) -= dt/l_r*eta*r_e*rho_e*currentX;
-  */
 }
 void CAMReXmp::sourceUpdateANEX(Array4<Real>& arr, int i, int j, int k, Real dt)
 {

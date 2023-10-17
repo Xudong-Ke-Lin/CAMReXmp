@@ -42,13 +42,16 @@ StrangFunctionPointer CAMReXmp::StrangWithChosenUpdateOrder = &CAMReXmp::StrangS
 RKFunctionPointer CAMReXmp::RKWithChosenUpdateOrder = &CAMReXmp::RK2;
 fluidFunctionPointer CAMReXmp::fluidSolverWithChosenOrder = &CAMReXmp::fluidSolverTVD;
 MaxwellFunctionPointer CAMReXmp::MaxwellSolverWithChosenOrder = &CAMReXmp::MaxwellSolverDivFreeTVD;
-sourceFunctionPointer CAMReXmp::sourceUpdateWithChosenMethod = &CAMReXmp::sourceUpdateANEX;
+sourceFunctionPointer CAMReXmp::sourceUpdateWithChosenMethod = &CAMReXmp::sourceUpdateIMMidpoint;
 
 int CAMReXmp::StrangOrder = 2;
 int CAMReXmp::RKOrder = 2;
 int CAMReXmp::fluidOrder = 2;
 int CAMReXmp::MaxwellOrder = 2;
-std::string CAMReXmp::sourceMethod = "ANEX";
+std::string CAMReXmp::MaxwellTimeMethod = "EX";
+std::string CAMReXmp::MaxwellDivMethod = "FVTD";
+std::string CAMReXmp::sourceMethod = "IM";
+int CAMReXmp::projectionStep = 10;
 
 //
 //Default constructor.  Builds invalid object.
@@ -176,7 +179,7 @@ CAMReXmp::variableSetUp ()
   desc_lst.addDescriptor(EM_XY_Type,edge,
 			 StateDescriptor::Point,storedGhostZones,6,
 			 &node_bilinear_interp);
-  
+
   /*//Set up boundary conditions, all boundaries can be set
   //independently, including for individual variables, but lo (left) and hi (right) are useful ways to
   //store them, for consistent access notation for the boundary
@@ -648,7 +651,7 @@ CAMReXmp::advance (Real time,
   // Set up a multifab that will contain the electromagnetic fields
   MultiFab& S_EM_X_new = get_new_data(EM_X_Type);
   MultiFab& S_EM_Y_new = get_new_data(EM_Y_Type);
-  
+
   const Real prev_time = state[Phi_Type].prevTime();
   const Real cur_time = state[Phi_Type].curTime();
   const Real ctr_time = 0.5*(prev_time + cur_time);
@@ -680,402 +683,129 @@ CAMReXmp::advance (Real time,
     current = &getFluxReg(level);
   }
 
-  // Set up a dimensional multifab that will contain the fluxes
-  MultiFab fluxes[amrex::SpaceDim];
+//   // Set up a dimensional multifab that will contain the fluxes
+//   MultiFab fluxes[amrex::SpaceDim];
   
-  // Define the appropriate size for the flux MultiFab.
-  // Fluxes are defined at cell faces - this is taken care of by the
-  // surroundingNodes(j) command, ensuring the size of the flux
-  for (int j = 0; j < amrex::SpaceDim; j++)
-  {
-    BoxArray ba = S_new.boxArray();
-    ba.surroundingNodes(j);
-    fluxes[j].define(ba, dmap, NUM_STATE, 0);
-  }
+//   // Define the appropriate size for the flux MultiFab.
+//   // Fluxes are defined at cell faces - this is taken care of by the
+//   // surroundingNodes(j) command, ensuring the size of the flux
+//   for (int j = 0; j < amrex::SpaceDim; j++)
+//   {
+//     BoxArray ba = S_new.boxArray();
+//     ba.surroundingNodes(j);
+//     fluxes[j].define(ba, dmap, NUM_STATE, 0);
+//   }
 
-  // Set up a multifab that will contain the fluxes for the electromagnetic fields
-  // It will be a nodal multifab (i.e. stored at the corner)
-  MultiFab fluxesEM;
-  BoxArray ba = S_EM_X_new.boxArray();
-  ba.surroundingNodes(1);
-  const DistributionMapping& dmX = S_EM_X_new.DistributionMap();
-  fluxesEM.define(ba, dmX, 6, 0);
-  //fluxesEM = 0.0;
+//   // Set up a multifab that will contain the fluxes for the electromagnetic fields
+//   // It will be a nodal multifab (i.e. stored at the corner)
+//   MultiFab fluxesEM;
+//   BoxArray ba = S_EM_X_new.boxArray();
+//   ba.surroundingNodes(1);
+//   const DistributionMapping& dmX = S_EM_X_new.DistributionMap();
+//   fluxesEM.define(ba, dmX, 6, 0);
+//   //fluxesEM = 0.0;
   
-  // State with ghost cells - this is used to compute fluxes and perform the update.
-  MultiFab S0(grids, dmap, NUM_STATE, NUM_GROW);
-  // See init function for details about the FillPatch function
-  FillPatch(*this, S0, NUM_GROW, time, Phi_Type, 0, NUM_STATE);
+//   // State with ghost cells - this is used to compute fluxes and perform the update.
+//   MultiFab S0(grids, dmap, NUM_STATE, NUM_GROW);
+//   // See init function for details about the FillPatch function
+//   FillPatch(*this, S0, NUM_GROW, time, Phi_Type, 0, NUM_STATE);
   
-  // Set up a multifab that will contain the electromagnetic fields
-  //MultiFab S_EM[2];
-  Array<MultiFab,AMREX_SPACEDIM> S_EM0;
-  S_EM0[0].define(convert(grids,IntVect{AMREX_D_DECL(1,0,0)}), dmap, 6, NUM_GROW);
-  // !!
-  // Comment out fillpatch when HDC
-  FillPatch(*this, S_EM0[0], NUM_GROW, time, EM_X_Type, 0, 6);
-#if (AMREX_SPACEDIM >= 2) 
-  S_EM0[1].define(convert(grids,IntVect{AMREX_D_DECL(0,1,0)}), dmap, 6, NUM_GROW);
-  FillPatch(*this, S_EM0[1], NUM_GROW, time, EM_Y_Type, 0, 6);
-#endif
+//   // Set up a multifab that will contain the electromagnetic fields
+//   //MultiFab S_EM[2];
+//   Array<MultiFab,AMREX_SPACEDIM> S_EM0;
+//   S_EM0[0].define(convert(grids,IntVect{AMREX_D_DECL(1,0,0)}), dmap, 6, NUM_GROW);
+//   // !!
+//   // Comment out fillpatch when HDC
+//   FillPatch(*this, S_EM0[0], NUM_GROW, time, EM_X_Type, 0, 6);
+// #if (AMREX_SPACEDIM >= 2) 
+//   S_EM0[1].define(convert(grids,IntVect{AMREX_D_DECL(0,1,0)}), dmap, 6, NUM_GROW);
+//   FillPatch(*this, S_EM0[1], NUM_GROW, time, EM_Y_Type, 0, 6);
+// #endif
   
   //std::cout << Sborder.ixType().cellCentered() << " " << S_EM[0].ixType().cellCentered() << " " << S_EM[1].ixType().cellCentered() << std::endl;
-  
-  //(this->*advanceWithChosenUpdateOrder)(Sborder,fluxes,dx,dt);  
-  //sourceUpdate(S0, fluxes, dx, 0.5*dt);
-  
-  // MultiFab S1(grids, dmap, NUM_STATE+2, NUM_GROW);
-  // //MultiFab::Copy(S1, S0, 0, 0, NUM_STATE+2, NUM_GROW);
-  // Array<MultiFab,2> S_EM1;
-  // S_EM1[0].define(convert(grids,IntVect{AMREX_D_DECL(1,0,0)}), dmap, 6, NUM_GROW);
-  // S_EM1[1].define(convert(grids,IntVect{AMREX_D_DECL(0,1,0)}), dmap, 6, NUM_GROW);
-  // //MultiFab::Copy(S_EM1[0], S_EM0[0], 0, 0, 6, NUM_GROW);
-  // //MultiFab::Copy(S_EM1[1], S_EM0[1], 0, 0, 6, NUM_GROW);
-  
-  // (this->*fluidSolverWithChosenOrder)(S1,S0,fluxes,dx,dt);
-  // (this->*MaxwellSolverWithChosenOrder)(S_EM1,S_EM0,fluxesEM,S1,S0,fluxes,dx,dt);
-  // //fluidSolverWENO(S1, S0, fluxes, dx, dt);
-  // //MaxwellSolverDivFreeWENO(S_EM1,S_EM0,fluxesEM,S1,S0,fluxes,dx,dt);
+    
+  //(this->*StrangWithChosenUpdateOrder)(SNew, S0, fluxes, S_EMNew, S_EM0, fluxesEM, dx, time, dt);
+  StrangSecond(dx, dt, time);
 
-  // MultiFab& S_EM_X_int = get_new_data(EM_X_Type);
-  // MultiFab& S_EM_Y_int = get_new_data(EM_Y_Type);
-  
-  // MultiFab::Copy(S_EM_X_int, S_EM1[0], 0, 0, 6, 0);
-  // MultiFab::Copy(S_EM_Y_int, S_EM1[1], 0, 0, 6, 0);
-  // FillPatch(*this, S_EM1[0], NUM_GROW, time+dt, EM_X_Type, 0, 6);
-  // FillPatch(*this, S_EM1[1], NUM_GROW, time+dt, EM_Y_Type, 0, 6);
-
-  // S_EM1[0].FillBoundary(geom.periodicity());
-  // FillDomainBoundary(S_EM1[0], geom, bc_EM);  
-  // S_EM1[1].FillBoundary(geom.periodicity());
-  // FillDomainBoundary(S_EM1[1], geom, bc_EM);  
-  
-  // MultiFab S2(grids, dmap, NUM_STATE+2, NUM_GROW);
-  // //MultiFab::Copy(S2, S1, 0, 0, NUM_STATE+2, NUM_GROW);
-  // Array<MultiFab,2> S_EM2;
-  // S_EM2[0].define(convert(grids,IntVect{AMREX_D_DECL(1,0,0)}), dmap, 6, NUM_GROW);
-  // S_EM2[1].define(convert(grids,IntVect{AMREX_D_DECL(0,1,0)}), dmap, 6, NUM_GROW);
-  // //MultiFab::Copy(S_EM2[0], S_EM1[0], 0, 0, 6, NUM_GROW);
-  // //MultiFab::Copy(S_EM2[1], S_EM1[1], 0, 0, 6, NUM_GROW);
-
-  // (this->*fluidSolverWithChosenOrder)(S2,S1,fluxes,dx,dt);
-  // (this->*MaxwellSolverWithChosenOrder)(S_EM2,S_EM1,fluxesEM,S2,S1,fluxes,dx,dt);
-  //fluidSolverWENO(S2, S1, fluxes, dx, dt);
-  //MaxwellSolverDivFreeWENO(S_EM2,S_EM1,fluxesEM,S2,S1,fluxes,dx,dt);
-  /*
-  linearCombination(S1, S0, 0.75, S2, 0.25, 0, NUM_STATE+2);
-  linearCombination(S_EM1[0], S_EM0[0], 0.75, S_EM2[0], 0.25, 0, 6);
-  linearCombination(S_EM1[1], S_EM0[1], 0.75, S_EM2[1], 0.25, 0, 6);
-  
-  MultiFab::Copy(S_EM_X_new, S_EM1[0], 0, 0, 6, 0);
-  MultiFab::Copy(S_EM_Y_new, S_EM1[1], 0, 0, 6, 0);
-  FillPatch(*this, S_EM1[0], NUM_GROW, time+dt, EM_X_Type, 0, 6);
-  FillPatch(*this, S_EM1[1], NUM_GROW, time+dt, EM_Y_Type, 0, 6);
-
-  S1.FillBoundary(geom.periodicity());
-  FillDomainBoundary(S1, geom, bc);  
-  S_EM1[0].FillBoundary(geom.periodicity());
-  S_EM1[1].FillBoundary(geom.periodicity());
-  FillDomainBoundary(S_EM1[0], geom, bc_EM);
-  FillDomainBoundary(S_EM1[1], geom, bc_EM);  
-
-  //MultiFab::Copy(S2, S1, 0, 0, NUM_STATE+2, NUM_GROW);
-  //MultiFab::Copy(S_EM2[0], S_EM1[0], 0, 0, 6, NUM_GROW);
-  //MultiFab::Copy(S_EM2[1], S_EM1[1], 0, 0, 6, NUM_GROW);
-  
-  fluidSolverWENO(S2, S1, fluxes, dx, dt);
-  MaxwellSolverDivFreeWENO(S_EM2,S_EM1,fluxesEM,S2,S1,fluxes,dx,dt);
-  */
-  MultiFab SNew(grids, dmap, NUM_STATE, NUM_GROW);  
+  MultiFab SNew(grids, dmap, NUM_STATE, NUM_GROW);
+  FillPatch(*this, SNew, NUM_GROW, time+dt, Phi_Type, 0, NUM_STATE);
   Array<MultiFab,AMREX_SPACEDIM> S_EMNew;
   S_EMNew[0].define(convert(grids,IntVect{AMREX_D_DECL(1,0,0)}), dmap, 6, NUM_GROW);
+  FillPatch(*this, S_EMNew[0], NUM_GROW, time+dt, EM_X_Type, 0, 6);
 #if (AMREX_SPACEDIM >= 2)
   S_EMNew[1].define(convert(grids,IntVect{AMREX_D_DECL(0,1,0)}), dmap, 6, NUM_GROW);
+  FillPatch(*this, S_EMNew[1], NUM_GROW, time+dt, EM_Y_Type, 0, 6);  
 #endif
-
-  (this->*StrangWithChosenUpdateOrder)(SNew, S0, fluxes, S_EMNew, S_EM0, fluxesEM, dx, time, dt);
-  //(this->*RKWithChosenUpdateOrder)(SNew, S0, fluxes, S_EMNew, S_EM0, fluxesEM, dx, time, dt);
-  //SSPRK3(SNew, S0, fluxes, S_EMNew, S_EM0, fluxesEM, dx, dt);
-  //SSPRK2(SNew, S0, fluxes, S_EMNew, S_EM0, fluxesEM, dx, dt);
-  //MUSCLHancokFluidSolverTVD(SNew, S0, fluxes, dx, dt);
-  //fluidSolverExact(SNew, S0, fluxes, dx, dt);
-  //MaxwellSolverDivFreeTVD(S_EMNew,S_EM0,fluxesEM,SNew,S0,fluxes,dx,dt);
-  
-  // linearCombination(SNew, S0, 1.0/3.0, S2, 2.0/3.0, 0, NUM_STATE+2);
-  // linearCombination(S_EMNew[0], S_EM0[0], 1.0/3.0, S_EM2[0], 2.0/3.0, 0, 6);
-  // linearCombination(S_EMNew[1], S_EM0[1], 1.0/3.0, S_EM2[1], 2.0/3.0, 0, 6);
-  // linearCombination(SNew, S0, 0.5, S2, 0.5, 0, NUM_STATE+2);
-  // linearCombination(S_EMNew[0], S_EM0[0], 0.5, S_EM2[0], 0.5, 0, 6);
-  // linearCombination(S_EMNew[1], S_EM0[1], 0.5, S_EM2[1], 0.5, 0, 6);
-
-  // SNew.FillBoundary(geom.periodicity());
-  // FillDomainBoundary(SNew, geom, bc);  
-  // S_EMNew[0].FillBoundary(geom.periodicity());
-  // S_EMNew[1].FillBoundary(geom.periodicity());
-  // FillDomainBoundary(S_EMNew[0], geom, bc_EM);
-  // FillDomainBoundary(S_EMNew[1], geom, bc_EM);  
-  
-  /*
-  MultiFab::Copy(SNew, S2, 0, 0, NUM_STATE+2, NUM_GROW);
-  MultiFab::Copy(S_EMNew[0], S_EM2[0], 0, 0, 6, NUM_GROW);
-  MultiFab::Copy(S_EMNew[1], S_EM2[1], 0, 0, 6, NUM_GROW); 
-  */
-  // At this point the current at the faces are updated in fluxes
-  // Sborder has updated fluid variables and has cell-centred EM variables
-  // S_EM has primary facial variables already defined at t=t_old and reconstructed transverse components
-  // divergence free update including the source terms for the electric field
-  //hyperbolicMaxwellSolverDivFree(S_EM,fluxesEM,Sborder,fluxes,dx,dt);
-  
-  /*// Set up a dimensional multifab that will contain the fluxes
-  MultiFab fluxes0[amrex::SpaceDim];
-  for (int j = 0; j < amrex::SpaceDim; j++)
-  {
-    BoxArray ba = S_new.boxArray();
-    ba.surroundingNodes(j);
-    fluxes0[j].define(ba, dmap, NUM_STATE, 0);
-  }
-  
-  // State with ghost cells - this is used to compute fluxes and perform the update.
-  MultiFab S0(grids, dmap, NUM_STATE+2, NUM_GROW);
-  // See init function for details about the FillPatch function
-  FillPatch(*this, S0, NUM_GROW, time, Phi_Type, 0, NUM_STATE+2);
-  S0.FillBoundary(geom.periodicity());
-  // Fill non-periodic physical boundaries
-  FillDomainBoundary(S0, geom, bc);
-  hyperbolicMaxwellSolverDivFreeIneff(S_EM,fluxesEM,Sborder,fluxes,S0,fluxes0,dx,dt);
-  */
-
-  // // Compute cell-centred EM fields from face-centred
-  // for (MFIter mfi(Sborder, true); mfi.isValid(); ++mfi)
-  //   {
-  //     const Box& bx = mfi.tilebox();
-      
-  //     const Dim3 lo = lbound(bx);
-  //     const Dim3 hi = ubound(bx);
-
-  //     const Dim3 hiDomain = ubound(geom.Domain());
-
-  //     Array4<Real> arr = Sborder.array(mfi);
-  //     Array4<Real> arrEMX = S_EM[0].array(mfi);
-  //     Array4<Real> arrEMY = S_EM[1].array(mfi);
-
-  //     for(int k = lo.z; k <= hi.z; k++)
-  //     {
-  //       for(int j = lo.y; j <= hi.y; j++)
-  //       {
-  //         for(int i = lo.x; i <= hi.x; i++)
-  //         {
-  // 	    arr(i,j,k,BX) = 0.5*(arrEMX(i,j,k,BX_LOCAL)+arrEMX(i+1,j,k,BX_LOCAL));
-  // 	    arr(i,j,k,BY) = 0.5*(arrEMY(i,j,k,BY_LOCAL)+arrEMY(i,j+1,k,BY_LOCAL));
-  // 	    arr(i,j,k,EX) = 0.5*(arrEMX(i,j,k,EX_LOCAL)+arrEMX(i+1,j,k,EX_LOCAL));
-  // 	    arr(i,j,k,EY) = 0.5*(arrEMY(i,j,k,EY_LOCAL)+arrEMY(i,j+1,k,EY_LOCAL));
-
-  // 	    Real ax = (arrEMX(i+1,j,k,EX_LOCAL)-arrEMX(i,j,k,EX_LOCAL))/dx[0];
-  // 	    Real by = (arrEMY(i,j+1,k,EY_LOCAL)-arrEMY(i,j,k,EY_LOCAL))/dx[1];
-  // 	    Real cz = 0.0;
-
-  // 	    //if (std::abs(ax+by+cz-1.0/(lambda_d*lambda_d*l_r)*(r_i*arr(i,j,k,RHO_I) + r_e*arr(i,j,k,RHO_E))) > 1e-13)
-  // 	    //std::cout << i << " " << j << " " << ax+by+cz << " " << 1.0/(lambda_d*lambda_d*l_r)*(r_i*arr(i,j,k,RHO_I) + r_e*arr(i,j,k,RHO_E)) << std::endl;
-  // 	    /*
-  // 	    if (i==1 && bc[MOMX_I].lo(0) == BCType::reflect_odd)
-  // 	      arr(0,j,k,EX_LOCAL) = arr(1,j,k,EX_LOCAL);
-  // 	    if (i==hiDomain.x && bc[MOMX_I].hi(0) == BCType::reflect_odd)
-  // 	      arr(hiDomain.x,j,k,EX_LOCAL) = arr(hiDomain.x-1,j,k,EX_LOCAL);
-  // 	    if (j==1 && bc[MOMY_I].lo(1) == BCType::reflect_odd)
-  // 	      arr(i,0,k,EY_LOCAL) = arr(i,1,k,EY_LOCAL);
-  // 	    if (j==hiDomain.y && bc[MOMY_I].hi(1) == BCType::reflect_odd)
-  // 	      arr(i,hiDomain.y,k,EY_LOCAL) = arr(i,hiDomain.y-1,k,EY_LOCAL);
-  // 	    */	    
-  // 	    // Ez source terms
-  // 	    //arr(i,j,k,EZ) = arr(i,j,k,EZ) - dt*1.0/(lambda_d*lambda_d*l_r)*(r_i*arr(i,j,k,MOMZ_I) + r_e*arr(i,j,k,MOMZ_E));
-  // 	  }
-  // 	}
-  //     }      
-  //   }
-  // // We need to compute boundary conditions again after each update       
-  // Sborder.FillBoundary(geom.periodicity());
-	    
-  // // Fill non-periodic physical boundaries          
-  // FillDomainBoundary(Sborder, geom, bc);
-  
-  // At this point the current at the faces are updated in fluxes
-  // Sborder has updated fluid variables and has cell-centred EM variables
-  // S_EM has primary facial variables already defined at t=t_old and reconstructed transverse components
-  // S0 has non-updated fluid variables used for charge density reconstruction
-  // divergence free update and reconstruction including the source terms for the electric field
-  // also includes computation of cell-centred EM fields from face-centred by using coeff. that give higher order
-  //hyperbolicMaxwellSolverDivFreeBalsara(S_EM,fluxesEM,Sborder,fluxes,S0,dx,dt);
-  //MaxwellSolverDivFreeWENO(S_EM,fluxesEM,Sborder,fluxes,S0,dx,dt);
-
-  // Source term update
-  // Loop over all the patches at this level         
-  /*for (MFIter mfi(SNew, true); mfi.isValid(); ++mfi)
-    {
-      const Box& bx = mfi.tilebox();
-      
-      const Dim3 lo = lbound(bx);
-      const Dim3 hi = ubound(bx);
-
-      Array4<Real> arr = SNew.array(mfi);
-      
-      for(int k = lo.z; k <= hi.z; k++)
-      {
-        for(int j = lo.y; j <= hi.y; j++)
-        {
-          for(int i = lo.x; i <= hi.x; i++)
-          {
-	    sourceUpdateANEX(arr, i, j, k, dt);
-	  }
-	}
-      }      
-    }
-  */
-  //sourceUpdate(SNew, fluxes, dx, 0.5*dt);
-  // We need to compute boundary conditions again after each update       
-  //SNew.FillBoundary(geom.periodicity());
-	    
-  // Fill non-periodic physical boundaries
-  //FillDomainBoundary(SNew, geom, bc);
-  /*
-  // Update source terms for face-centred EM fields (ANEX)
-  for (int d = 0; d < amrex::SpaceDim ; d++)   
-  {
-
-    const int iOffset = ( d == 0 ? 1 : 0);
-    const int jOffset = ( d == 1 ? 1 : 0);
-    const int kOffset = ( d == 2 ? 1 : 0);
-    
-    // Loop over all the patches at this level
-    for (MFIter mfi(S_EM[d], true); mfi.isValid(); ++mfi)
-    {
-      const Box& bx = mfi.tilebox();
-
-      const Dim3 lo = lbound(bx);
-      const Dim3 hi = ubound(bx);
-
-      // Indexable arrays for the data, and the directional flux
-      // Based on the corner-centred definition of the flux array, the
-      // data array runs from e.g. [0,N+1] and the flux array from [-1,N+1]
-      //const auto& arr = Sborder.array(mfi);
-      const auto& arrEM = S_EM[d].array(mfi);
-      //const auto& fluxArrEM = fluxesEM.array(mfi);
-      const auto& fluxArr = fluxes[d].array(mfi);
-      
-      for(int k = lo.z; k <= hi.z; k++)
-      {
-	for(int j = lo.y; j <= hi.y; j++)
-	{
-	  for(int i = lo.x; i <= hi.x; i++)
-	  {	    
-	    // source terms
-	    Real currentFace = r_i*fluxArr(i,j,k,RHO_I) + r_e*fluxArr(i,j,k,RHO_E);
-	    arrEM(i,j,k,EX_LOCAL+d) -= dt*1.0/(lambda_d*lambda_d*l_r)*currentFace;
-	    //Vector<Real> transverseEM = Maxwell_transverse_comp(arr, i, j, k, iOffset, jOffset, kOffset);
-	    //arrEM(i,j,k,EX_LOCAL+d) = transverseEM[EX_LOCAL+d];	    	    
-	    
-	  }
-	}
-      }      
-    }         
-  }
-  
-  // Compute cell-centred EM fields from face-centred
-  for (MFIter mfi(Sborder, true); mfi.isValid(); ++mfi)
-    {
-      const Box& bx = mfi.tilebox();
-      
-      const Dim3 lo = lbound(bx);
-      const Dim3 hi = ubound(bx);
-
-      Array4<Real> arr = Sborder.array(mfi);
-      Array4<Real> arrEMX = S_EM[0].array(mfi);
-      Array4<Real> arrEMY = S_EM[1].array(mfi);
-
-      for(int k = lo.z; k <= hi.z; k++)
-      {
-        for(int j = lo.y; j <= hi.y; j++)
-        {
-          for(int i = lo.x; i <= hi.x; i++)
-          {
-	    arr(i,j,k,BX) = 0.5*(arrEMX(i,j,k,BX_LOCAL)+arrEMX(i+1,j,k,BX_LOCAL));
-	    arr(i,j,k,BY) = 0.5*(arrEMY(i,j,k,BY_LOCAL)+arrEMY(i,j+1,k,BY_LOCAL));
-	    arr(i,j,k,EX) = 0.5*(arrEMX(i,j,k,EX_LOCAL)+arrEMX(i+1,j,k,EX_LOCAL));
-	    arr(i,j,k,EY) = 0.5*(arrEMY(i,j,k,EY_LOCAL)+arrEMY(i,j+1,k,EY_LOCAL));
-	  }
-	}
-      }      
-    }
-  */
 
   ParmParse pp;
   Real stop_time;
   pp.query("stop_time",stop_time);
-  // conditional used when using hyperbolic divergence cleaning, because DIVB and DIVE will be divergence cleaning parameters
+  // conditional used in case of hyperbolic divergence cleaning, because DIVB and DIVE will be divergence cleaning parameters
   if (cur_time>=stop_time)
     {
       amrex::Print() << "Last time step: calculating divergence errors" << std::endl;
-  // Loop over all the patches at this level
-  for (MFIter mfi(SNew, true); mfi.isValid(); ++mfi)
-    {
-      const Box& bx = mfi.tilebox();
-
-      const Dim3 lo = lbound(bx);
-      const Dim3 hi = ubound(bx);
-
-      // Indexable arrays for the data, and the directional flux
-      // Based on the vertex-centred definition of the flux array, the
-      // data array runs from e.g. [0,N] and the flux array from [0,N+1]
-      const auto& arr = SNew.array(mfi);
-        
-      for(int k = lo.z; k <= hi.z; k++)
-  	{
-  	  for(int j = lo.y; j <= hi.y; j++)
-  	    {
-  	      for(int i = lo.x; i <= hi.x; i++)
-  		{	    	    
-  		  // Initialise to zero
-  		  arr(i,j,k,DIVB) = 0.0;
-  		  arr(i,j,k,DIVE) = 1.0/(lambda_d*lambda_d*l_r)*(r_i*arr(i,j,k,RHO_I) + r_e*arr(i,j,k,RHO_E));
-  		}
-  	    }
-  	}    
-    }
-  // Compute divergence errors
-  for (int d = 0; d < amrex::SpaceDim ; d++)
-    {
-      const int iOffset = ( d == 0 ? 1 : 0);
-      const int jOffset = ( d == 1 ? 1 : 0);
-      const int kOffset = ( d == 2 ? 1 : 0);
-
+      // Loop over all the patches at this level
       for (MFIter mfi(SNew, true); mfi.isValid(); ++mfi)
 	{
 	  const Box& bx = mfi.tilebox();
-	  
+
 	  const Dim3 lo = lbound(bx);
 	  const Dim3 hi = ubound(bx);
-	
-	  Array4<Real> arr = SNew.array(mfi);
-	  Array4<Real> arrEM = S_EMNew[d].array(mfi);	
-	
-	  //for(int k = lo.z; k <= hi.z+kOffset; k++)
+
+	  // Indexable arrays for the data, and the directional flux
+	  // Based on the vertex-centred definition of the flux array, the
+	  // data array runs from e.g. [0,N] and the flux array from [0,N+1]
+	  const auto& arr = SNew.array(mfi);
+        
 	  for(int k = lo.z; k <= hi.z; k++)
 	    {
-	      //for(int j = lo.y; j <= hi.y+jOffset; j++)
 	      for(int j = lo.y; j <= hi.y; j++)
 		{
-		  //for(int i = lo.x; i <= hi.x+iOffset; i++)
 		  for(int i = lo.x; i <= hi.x; i++)
-		    {
-		      //arr(i,j,k,DIVB) += (arrEM(i+iOffset,j+jOffset,k,BX_LOCAL+d)-arrEM(i,j,k,BX_LOCAL+d))/ dx[d];
-		      arr(i,j,k,DIVB) += (arr(i+iOffset,j+jOffset,k,BX+d)-arr(i-iOffset,j-jOffset,k,BX+d))/(2.0*dx[d]);
-		      // substract because divEerror was set to be the charge density
-		      //arr(i,j,k,DIVE) -= (arrEM(i+iOffset,j+jOffset,k,EX_LOCAL+d)-arrEM(i,j,k,EX_LOCAL+d))/dx[d];
-		      arr(i,j,k,DIVE) -= (arr(i+iOffset,j+jOffset,k,EX+d)-arr(i-iOffset,j-jOffset,k,EX+d))/(2.0*dx[d]);
+		    {	    	    
+		      // Initialise to zero
+		      arr(i,j,k,DIVB) = 0.0;
+		      arr(i,j,k,DIVE) = 1.0/(lambda_d*lambda_d*l_r)*(r_i*arr(i,j,k,RHO_I) + r_e*arr(i,j,k,RHO_E));
 		    }
 		}
-	    }      
+	    }    
 	}
-    }
+      // Compute divergence errors
+      for (int d = 0; d < amrex::SpaceDim ; d++)
+	{
+	  const int iOffset = ( d == 0 ? 1 : 0);
+	  const int jOffset = ( d == 1 ? 1 : 0);
+	  const int kOffset = ( d == 2 ? 1 : 0);
+
+	  for (MFIter mfi(SNew, true); mfi.isValid(); ++mfi)
+	    {
+	      const Box& bx = mfi.tilebox();
+	  
+	      const Dim3 lo = lbound(bx);
+	      const Dim3 hi = ubound(bx);
+	
+	      Array4<Real> arr = SNew.array(mfi);
+	      Array4<Real> arrEM = S_EMNew[d].array(mfi);	
+	
+	      //for(int k = lo.z; k <= hi.z+kOffset; k++)
+	      for(int k = lo.z; k <= hi.z; k++)
+		{
+		  //for(int j = lo.y; j <= hi.y+jOffset; j++)
+		  for(int j = lo.y; j <= hi.y; j++)
+		    {
+		      //for(int i = lo.x; i <= hi.x+iOffset; i++)
+		      for(int i = lo.x; i <= hi.x; i++)
+			{
+			  //arr(i,j,k,DIVB) += (arrEM(i+iOffset,j+jOffset,k,BX_LOCAL+d)-arrEM(i,j,k,BX_LOCAL+d))/ dx[d];
+			  arr(i,j,k,DIVB) += (arr(i+iOffset,j+jOffset,k,BX+d)-arr(i-iOffset,j-jOffset,k,BX+d))/(2.0*dx[d]);
+			  // substract because divEerror was set to be the charge density
+			  //arr(i,j,k,DIVE) -= (arrEM(i+iOffset,j+jOffset,k,EX_LOCAL+d)-arrEM(i,j,k,EX_LOCAL+d))/dx[d];
+			  arr(i,j,k,DIVE) -= (arr(i+iOffset,j+jOffset,k,EX+d)-arr(i-iOffset,j-jOffset,k,EX+d))/(2.0*dx[d]);
+			}
+		    }
+		}      
+	    }
+	}
     }
   /*
   // Density errors for convergence problem
@@ -1267,12 +997,12 @@ CAMReXmp::advance (Real time,
   // Sixth entry: Number of ghost cells to be included in the copy (zero in this case, since only real
   //              data is needed for S_new)
   
-  MultiFab::Copy(S_new, SNew, 0, 0, NUM_STATE, 0);
+  //MultiFab::Copy(S_new, SNew, 0, 0, NUM_STATE, 0);
   // !!
   // Coment out for HDC
-  MultiFab::Copy(S_EM_X_new, S_EMNew[0], 0, 0, 6, 0);
+  //MultiFab::Copy(S_EM_X_new, S_EMNew[0], 0, 0, 6, 0);
 #if (AMREX_SPACEDIM >= 2) 
-  MultiFab::Copy(S_EM_Y_new, S_EMNew[1], 0, 0, 6, 0);
+  //MultiFab::Copy(S_EM_Y_new, S_EMNew[1], 0, 0, 6, 0);
 #endif
   
   // Refluxing at patch boundaries.  Amrex automatically does this
@@ -1293,7 +1023,7 @@ CAMReXmp::advance (Real time,
   // Fifth: NUM_STATE - number of states being added to the flux register
   // Sixth: Multiplier - in general, the least accurate (coarsest) flux is subtracted (-1) and the most
   //        accurate (finest) flux is added (+1)
-  if (do_reflux) {
+  /*if (do_reflux) {
     if (current) {
       for (int i = 0; i < amrex::SpaceDim ; i++)
 	current->FineAdd(fluxes[i],i,0,0,NUM_STATE,1.);
@@ -1303,7 +1033,7 @@ CAMReXmp::advance (Real time,
 	fine->CrseInit(fluxes[i],i,0,0,NUM_STATE,-1.);
     }
   }
-
+  */
   return dt;
 }
 
@@ -1424,14 +1154,16 @@ CAMReXmp::estTimeStep (Real)
       //dt_est = std::min(dt_est, dx[d]/c_h);
       // 0.5 means subcycling two times
       //dt_est = std::min(dt_est, dx[d]/std::max(c_h, c/2.0));
-    if (EMconstraint && fluidconstraint)
-      //dt_est = std::min(dt_est, dx[d]/std::max(c_h, c));
+    if (EMconstraint && fluidconstraint && MaxwellTimeMethod=="EX")
+      dt_est = std::min(dt_est, dx[d]/std::max(c_h, c));
+    else if (EMconstraint && fluidconstraint && (MaxwellTimeMethod=="EXsubcycling" || MaxwellTimeMethod=="IM"))
       dt_est = std::min(dt_est, dx[d]/c_h);
     else if (EMconstraint && !fluidconstraint)
       dt_est = std::min(dt_est, dx[d]/c);
     else
       dt_est = std::min(dt_est, dx[d]/c_h);
 
+    
     // dt also needs to resolve plasma and cyclotron frequencies
     //dt_est = std::min(dt_est, 0.5/std::max(omega_pe,omega_ce)*1.0/cfl);
     //dt_est = std::min(dt_est, 1.0/std::max(omega_pe,omega_ce)*1.0/cfl);
@@ -1798,7 +1530,7 @@ CAMReXmp::read_params ()
   
   ppn.get("Strang", StrangOrder);
   amrex::Print() << "Reading Strang splitting order: " << std::endl; 
-  if (StrangOrder==0){
+  /*if (StrangOrder==0){
     amrex::Print() << "No Strang splitting" << std::endl;
     StrangWithChosenUpdateOrder = &CAMReXmp::StrangZero;
   }
@@ -1806,7 +1538,7 @@ CAMReXmp::read_params ()
     amrex::Print() << "1st order Strang splitting" << std::endl;
     StrangWithChosenUpdateOrder = &CAMReXmp::StrangFirst;
   }
-  else if (StrangOrder==2){
+  else */if (StrangOrder==2){
     amrex::Print() << "2nd order Strang splitting" << std::endl;
     StrangWithChosenUpdateOrder = &CAMReXmp::StrangSecond;
   }
@@ -1815,77 +1547,112 @@ CAMReXmp::read_params ()
   
   ppn.get("RK", RKOrder);
   amrex::Print() << "Reading RK order: " << std::endl;
-  if (RKOrder==1){
+  /*if (RKOrder==1){
     amrex::Print() << "1st order RK" << std::endl;
     RKWithChosenUpdateOrder = &CAMReXmp::RK1;
     //tau = 1.0;
   }
-  else if (RKOrder==2){
+  else */if (RKOrder==2){
     amrex::Print() << "2nd order RK" << std::endl;
     RKWithChosenUpdateOrder = &CAMReXmp::RK2;
     //tau = 0.5;
   }
-  else if (RKOrder==3){
+  /*else if (RKOrder==3){
     amrex::Print() << "3rd order RK" << std::endl;
     RKWithChosenUpdateOrder = &CAMReXmp::RK3;
-  }
+    }*/
   else
     amrex::Abort("Please specify a valid RK order: 1, 2 or 3");
   
   ppn.get("fluid",fluidOrder);
   amrex::Print() << "Reading fluid method: " << std::endl;
-  if (fluidOrder==0){
+  /*if (fluidOrder==0){
     amrex::Print() << "no fluid solver" << std::endl;
     fluidSolverWithChosenOrder = &CAMReXmp::fluidSolverNothing;
   }
-  else if (fluidOrder==2){
+  else */if (fluidOrder==2){
     amrex::Print() << "fluid 2nd order TVD" << std::endl;
     fluidSolverWithChosenOrder = &CAMReXmp::fluidSolverTVD;
   }
-  else if (fluidOrder==3){
+  /*else if (fluidOrder==3){
     amrex::Print() << "fluid 3rd order WENO" << std::endl;
     fluidSolverWithChosenOrder = &CAMReXmp::fluidSolverWENO;
-  }
+    }*/
   else
     amrex::Abort("Please specify a valid fluid order: 0, 2 or 3");
 
   ppn.get("Maxwell",MaxwellOrder);
   amrex::Print() << "Reading Maxwell method: " << std::endl;
-  if (MaxwellOrder==0){
+  /*if (MaxwellOrder==0){
     amrex::Print() << "no Maxwell solver" << std::endl;
     MaxwellSolverWithChosenOrder = &CAMReXmp::MaxwellSolverDivFreeNothing;
   }
-  else if (MaxwellOrder==2){
+  else */if (MaxwellOrder==2){
     amrex::Print() << "Maxwell 2nd order TVD" << std::endl;
     MaxwellSolverWithChosenOrder = &CAMReXmp::MaxwellSolverDivFreeTVD;
   }
-  else if (MaxwellOrder==3){
+  /*else if (MaxwellOrder==3){
     amrex::Print() << "Maxwell 3rd order WENO" << std::endl;
     MaxwellSolverWithChosenOrder = &CAMReXmp::MaxwellSolverDivFreeWENO;
-  }
+    }*/
   else
     amrex::Abort("Please specify a valid Maxwell order: 2 or 3");
   
+  
+  ppn.get("MaxwellTimeMethod",MaxwellTimeMethod);
+  amrex::Print() << "Reading Maxwell time stepping method: " << std::endl;
+  if (MaxwellTimeMethod=="EX"){
+    amrex::Print() << "explicit Maxwell time stepping" << std::endl;
+  }
+  else if (MaxwellTimeMethod=="EXsubcycling"){
+    amrex::Print() << "explicit Maxwell time stepping with sub-cycling" << std::endl;
+  }
+  else if (MaxwellTimeMethod=="IM"){
+    amrex::Print() << "implicit Maxwell time stepping" << std::endl;
+  }
+  else
+    amrex::Abort("Please specify a valid Maxwell time stepping method: EX, EXsubcycling or IM");
+
+  ppn.get("MaxwellDivMethod",MaxwellDivMethod);
+  amrex::Print() << "Reading Maxwell divergence cleaning method: " << std::endl;
+  if (MaxwellDivMethod=="FVTD"){
+    amrex::Print() << "fintite-volume time-domain" << std::endl;
+  }
+  else if (MaxwellDivMethod=="FDTD"){
+    amrex::Print() << "finite-difference time-domain" << std::endl;
+  }
+  else if (MaxwellDivMethod=="HDC"){
+    amrex::Print() << "hyperbolic divergence cleaning" << std::endl;
+    ppn.get("cb",cb);
+    ppn.get("ce",ce);
+  }
+  else
+    amrex::Abort("Please specify a valid Maxwell divergence cleaning method: FVTD, FDTD or HDC");
+
   ppn.get("source",sourceMethod);
   amrex::Print() << "Reading source method: " << std::endl;
-  if (sourceMethod=="EX"){
+  /*if (sourceMethod=="EX"){
     amrex::Print() << "EX source treatment" << std::endl;
     sourceUpdateWithChosenMethod = &CAMReXmp::sourceUpdateEX;
   }
-  else if (sourceMethod=="IM"){
+  else */if (sourceMethod=="IM"){
     amrex::Print() << "IM source treatment" << std::endl;
     sourceUpdateWithChosenMethod = &CAMReXmp::sourceUpdateIMMidpoint;
   }
-  else if (sourceMethod=="ANEX"){
+  /*else if (sourceMethod=="ANEX"){
     amrex::Print() << "ANEX source treatment" << std::endl;
     sourceUpdateWithChosenMethod = &CAMReXmp::sourceUpdateANEX;
   }
   else if (sourceMethod=="STIFF"){
     amrex::Print() << "STIFF source treatment" << std::endl;
     sourceUpdateWithChosenMethod = &CAMReXmp::sourceUpdateStiff;
-  }
+    }*/
   else
     amrex::Abort("Please specify a valid source method: EX, IM, ANEX or STIFF");
+
+  ppn.get("projectionStep", projectionStep);
+  amrex::Print() << "Reading steps per projection: " << std::endl; 
+
 }
 
 //
