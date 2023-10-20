@@ -43,6 +43,8 @@ typedef void (CAMReXmp::*RKFunctionPointer)(MultiFab&, MultiFab&, MultiFab (&)[A
 typedef void (CAMReXmp::*fluidFunctionPointer)(MultiFab&, MultiFab&,  amrex::MultiFab (&)[AMREX_SPACEDIM], const Real*, Real);
 typedef void (CAMReXmp::*MaxwellFunctionPointer)(Array<MultiFab,AMREX_SPACEDIM>&, Array<MultiFab,AMREX_SPACEDIM>&,MultiFab&, MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], const Real*, Real);
 typedef void (CAMReXmp::*sourceFunctionPointer)(Array4<Real>&, int, int, int, Real);
+typedef void (CAMReXmp::*fluidSpaceFunctionPointer)(MultiFab&, const Real*, Real);
+typedef void (CAMReXmp::*MaxwellSpaceFunctionPointer)(Array<MultiFab,AMREX_SPACEDIM>&, MultiFab&, const Real*, Real);
 
 //
 // AmrLevel-derived class for hyperbolic conservation equations
@@ -246,7 +248,9 @@ protected:
   static fluidFunctionPointer fluidSolverWithChosenOrder;
   static MaxwellFunctionPointer MaxwellSolverWithChosenOrder;
   static sourceFunctionPointer sourceUpdateWithChosenMethod;  
-
+  static fluidSpaceFunctionPointer fluidSolverWithChosenSpaceOrder;
+  static MaxwellSpaceFunctionPointer MaxwellSolverWithChosenSpaceOrder;
+  
   using functionPointer = void (CAMReXmp::*)(MultiFab&, amrex::MultiFab (&)[AMREX_SPACEDIM], const Real*, Real);
   //using RKfunctionPointer = void (CAMReXmp::*)(MultiFab&, amrex::MultiFab (&)[AMREX_SPACEDIM], const Real*, Real, functionPointer);
   //using sourcefunctionPointer = void (CAMReXmp::*)(MultiFab&, amrex::MultiFab (&)[AMREX_SPACEDIM], const Real*, Real, functionPointer);
@@ -278,6 +282,7 @@ private:
   void plasmaSolverTVD(MultiFab&, const Real*, Real);
   void MaxwellSolverFDTDCN(const Real*, Real, Real, Real, Real);
   void MaxwellSolverFVTDTVD(Array<MultiFab,AMREX_SPACEDIM>&, MultiFab&, const Real*, Real);
+  void MaxwellSolverFVTDWENO(Array<MultiFab,AMREX_SPACEDIM>&, MultiFab&, const Real*, Real);
   void elecFieldCellAve(Real, Real);
   void Projection(const Real*, Real);
   void sourceUpdate(Real, Real);

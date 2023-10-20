@@ -43,6 +43,8 @@ RKFunctionPointer CAMReXmp::RKWithChosenUpdateOrder = &CAMReXmp::RK2;
 fluidFunctionPointer CAMReXmp::fluidSolverWithChosenOrder = &CAMReXmp::fluidSolverTVD;
 MaxwellFunctionPointer CAMReXmp::MaxwellSolverWithChosenOrder = &CAMReXmp::MaxwellSolverDivFreeTVD;
 sourceFunctionPointer CAMReXmp::sourceUpdateWithChosenMethod = &CAMReXmp::sourceUpdateIMMidpoint;
+fluidSpaceFunctionPointer CAMReXmp::fluidSolverWithChosenSpaceOrder = &CAMReXmp::fluidSolverTVD;
+MaxwellSpaceFunctionPointer CAMReXmp::MaxwellSolverWithChosenSpaceOrder = &CAMReXmp::MaxwellSolverFVTDTVD;
 
 int CAMReXmp::StrangOrder = 2;
 int CAMReXmp::RKOrder = 2;
@@ -1573,6 +1575,7 @@ CAMReXmp::read_params ()
   else */if (fluidOrder==2){
     amrex::Print() << "fluid 2nd order TVD" << std::endl;
     fluidSolverWithChosenOrder = &CAMReXmp::fluidSolverTVD;
+    fluidSolverWithChosenSpaceOrder = &CAMReXmp::fluidSolverTVD;
   }
   /*else if (fluidOrder==3){
     amrex::Print() << "fluid 3rd order WENO" << std::endl;
@@ -1590,11 +1593,13 @@ CAMReXmp::read_params ()
   else */if (MaxwellOrder==2){
     amrex::Print() << "Maxwell 2nd order TVD" << std::endl;
     MaxwellSolverWithChosenOrder = &CAMReXmp::MaxwellSolverDivFreeTVD;
+    MaxwellSolverWithChosenSpaceOrder = &CAMReXmp::MaxwellSolverFVTDTVD;
   }
-  /*else if (MaxwellOrder==3){
+  else if (MaxwellOrder==3){
     amrex::Print() << "Maxwell 3rd order WENO" << std::endl;
     MaxwellSolverWithChosenOrder = &CAMReXmp::MaxwellSolverDivFreeWENO;
-    }*/
+    MaxwellSolverWithChosenSpaceOrder = &CAMReXmp::MaxwellSolverFVTDWENO;
+  }
   else
     amrex::Abort("Please specify a valid Maxwell order: 2 or 3");
   
@@ -1652,7 +1657,7 @@ CAMReXmp::read_params ()
 
   ppn.get("projectionStep", projectionStep);
   amrex::Print() << "Reading steps per projection: " << std::endl; 
-
+  
 }
 
 //

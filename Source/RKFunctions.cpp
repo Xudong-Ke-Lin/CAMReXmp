@@ -96,6 +96,7 @@ void CAMReXmp::RK1(MultiFab& S_dest, MultiFab& S_source, MultiFab (&fluxes)[AMRE
 void CAMReXmp::RK2(const Real* dx, Real dt, Real time)
 {
 
+  // get multifabs references
   MultiFab& S_new = get_new_data(Phi_Type);
   MultiFab& S_EM_X_new = get_new_data(EM_X_Type);
   MultiFab& S_EM_Y_new = get_new_data(EM_Y_Type);  
@@ -108,7 +109,7 @@ void CAMReXmp::RK2(const Real* dx, Real dt, Real time)
   S_EM_input[1].define(convert(grids,IntVect{AMREX_D_DECL(0,1,0)}), dmap, 6, NUM_GROW);
 #endif
   
-  // intermediate states
+  // intermediate states in RK2
   MultiFab S1(grids, dmap, NUM_STATE, NUM_GROW);
   Array<MultiFab,AMREX_SPACEDIM> S_EM1;
   S_EM1[0].define(convert(grids,IntVect{AMREX_D_DECL(1,0,0)}), dmap, 6, NUM_GROW);  
@@ -116,18 +117,29 @@ void CAMReXmp::RK2(const Real* dx, Real dt, Real time)
   S_EM1[1].define(convert(grids,IntVect{AMREX_D_DECL(0,1,0)}), dmap, 6, NUM_GROW);
 #endif  
 
+  //////////////////////////////////////////////////////////////////////////////////////////
+  // fluid or plasma solver
+  //////////////////////////////////////////////////////////////////////////////////////////
+  // fill initial input data
   FillPatch(*this, S_input, NUM_GROW, time, Phi_Type, 0, NUM_STATE);
   if (MaxwellDivMethod=="HDC")
     plasmaSolverTVD(S_input,dx,dt);
   else
-    fluidSolverTVD(S_input,dx,dt);  
+    fluidSolverTVD(S_input,dx,dt);
+  // fill intermediate state
   FillPatch(*this, S1, NUM_GROW, time, Phi_Type, 0, NUM_STATE);
 
+  //////////////////////////////////////////////////////////////////////////////////////////
+  // Maxwell solver for FVTD with explicit time stepping
+  //////////////////////////////////////////////////////////////////////////////////////////
   if (MaxwellDivMethod=="FVTD" && MaxwellTimeMethod=="EX")
     {
+      // fill initial input data
       FillPatch(*this, S_EM_input[0], NUM_GROW, time, EM_X_Type, 0, 6);
       FillPatch(*this, S_EM_input[1], NUM_GROW, time, EM_Y_Type, 0, 6);
-      MaxwellSolverFVTDTVD(S_EM_input,S_input,dx,dt);  
+      //MaxwellSolverFVTDTVD(S_EM_input,S_input,dx,dt);
+      (this->*MaxwellSolverWithChosenSpaceOrder)(S_EM_input,S_input,dx,dt);
+      // fill intermediate states
       FillPatch(*this, S1, NUM_GROW, time, Phi_Type, 0, NUM_STATE);
       FillPatch(*this, S_EM1[0], NUM_GROW, time, EM_X_Type, 0, 6);
 #if (AMREX_SPACEDIM >= 2)
@@ -135,6 +147,9 @@ void CAMReXmp::RK2(const Real* dx, Real dt, Real time)
 #endif      
     }
 
+  //////////////////////////////////////////////////////////////////////////////////////////
+  // fluid or plasma solver
+  //////////////////////////////////////////////////////////////////////////////////////////
   if (MaxwellDivMethod=="HDC")
     {
       plasmaSolverTVD(S1,dx,dt);
@@ -143,12 +158,17 @@ void CAMReXmp::RK2(const Real* dx, Real dt, Real time)
   else
     {
       fluidSolverTVD(S1,dx,dt);
+      // only needs to update the fluid variables
       linearCombination(S_new, S_new, 1.0/2.0, S_input, 1.0/2.0, 0, NUM_STATE_FLUID);
     }
 
+  //////////////////////////////////////////////////////////////////////////////////////////
+  // Maxwell solver for FVTD with explicit time stepping
+  //////////////////////////////////////////////////////////////////////////////////////////
   if (MaxwellDivMethod=="FVTD" && MaxwellTimeMethod=="EX")
     {
-      MaxwellSolverFVTDTVD(S_EM1,S1,dx,dt);
+      //MaxwellSolverFVTDTVD(S_EM1,S1,dx,dt);
+      (this->*MaxwellSolverWithChosenSpaceOrder)(S_EM1,S1,dx,dt);
       linearCombination(S_new, S_new, 1.0/2.0, S_input, 1.0/2.0, BX, 6);
       linearCombination(S_EM_X_new, S_EM_X_new, 1.0/2.0, S_EM_input[0], 1.0/2.0, 0, 6);
 #if (AMREX_SPACEDIM >= 2)
@@ -156,6 +176,9 @@ void CAMReXmp::RK2(const Real* dx, Real dt, Real time)
 #endif
     }
 
+  //////////////////////////////////////////////////////////////////////////////////////////
+  // Maxwell solver for FVTD with explicit time stepping with sub-cycling
+  //////////////////////////////////////////////////////////////////////////////////////////  
   if (MaxwellDivMethod=="FVTD" && MaxwellTimeMethod=="EXsubcycling")
     {
       Real dtEM = cfl*std::min(dx[0],dx[1])/c;
@@ -164,18 +187,23 @@ void CAMReXmp::RK2(const Real* dx, Real dt, Real time)
       do{
 	amrex::Print() << "Updating hyperbolic part, dt=" << dtEM << ", current dt=" << dt_current << " and final dt=" << dt << std::endl;
 
+	// fill initial input data
+	// note that it is using the updated fluid states for the entire loop
 	FillPatch(*this, S_input, NUM_GROW, time, Phi_Type, 0, NUM_STATE);
 	FillPatch(*this, S_EM_input[0], NUM_GROW, time, EM_X_Type, 0, 6);
 	FillPatch(*this, S_EM_input[1], NUM_GROW, time, EM_Y_Type, 0, 6);
 
-	MaxwellSolverFVTDTVD(S_EM_input,S_input,dx,dtEM);  
+	//MaxwellSolverFVTDTVD(S_EM_input,S_input,dx,dtEM);
+	(this->*MaxwellSolverWithChosenSpaceOrder)(S_EM_input,S_input,dx,dtEM);
+	// fill intermediate states 
 	FillPatch(*this, S1, NUM_GROW, time, Phi_Type, 0, NUM_STATE);
 	FillPatch(*this, S_EM1[0], NUM_GROW, time, EM_X_Type, 0, 6);
 #if (AMREX_SPACEDIM >= 2)
 	FillPatch(*this, S_EM1[1], NUM_GROW, time, EM_Y_Type, 0, 6);
 #endif          
 
-	MaxwellSolverFVTDTVD(S_EM1,S1,dx,dtEM);
+	//MaxwellSolverFVTDTVD(S_EM1,S1,dx,dtEM);
+	(this->*MaxwellSolverWithChosenSpaceOrder)(S_EM1,S1,dx,dtEM);
 	linearCombination(S_new, S_new, 1.0/2.0, S_input, 1.0/2.0, BX, 6);
 	linearCombination(S_EM_X_new, S_EM_X_new, 1.0/2.0, S_EM_input[0], 1.0/2.0, 0, 6);
 #if (AMREX_SPACEDIM >= 2)
