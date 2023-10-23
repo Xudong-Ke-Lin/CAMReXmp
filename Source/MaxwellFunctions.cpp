@@ -14,6 +14,9 @@
 //#include <AMReX_Hypre.H>
 #include <AMReX_HypreSolver.H>
 
+// AMReX linear solvers in nodal variables
+#include <AMReX_MLNodeABecLaplacian.H>
+
 using namespace amrex;
 
 /*void CAMReXmp::MaxwellSolver(MultiFab& Sborder, MultiFab (&fluxes)[AMREX_SPACEDIM], const Real* dx, Real dt)
@@ -7960,6 +7963,428 @@ void CAMReXmp::MaxwellSolverFDTDCN(const Real* dx, Real dt, Real CCtime, Real FC
 		       soln_tol, 0.0, 200);
   hypre_solverXY.solve(Vector<MultiFab*>{&S_Z}, Vector<MultiFab const*>{&Rhs[2]},
   		     soln_tol, 0.0, 200);
+  
+  // We need to compute boundary conditions again after each update
+  /*S_EM_output[0].FillBoundary(geom.periodicity());
+  S_EM_output[1].FillBoundary(geom.periodicity());
+  S_EM_edge_output.FillBoundary(geom.periodicity());
+  // added by 2020D 
+  // Fill non-periodic physical boundaries                          
+  FillDomainBoundary(S_EM_output[0], geom, bc_EM);    
+  FillDomainBoundary(S_EM_output[1], geom, bc_EM);
+  FillDomainBoundary(S_EM_edge_output, geom, bc_EM);
+  */
+  MultiFab::Copy(S_EM_X_new, S_EM_output[0], 0, 0, 6, 0);
+  FillPatch(*this, S_EM_output[0], NUM_GROW, FCtime, EM_X_Type, 0, 6);
+#if (AMREX_SPACEDIM >= 2)
+  MultiFab::Copy(S_EM_Y_new, S_EM_output[1], 0, 0, 6, 0);
+  FillPatch(*this, S_EM_output[1], NUM_GROW, FCtime, EM_Y_Type, 0, 6);
+  MultiFab::Copy(S_EM_XY_new, S_EM_edge_output, 0, 0, 6, 0);
+  FillPatch(*this, S_EM_edge_output, NUM_GROW, NCtime, EM_XY_Type, 0, 6);
+#endif
+
+  // Update electric field
+  for (MFIter mfi(S_EM_output[0], true); mfi.isValid(); ++mfi)
+    {
+      const Box& bx = mfi.tilebox();
+      
+      const Dim3 lo = lbound(bx);
+      const Dim3 hi = ubound(bx);
+
+      const auto& arrX = S_EM_output[0].array(mfi);
+      const auto& arrXY = S_EM_edge_output.array(mfi);
+      const auto& arrX_old = S_EM_input[0].array(mfi);
+      const auto& arrXY_old = S_EM_edge_input.array(mfi);
+
+      for(int k = lo.z; k <= hi.z; k++)
+	{
+	  for(int j = lo.y; j <= hi.y; j++)
+	    {
+	      const Real y = -0.5 + (double(j)+0.5) * dx[1];
+	      for(int i = lo.x; i <= hi.x; i++)		
+		{
+		  const Real x = -0.5 + (double(i)) * dx[0];
+		  Real dyBz = (arrXY(i,j+1,k,BZ_LOCAL)-arrXY(i,j,k,BZ_LOCAL))/dx[1];		  
+		  Real dyBzOld = (arrXY_old(i,j+1,k,BZ_LOCAL)-arrXY_old(i,j,k,BZ_LOCAL))/dx[1];
+		  
+		  arrX(i,j,k,EX_LOCAL) = arrX_old(i,j,k,EX_LOCAL) + 0.5*dt*c*c*dyBz + 0.5*dt*c*c*dyBzOld;
+
+		}
+	    }
+	}
+    }
+  for (MFIter mfi(S_EM_output[1], true); mfi.isValid(); ++mfi)
+    {
+      const Box& bx = mfi.tilebox();
+      
+      const Dim3 lo = lbound(bx);
+      const Dim3 hi = ubound(bx);
+
+      const auto& arrY = S_EM_output[1].array(mfi);
+      const auto& arrXY = S_EM_edge_output.array(mfi);
+      const auto& arrY_old = S_EM_input[1].array(mfi);
+      const auto& arrXY_old = S_EM_edge_input.array(mfi);
+
+      for(int k = lo.z; k <= hi.z; k++)
+	{
+	  for(int j = lo.y; j <= hi.y; j++)
+	    {
+	      const Real y = -0.5 + (double(j)) * dx[1];
+	      for(int i = lo.x; i <= hi.x; i++)
+		{
+		  const Real x = -0.5 + (double(i)+0.5) * dx[0];
+		  Real dxBz = (arrXY(i+1,j,k,BZ_LOCAL)-arrXY(i,j,k,BZ_LOCAL))/dx[0];
+		  Real dxBzOld = (arrXY_old(i+1,j,k,BZ_LOCAL)-arrXY_old(i,j,k,BZ_LOCAL))/dx[0];
+		  
+		  arrY(i,j,k,EY_LOCAL) = arrY_old(i,j,k,EY_LOCAL) - 0.5*dt*c*c*dxBz - 0.5*dt*c*c*dxBzOld;
+		}
+	    }
+	}
+    }
+
+  // We need to compute boundary conditions again after each update
+  /*S_EM_output[0].FillBoundary(geom.periodicity());
+  S_EM_output[1].FillBoundary(geom.periodicity());
+     
+  // added by 2020D 
+  // Fill non-periodic physical boundaries                          
+  FillDomainBoundary(S_EM_output[0], geom, bc_EM);    
+  FillDomainBoundary(S_EM_output[1], geom, bc_EM);
+  */
+  for (MFIter mfi(S_output, true); mfi.isValid(); ++mfi)
+    {
+      const Box& bx = mfi.tilebox();
+      
+      const Dim3 lo = lbound(bx);
+      const Dim3 hi = ubound(bx);
+
+      const auto& arr = S_output.array(mfi);
+      const auto& arr_old = S_input.array(mfi);
+      const auto& arrX = S_EM_output[0].array(mfi);
+      const auto& arrY = S_EM_output[1].array(mfi);
+      const auto& arrX_old = S_EM_input[0].array(mfi);
+      const auto& arrY_old = S_EM_input[1].array(mfi);
+
+      for(int k = lo.z; k <= hi.z; k++)
+	{
+	  for(int j = lo.y; j <= hi.y; j++)
+	    {
+	      for(int i = lo.x; i <= hi.x; i++)
+		{
+		  Real dxBy = (arrX(i+1,j,k,BY_LOCAL)-arrX(i,j,k,BY_LOCAL))/dx[0];
+		  Real dyBx = (arrY(i,j+1,k,BX_LOCAL)-arrY(i,j,k,BX_LOCAL))/dx[1];
+		  Real dxByOld = (arrX_old(i+1,j,k,BY_LOCAL)-arrX_old(i,j,k,BY_LOCAL))/dx[0];
+		  Real dyBxOld = (arrY_old(i,j+1,k,BX_LOCAL)-arrY_old(i,j,k,BX_LOCAL))/dx[1];
+
+		  arr(i,j,k,EZ) = arr_old(i,j,k,EZ) + 0.5*dt*c*c*dxBy + 0.5*dt*c*c*dxByOld - 0.5*dt*c*c*dyBx - 0.5*dt*c*c*dyBxOld;
+		}
+	    }
+	}
+    }
+
+  // We need to compute boundary conditions again after each update
+  /*S_EM_output[0].FillBoundary(geom.periodicity());
+  S_EM_output[1].FillBoundary(geom.periodicity());
+  
+  // added by 2020D 
+  // Fill non-periodic physical boundaries                          
+  FillDomainBoundary(S_EM_output[0], geom, bc_EM);    
+  FillDomainBoundary(S_EM_output[1], geom, bc_EM);
+  */
+  MultiFab::Copy(S_EM_X_new, S_EM_output[0], 0, 0, 6, 0);
+  FillPatch(*this, S_EM_output[0], NUM_GROW, FCtime, EM_X_Type, 0, 6);
+#if (AMREX_SPACEDIM >= 2)
+  MultiFab::Copy(S_EM_Y_new, S_EM_output[1], 0, 0, 6, 0);
+  FillPatch(*this, S_EM_output[1], NUM_GROW, FCtime, EM_Y_Type, 0, 6);
+#endif
+
+  // Compute cell-centred EM fields from Yee-grid EM fields
+  for (MFIter mfi(S_output, true); mfi.isValid(); ++mfi)
+    {
+      const Box& box = mfi.tilebox();
+      
+      const Dim3 lo = lbound(box);
+      const Dim3 hi = ubound(box);
+      
+      // Indexable arrays for the data, and the directional flux
+      // Based on the corner-centred definition of the flux array, the
+      // data array runs from e.g. [0,N+1] and the flux array from [-1,N+1]
+      const auto& arr = S_output.array(mfi);
+      const auto& arrEM_X = S_EM_output[0].array(mfi);
+      const auto& arrEM_Y = S_EM_output[1].array(mfi);
+      const auto& arrEM_XY = S_EM_edge_output.array(mfi);
+      
+      for(int k = lo.z; k <= hi.z; k++)
+  	{
+  	  for(int j = lo.y; j <= hi.y; j++)
+  	    {
+  	      for(int i = lo.x; i <= hi.x; i++)
+  		{		 
+		  
+  		  arr(i,j,k,BX) = (arrEM_Y(i,j+1,k,BX_LOCAL)+arrEM_Y(i,j,k,BX_LOCAL))/2.0;
+  		  arr(i,j,k,BY) = (arrEM_X(i+1,j,k,BY_LOCAL)+arrEM_X(i,j,k,BY_LOCAL))/2.0;
+		  arr(i,j,k,BZ) = (arrEM_XY(i+1,j,k,BZ_LOCAL)+arrEM_XY(i,j+1,k,BZ_LOCAL)+
+				   arrEM_XY(i+1,j+1,k,BZ_LOCAL)+arrEM_XY(i,j,k,BZ_LOCAL))/4.0;
+  		  arr(i,j,k,EX) = (arrEM_X(i+1,j,k,EX_LOCAL)+arrEM_X(i,j,k,EX_LOCAL))/2.0;
+  		  arr(i,j,k,EY) = (arrEM_Y(i,j+1,k,EY_LOCAL)+arrEM_Y(i,j,k,EY_LOCAL))/2.0;
+
+  		}
+  	    }
+  	}       
+    }
+    
+  /*// We need to compute boundary conditions again after each update
+  S_output.FillBoundary(geom.periodicity());
+     
+  // added by 2020D 
+  // Fill non-periodic physical boundaries                      
+  FillDomainBoundary(S_output, geom, bc);  
+  */
+  
+  MultiFab::Copy(S_new, S_output, BX, BX, 6, 0);
+  //FillPatch(*this, S_input, NUM_GROW, CCtime, Phi_Type, 0, NUM_STATE);
+  
+  //MultiFab::Copy(S_EM_XY_new, S_EM_edge_output, BZ_LOCAL, BZ_LOCAL, 1, 0);
+  MultiFab::Copy(S_EM_XY_new, S_EM_edge_output, 0, 0, 6, 0);
+}
+void CAMReXmp::MaxwellSolverFDTDCNAMReX(const Real* dx, Real dt, Real CCtime, Real FCtime, Real NCtime) 
+{
+
+  // get multifabs references
+  MultiFab& S_new = get_new_data(Phi_Type);
+  MultiFab& S_EM_X_new = get_new_data(EM_X_Type);
+  MultiFab& S_EM_Y_new = get_new_data(EM_Y_Type);
+  MultiFab& S_EM_XY_new = get_new_data(EM_XY_Type);
+
+  // input states and fill the data
+  MultiFab S_input(grids, dmap, NUM_STATE, NUM_GROW);
+  MultiFab S_output(grids, dmap, NUM_STATE, NUM_GROW);
+  FillPatch(*this, S_input, NUM_GROW, CCtime, Phi_Type, 0, NUM_STATE);
+  FillPatch(*this, S_output, NUM_GROW, CCtime, Phi_Type, 0, NUM_STATE);
+
+  Array<MultiFab,AMREX_SPACEDIM> S_EM_input, S_EM_output;
+  S_EM_input[0].define(convert(grids,IntVect{AMREX_D_DECL(1,0,0)}), dmap, 6, NUM_GROW);
+  FillPatch(*this, S_EM_input[0], NUM_GROW, FCtime, EM_X_Type, 0, 6);
+  S_EM_output[0].define(convert(grids,IntVect{AMREX_D_DECL(1,0,0)}), dmap, 6, NUM_GROW);
+  FillPatch(*this, S_EM_output[0], NUM_GROW, FCtime, EM_X_Type, 0, 6);
+#if (AMREX_SPACEDIM >= 2) 
+  S_EM_input[1].define(convert(grids,IntVect{AMREX_D_DECL(0,1,0)}), dmap, 6, NUM_GROW);
+  FillPatch(*this, S_EM_input[1], NUM_GROW, FCtime, EM_Y_Type, 0, 6);
+  S_EM_output[1].define(convert(grids,IntVect{AMREX_D_DECL(0,1,0)}), dmap, 6, NUM_GROW);
+  FillPatch(*this, S_EM_output[1], NUM_GROW, FCtime, EM_Y_Type, 0, 6);
+#endif
+
+  // note that NCtime should be the old time step
+  // CCtime and FCtime should have been updated before
+  // through the source terms and hyperbolic update
+  MultiFab S_EM_edge_input, S_EM_edge_output;
+  S_EM_edge_input.define(convert(grids,IntVect{AMREX_D_DECL(1,1,0)}), dmap, 6, NUM_GROW);
+  S_EM_edge_output.define(convert(grids,IntVect{AMREX_D_DECL(1,1,0)}), dmap, 6, NUM_GROW);
+  FillPatch(*this, S_EM_edge_input, NUM_GROW, NCtime, EM_XY_Type, 0, 6);
+  FillPatch(*this, S_EM_edge_output, NUM_GROW, NCtime, EM_XY_Type, 0, 6);
+  NCtime += dt;
+
+  IndexType xface(IntVect{AMREX_D_DECL(1,0,0)});
+  IndexType yface(IntVect{AMREX_D_DECL(0,1,0)});
+  IndexType edge(IntVect{AMREX_D_DECL(1,1,0)});
+
+  auto const& nddom = amrex::surroundingNodes(geom.Domain());
+  auto const& nddomX = amrex::surroundingNodes(geom.Domain(),0);
+  auto const& nddomY = amrex::surroundingNodes(geom.Domain(),1);
+   const auto dxi = geom.InvCellSizeArray();
+
+  GpuArray<HYPRE_Real,AMREX_SPACEDIM> fac
+    {AMREX_D_DECL(static_cast<HYPRE_Real>(dxi[0]*dxi[0]),
+  		  static_cast<HYPRE_Real>(dxi[1]*dxi[1]),
+  		  static_cast<HYPRE_Real>(dxi[2]*dxi[2]))};
+
+
+  HYPRE_Real fac0 = HYPRE_Real(-2.)*(AMREX_D_TERM(fac[0],+fac[1],+fac[2]));
+
+   if (bc_EM[BX_LOCAL].lo(1)==REFLECT_ODD || bc_EM[BY_LOCAL].lo(0)==REFLECT_ODD)
+     amrex::Abort("Currently does not support fillerFunction reflec_odd for Bx in y-direction or By in x-direction");
+
+   //functor that returns whether the variable n at (i,j,k) in Box boxno (local index) is valid
+   auto marker = markerFunction(bc_EM[BZ_LOCAL],nddom);
+   auto markerX = markerFunction(bc_EM[BY_LOCAL],nddomX);
+   auto markerY = markerFunction(bc_EM[BX_LOCAL],nddomY);
+ 
+  // functor that fills the row in the matrix A for variable n at (i,j,k) in Box boxno (local index)
+  // using the CSR format
+  auto filler = fillerFunction(bc_EM[BZ_LOCAL],nddom,dxi,dt);
+  auto fillerX = fillerFunction(bc_EM[BY_LOCAL],nddomX,dxi,dt);
+  auto fillerY = fillerFunction(bc_EM[BX_LOCAL],nddomY,dxi,dt);
+  
+  constexpr int max_stencil_size = 2*AMREX_SPACEDIM+1;
+  HypreSolver<max_stencil_size> hypre_solverX
+    ({xface}, IntVect(1), geom, grids, dmap,
+     markerX, fillerX, 2);
+  HypreSolver<max_stencil_size> hypre_solverY
+    ({yface}, IntVect(1), geom, grids, dmap,
+     markerY, fillerY, 2);
+  HypreSolver<max_stencil_size> hypre_solverXY
+    //({IndexType::TheNodeType()}, IntVect(1), geom, grids, dmap,
+    ({edge}, IntVect(1), geom, grids, dmap,
+     marker, filler, 2);
+      
+  MultiFab S_X(S_EM_output[1], amrex::make_alias, BX_LOCAL, 1);
+  MultiFab S_Y(S_EM_output[0], amrex::make_alias, BY_LOCAL, 1);
+  MultiFab S_Z(S_EM_edge_output, amrex::make_alias, BZ_LOCAL, 1);  
+  
+  std::array<MultiFab,3> Rhs;
+  Rhs[0].define(convert(grids,IntVect{AMREX_D_DECL(0,1,0)}), dmap, 1, NUM_GROW);
+  Rhs[1].define(convert(grids,IntVect{AMREX_D_DECL(1,0,0)}), dmap, 1, NUM_GROW);
+  Rhs[2].define(convert(grids,IntVect{AMREX_D_DECL(1,1,0)}), dmap, 1, NUM_GROW);
+
+  for(MFIter mfi(Rhs[0], true); mfi.isValid(); ++mfi)
+    {
+      const Box& bx = mfi.tilebox();
+      
+      const Dim3 lo = lbound(bx);
+      const Dim3 hi = ubound(bx);
+
+      // Indexable arrays for the data, and the directional flux
+      // Based on the vertex-centred definition of the flux array, the
+      // data array runs from e.g. [0,N] and the flux array from [0,N+1]
+      const auto& rhs = Rhs[0].array(mfi);
+      const auto& arr = S_input.array(mfi);
+      const auto& arrEM = S_EM_input[1].array(mfi);
+
+      for(int k = lo.z; k <= hi.z; k++)
+	{
+	  for(int j = lo.y; j <= hi.y; j++)
+	    {
+	      for(int i = lo.x; i <= hi.x; i++)
+		{
+		  Real dyEz = (arr(i,j,k,EZ)-arr(i,j-1,k,EZ))/dx[1];
+		  Real dxdxBx = computeSecondDerivative(arrEM(i-1,j,k,BX_LOCAL), arrEM(i,j,k,BX_LOCAL), arrEM(i+1,j,k,BX_LOCAL), dx[0]);
+		  Real dydyBx = computeSecondDerivative(arrEM(i,j-1,k,BX_LOCAL), arrEM(i,j,k,BX_LOCAL), arrEM(i,j+1,k,BX_LOCAL), dx[1]);
+		  rhs(i,j,k) = arrEM(i,j,k,BX_LOCAL) + 0.25*c*c*dt*dt*(dxdxBx+dydyBx) - dt*dyEz;
+		}
+	    }
+	}
+    }
+  for(MFIter mfi(Rhs[1], true); mfi.isValid(); ++mfi)
+    {
+      const Box& bx = mfi.tilebox();
+
+      const Dim3 lo = lbound(bx);
+      const Dim3 hi = ubound(bx);
+	  
+      // Indexable arrays for the data, and the directional flux
+      // Based on the vertex-centred definition of the flux array, the
+      // data array runs from e.g. [0,N] and the flux array from [0,N+1]
+      const auto& rhs = Rhs[1].array(mfi);
+      const auto& arr = S_input.array(mfi);
+      const auto& arrEM = S_EM_input[0].array(mfi);
+      
+      for(int k = lo.z; k <= hi.z; k++)
+	{
+	  for(int j = lo.y; j <= hi.y; j++)
+	    {
+	      for(int i = lo.x; i <= hi.x; i++)
+		{
+		  Real dxEz = (arr(i,j,k,EZ)-arr(i-1,j,k,EZ))/dx[0];
+		  Real dxdxBy = computeSecondDerivative(arrEM(i-1,j,k,BY_LOCAL), arrEM(i,j,k,BY_LOCAL), arrEM(i+1,j,k,BY_LOCAL), dx[0]);
+		  Real dydyBy = computeSecondDerivative(arrEM(i,j-1,k,BY_LOCAL), arrEM(i,j,k,BY_LOCAL), arrEM(i,j+1,k,BY_LOCAL), dx[1]);
+		  rhs(i,j,k) = arrEM(i,j,k,BY_LOCAL) + 0.25*c*c*dt*dt*(dxdxBy+dydyBy) + dt*dxEz;
+		}
+	    }
+	}
+    }
+  for(MFIter mfi(Rhs[2], true); mfi.isValid(); ++mfi)
+    {
+      const Box& bx = mfi.tilebox();
+      
+      const Dim3 lo = lbound(bx);
+      const Dim3 hi = ubound(bx);
+	  
+      // Indexable arrays for the data, and the directional flux
+      // Based on the vertex-centred definition of the flux array, the
+      // data array runs from e.g. [0,N] and the flux array from [0,N+1]
+      const auto& rhs = Rhs[2].array(mfi);
+      const auto& arr = S_input.array(mfi);
+      const auto& arrEMX = S_EM_input[0].array(mfi);
+      const auto& arrEMY = S_EM_input[1].array(mfi);
+      const auto& arrEMXY = S_EM_edge_input.array(mfi);
+      
+      for(int k = lo.z; k <= hi.z; k++)
+	{
+	  for(int j = lo.y; j <= hi.y; j++)
+	    {
+	      for(int i = lo.x; i <= hi.x; i++)
+		{
+		  Real dyEx = (arrEMX(i,j,k,EX_LOCAL)-arrEMX(i,j-1,k,EX_LOCAL))/dx[1];
+		  Real dxEy = (arrEMY(i,j,k,EY_LOCAL)-arrEMY(i-1,j,k,EY_LOCAL))/dx[0];
+		  Real dxdxBz = computeSecondDerivative(arrEMXY(i-1,j,k,BZ_LOCAL), arrEMXY(i,j,k,BZ_LOCAL), arrEMXY(i+1,j,k,BZ_LOCAL), dx[0]);
+		  Real dydyBz = computeSecondDerivative(arrEMXY(i,j-1,k,BZ_LOCAL), arrEMXY(i,j,k,BZ_LOCAL), arrEMXY(i,j+1,k,BZ_LOCAL), dx[1]);
+		  rhs(i,j,k) = arrEMXY(i,j,k,BZ_LOCAL) + 0.25*c*c*dt*dt*(dxdxBz+dydyBz) - dt*(dxEy-dyEx);
+		}
+	    }
+	}
+    }
+
+  // We need to compute boundary conditions again after each update
+  /*Rhs[0].FillBoundary(geom.periodicity());
+  Rhs[1].FillBoundary(geom.periodicity());
+  Rhs[2].FillBoundary(geom.periodicity());
+  // added by 2020D 
+  // Fill non-periodic physical boundaries                          
+  FillDomainBoundary(Rhs[0], geom, {bc_EM[0]});    
+  FillDomainBoundary(Rhs[1], geom, {bc_EM[1]});
+  FillDomainBoundary(Rhs[2], geom, {bc_EM[2]});
+  */
+  MultiFab::Copy(S_EM_X_new, Rhs[1], 0, BY_LOCAL, 1, 0);
+  FillPatch(*this, Rhs[1], NUM_GROW, FCtime, EM_X_Type, BY_LOCAL, 1);
+#if (AMREX_SPACEDIM >= 2)
+  MultiFab::Copy(S_EM_Y_new, Rhs[0], 0, BX_LOCAL, 1, 0);
+  FillPatch(*this, Rhs[0], NUM_GROW, FCtime, EM_Y_Type, BX_LOCAL, 1);
+  MultiFab::Copy(S_EM_XY_new, Rhs[2], 0, BZ_LOCAL, 1, 0);
+  FillPatch(*this, Rhs[2], NUM_GROW, NCtime, EM_XY_Type, BZ_LOCAL, 1);
+#endif
+
+  hypre_solverY.solve(Vector<MultiFab*>{&S_X}, Vector<MultiFab const*>{&Rhs[0]},
+		       soln_tol, 0.0, 200);
+  hypre_solverX.solve(Vector<MultiFab*>{&S_Y}, Vector<MultiFab const*>{&Rhs[1]},
+		       soln_tol, 0.0, 200);
+  //hypre_solverXY.solve(Vector<MultiFab*>{&S_Z}, Vector<MultiFab const*>{&Rhs[2]},
+  //		     soln_tol, 0.0, 200);
+
+  bool agglomeration = true;
+  bool consolidation = true;
+  int max_coarsening_level = 30;
+  
+  LPInfo info;
+  info.setAgglomeration(agglomeration);
+  info.setConsolidation(consolidation);
+  info.setMaxCoarseningLevel(max_coarsening_level);
+
+  //const auto tol_rel = Real(1.e-10);
+  const auto tol_rel = Real(soln_tol);
+  const auto tol_abs = Real(0.0);
+
+  MLNodeABecLaplacian mlndabec({geom}, {grids}, {dmap}, info);
+
+  setDomainBC(mlmg_lobc_Z, mlmg_hibc_Z, BZ);
+  mlndabec.setDomainBC(mlmg_lobc_Z, mlmg_hibc_Z);
+
+  Real ascalar = 1.0;
+  Real bscalar = 0.5*0.5*c*c*dt*dt;
+  mlndabec.setScalars(ascalar, bscalar);
+
+  mlndabec.setACoeffs(0, 1.0);
+  mlndabec.setBCoeffs(0, 1.0);
+
+  int max_iter = 100;
+  int bottom_verbose = 0;
+  
+  MLMG mlmg(mlndabec);
+  mlmg.setMaxIter(max_iter);
+  mlmg.setMaxFmgIter(max_fmg_iter);
+  mlmg.setVerbose(verbose);
+  mlmg.setBottomVerbose(bottom_verbose);  
+
+  mlmg.solve({&S_Z}, {&Rhs[2]}, tol_rel, tol_abs);
   
   // We need to compute boundary conditions again after each update
   /*S_EM_output[0].FillBoundary(geom.periodicity());

@@ -281,6 +281,7 @@ private:
   void fluidSolverTVD(MultiFab&, const Real*, Real);
   void plasmaSolverTVD(MultiFab&, const Real*, Real);
   void MaxwellSolverFDTDCN(const Real*, Real, Real, Real, Real);
+  void MaxwellSolverFDTDCNAMReX(const Real*, Real, Real, Real, Real);
   void MaxwellSolverFVTDTVD(Array<MultiFab,AMREX_SPACEDIM>&, MultiFab&, const Real*, Real);
   void MaxwellSolverFVTDWENO(Array<MultiFab,AMREX_SPACEDIM>&, MultiFab&, const Real*, Real);
   void elecFieldCellAve(Real, Real);

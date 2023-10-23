@@ -161,6 +161,7 @@ void CAMReXmp::StrangSecond(const Real* dx, Real dt, Real time)
   RK2(dx,dt,CCtime);
   if (MaxwellTimeMethod=="IM" && MaxwellDivMethod=="FDTD")
     MaxwellSolverFDTDCN(dx,dt,CCtime,FCtime,NCtime);
+    //MaxwellSolverFDTDCNAMReX(dx,dt,CCtime,FCtime,NCtime);
   
   sourceUpdate(0.5*dt, CCtime);
   
