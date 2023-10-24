@@ -808,8 +808,9 @@ CAMReXmp::advance (Real time,
 		}      
 	    }
 	}
-    MultiFab& S_new = get_new_data(Phi_Type);
-    MultiFab::Copy(S_new, SNew, DIVB, DIVB, 2, 0);
+      // copy divergence errors
+      MultiFab& S_new = get_new_data(Phi_Type);
+      MultiFab::Copy(S_new, SNew, DIVB, DIVB, 2, 0);
     }
   /*
   // Density errors for convergence problem
