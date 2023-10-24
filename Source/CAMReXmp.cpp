@@ -808,6 +808,8 @@ CAMReXmp::advance (Real time,
 		}      
 	    }
 	}
+    MultiFab& S_new = get_new_data(Phi_Type);
+    MultiFab::Copy(S_new, SNew, DIVB, DIVB, 2, 0);
     }
   /*
   // Density errors for convergence problem
@@ -1622,14 +1624,20 @@ CAMReXmp::read_params ()
   amrex::Print() << "Reading Maxwell divergence cleaning method: " << std::endl;
   if (MaxwellDivMethod=="FVTD"){
     amrex::Print() << "fintite-volume time-domain" << std::endl;
+    if (MaxwellTimeMethod!="EX" && MaxwellTimeMethod!="EXsubcycling")
+      amrex::Abort("MaxwellDivMethod=FVTD only works with MaxwellTimeMethod=EX or EXsubcycling");
   }
   else if (MaxwellDivMethod=="FDTD"){
     amrex::Print() << "finite-difference time-domain" << std::endl;
+    if (MaxwellTimeMethod!="IM")
+      amrex::Abort("MaxwellDivMethod=FDTD only works with MaxwellTimeMethod=IM");
   }
   else if (MaxwellDivMethod=="HDC"){
     amrex::Print() << "hyperbolic divergence cleaning" << std::endl;
     ppn.get("cb",cb);
     ppn.get("ce",ce);
+    if (MaxwellTimeMethod!="EX")
+      amrex::Abort("MaxwellDivMethod=HDC only works with MaxwellTimeMethod=EX");
   }
   else
     amrex::Abort("Please specify a valid Maxwell divergence cleaning method: FVTD, FDTD or HDC");
