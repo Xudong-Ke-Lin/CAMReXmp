@@ -47,8 +47,11 @@ amr.plot_int          = 0               # number of timesteps between plot files
 amr.probin_file = probin
 
 # NUMERICAL METHODS
-num.Strang      = 2
-num.RK		= 2
-num.source 	= "ANEX"
-num.fluid	= 2
-num.Maxwell	= 2
+num.Strang		= 2
+num.RK			= 2
+num.source 		= "IM"
+num.fluid       	= 2
+num.Maxwell		= 2
+num.MaxwellTimeMethod   = "EX"
+num.MaxwellDivMethod	= "FVTD"
+num.projectionStep	= 0

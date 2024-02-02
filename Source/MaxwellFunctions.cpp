@@ -5781,6 +5781,12 @@ void CAMReXmp::Projection(const Real* dx, Real time)
 		    {
 		      //rhs(i,j,k,0) += (arrEM(i+iOffset,j+jOffset,k+kOffset,EX_LOCAL+d)-arrEM(i,j,k,EX_LOCAL+d))/dx[d];
 		      rhs(i,j,k,0) += (arr(i+iOffset,j+jOffset,k,EX+d)-arr(i-iOffset,j-jOffset,k,EX+d))/(2.0*dx[d]);
+		      if (geom.Coord()==1 && d==0)
+			{
+			  const Real x = geom.ProbLo()[0]+(double(i)+0.5)*dx[0];
+			  //const Real y = geom.ProbLo()[1]+(double(j)+0.5)*dx[1];
+			  rhs(i,j,k,0) += arr(i,j,k,EX+d)/x;
+			}
 		    }
 		}
 	    }      
@@ -7067,18 +7073,18 @@ void CAMReXmp::implicitYeeMaxwellSolver(Array<MultiFab,AMREX_SPACEDIM>& S_EM_des
   MultiFab::Copy(S_EM_XY_new, S_EM_destEdge, 0, 0, 6, 0);
 }
 
-void CAMReXmp::elecFieldCellAve(Real CCtime, Real FCtime)
+void CAMReXmp::elecFieldCellAve(Real time)
 {
 
   MultiFab S_input(grids, dmap, NUM_STATE, NUM_GROW);
-  FillPatch(*this, S_input, NUM_GROW, CCtime, Phi_Type, 0, NUM_STATE);
+  FillPatch(*this, S_input, NUM_GROW, time, Phi_Type, 0, NUM_STATE);
 
   Array<MultiFab,AMREX_SPACEDIM> S_EM_input;
   S_EM_input[0].define(convert(grids,IntVect{AMREX_D_DECL(1,0,0)}), dmap, 6, NUM_GROW);
-  FillPatch(*this, S_EM_input[0], NUM_GROW, FCtime, EM_X_Type, 0, 6);
+  FillPatch(*this, S_EM_input[0], NUM_GROW, time, EM_X_Type, 0, 6);
 #if (AMREX_SPACEDIM >= 2) 
   S_EM_input[1].define(convert(grids,IntVect{AMREX_D_DECL(0,1,0)}), dmap, 6, NUM_GROW);
-  FillPatch(*this, S_EM_input[1], NUM_GROW, FCtime, EM_Y_Type, 0, 6);
+  FillPatch(*this, S_EM_input[1], NUM_GROW, time, EM_Y_Type, 0, 6);
 #endif
 
   // Update face-centred EM fields
@@ -7129,6 +7135,10 @@ void CAMReXmp::elecFieldCellAve(Real CCtime, Real FCtime)
   //FillPatch(*this, S_EM_source[1], NUM_GROW, time, EM_Y_Type, 0, 6);
 #endif
 
+}
+void CAMReXmp::MaxwellSolverFVTDVoid(Array<MultiFab,AMREX_SPACEDIM>& S_EM_source, MultiFab& S_source, const Real* dx, Real dt)
+{
+  amrex::Abort("No Maxwell solver!!");
 }
 void CAMReXmp::MaxwellSolverFVTDTVD(Array<MultiFab,AMREX_SPACEDIM>& S_EM_source, MultiFab& S_source, const Real* dx, Real dt)
 {
@@ -7285,6 +7295,7 @@ void CAMReXmp::MaxwellSolverFVTDTVD(Array<MultiFab,AMREX_SPACEDIM>& S_EM_source,
 		      u_i = arr(i,j,k,EZ);
 		      u_iPlus1 = arr(i+iOffset,j+jOffset,k+kOffset,EZ);
 		      slopesEZ(i,j,k,d) = TVD_slope(u_iMinus1,u_i,u_iPlus1);
+
 		    }
 		}
 	    }      
@@ -7361,7 +7372,6 @@ void CAMReXmp::MaxwellSolverFVTDTVD(Array<MultiFab,AMREX_SPACEDIM>& S_EM_source,
 	    }
 	}      
     }
-
 
   // Coefficients for the magnetic and electric fields
   // For second order, there are 21 coeff.
@@ -7642,7 +7652,7 @@ void CAMReXmp::MaxwellSolverFVTDTVD(Array<MultiFab,AMREX_SPACEDIM>& S_EM_source,
 
       const auto& Bc = Bcoeff.array(mfi);
       const auto& Ec = Ecoeff.array(mfi);
-      
+
       for(int k = lo.z; k <= hi.z; k++)
   	{
   	  for(int j = lo.y; j <= hi.y; j++)
@@ -7761,7 +7771,7 @@ void CAMReXmp::MaxwellSolverFVTDTVD(Array<MultiFab,AMREX_SPACEDIM>& S_EM_source,
   // Fill non-periodic physical boundaries                      
   FillDomainBoundary(S_dest, geom, bc);  */
 }
-void CAMReXmp::MaxwellSolverFDTDCN(const Real* dx, Real dt, Real CCtime, Real FCtime, Real NCtime) 
+void CAMReXmp::MaxwellSolverFDTDCN(const Real* dx, Real dt, Real time) 
 {
 
   // get multifabs references
@@ -7773,30 +7783,26 @@ void CAMReXmp::MaxwellSolverFDTDCN(const Real* dx, Real dt, Real CCtime, Real FC
   // input states and fill the data
   MultiFab S_input(grids, dmap, NUM_STATE, NUM_GROW);
   MultiFab S_output(grids, dmap, NUM_STATE, NUM_GROW);
-  FillPatch(*this, S_input, NUM_GROW, CCtime, Phi_Type, 0, NUM_STATE);
-  FillPatch(*this, S_output, NUM_GROW, CCtime, Phi_Type, 0, NUM_STATE);
+  FillPatch(*this, S_input, NUM_GROW, time, Phi_Type, 0, NUM_STATE);
+  FillPatch(*this, S_output, NUM_GROW, time, Phi_Type, 0, NUM_STATE);
 
   Array<MultiFab,AMREX_SPACEDIM> S_EM_input, S_EM_output;
   S_EM_input[0].define(convert(grids,IntVect{AMREX_D_DECL(1,0,0)}), dmap, 6, NUM_GROW);
-  FillPatch(*this, S_EM_input[0], NUM_GROW, FCtime, EM_X_Type, 0, 6);
+  FillPatch(*this, S_EM_input[0], NUM_GROW, time, EM_X_Type, 0, 6);
   S_EM_output[0].define(convert(grids,IntVect{AMREX_D_DECL(1,0,0)}), dmap, 6, NUM_GROW);
-  FillPatch(*this, S_EM_output[0], NUM_GROW, FCtime, EM_X_Type, 0, 6);
+  FillPatch(*this, S_EM_output[0], NUM_GROW, time, EM_X_Type, 0, 6);
 #if (AMREX_SPACEDIM >= 2) 
   S_EM_input[1].define(convert(grids,IntVect{AMREX_D_DECL(0,1,0)}), dmap, 6, NUM_GROW);
-  FillPatch(*this, S_EM_input[1], NUM_GROW, FCtime, EM_Y_Type, 0, 6);
+  FillPatch(*this, S_EM_input[1], NUM_GROW, time, EM_Y_Type, 0, 6);
   S_EM_output[1].define(convert(grids,IntVect{AMREX_D_DECL(0,1,0)}), dmap, 6, NUM_GROW);
-  FillPatch(*this, S_EM_output[1], NUM_GROW, FCtime, EM_Y_Type, 0, 6);
+  FillPatch(*this, S_EM_output[1], NUM_GROW, time, EM_Y_Type, 0, 6);
 #endif
 
-  // note that NCtime should be the old time step
-  // CCtime and FCtime should have been updated before
-  // through the source terms and hyperbolic update
   MultiFab S_EM_edge_input, S_EM_edge_output;
   S_EM_edge_input.define(convert(grids,IntVect{AMREX_D_DECL(1,1,0)}), dmap, 6, NUM_GROW);
   S_EM_edge_output.define(convert(grids,IntVect{AMREX_D_DECL(1,1,0)}), dmap, 6, NUM_GROW);
-  FillPatch(*this, S_EM_edge_input, NUM_GROW, NCtime, EM_XY_Type, 0, 6);
-  FillPatch(*this, S_EM_edge_output, NUM_GROW, NCtime, EM_XY_Type, 0, 6);
-  NCtime += dt;
+  FillPatch(*this, S_EM_edge_input, NUM_GROW, time, EM_XY_Type, 0, 6);
+  FillPatch(*this, S_EM_edge_output, NUM_GROW, time, EM_XY_Type, 0, 6);
 
   IndexType xface(IntVect{AMREX_D_DECL(1,0,0)});
   IndexType yface(IntVect{AMREX_D_DECL(0,1,0)});
@@ -7949,12 +7955,12 @@ void CAMReXmp::MaxwellSolverFDTDCN(const Real* dx, Real dt, Real CCtime, Real FC
   FillDomainBoundary(Rhs[2], geom, {bc_EM[2]});
   */
   MultiFab::Copy(S_EM_X_new, Rhs[1], 0, BY_LOCAL, 1, 0);
-  FillPatch(*this, Rhs[1], NUM_GROW, FCtime, EM_X_Type, BY_LOCAL, 1);
+  FillPatch(*this, Rhs[1], NUM_GROW, time, EM_X_Type, BY_LOCAL, 1);
 #if (AMREX_SPACEDIM >= 2)
   MultiFab::Copy(S_EM_Y_new, Rhs[0], 0, BX_LOCAL, 1, 0);
-  FillPatch(*this, Rhs[0], NUM_GROW, FCtime, EM_Y_Type, BX_LOCAL, 1);
+  FillPatch(*this, Rhs[0], NUM_GROW, time, EM_Y_Type, BX_LOCAL, 1);
   MultiFab::Copy(S_EM_XY_new, Rhs[2], 0, BZ_LOCAL, 1, 0);
-  FillPatch(*this, Rhs[2], NUM_GROW, NCtime, EM_XY_Type, BZ_LOCAL, 1);
+  FillPatch(*this, Rhs[2], NUM_GROW, time, EM_XY_Type, BZ_LOCAL, 1);
 #endif
 
   hypre_solverY.solve(Vector<MultiFab*>{&S_X}, Vector<MultiFab const*>{&Rhs[0]},
@@ -7975,12 +7981,12 @@ void CAMReXmp::MaxwellSolverFDTDCN(const Real* dx, Real dt, Real CCtime, Real FC
   FillDomainBoundary(S_EM_edge_output, geom, bc_EM);
   */
   MultiFab::Copy(S_EM_X_new, S_EM_output[0], 0, 0, 6, 0);
-  FillPatch(*this, S_EM_output[0], NUM_GROW, FCtime, EM_X_Type, 0, 6);
+  FillPatch(*this, S_EM_output[0], NUM_GROW, time, EM_X_Type, 0, 6);
 #if (AMREX_SPACEDIM >= 2)
   MultiFab::Copy(S_EM_Y_new, S_EM_output[1], 0, 0, 6, 0);
-  FillPatch(*this, S_EM_output[1], NUM_GROW, FCtime, EM_Y_Type, 0, 6);
+  FillPatch(*this, S_EM_output[1], NUM_GROW, time, EM_Y_Type, 0, 6);
   MultiFab::Copy(S_EM_XY_new, S_EM_edge_output, 0, 0, 6, 0);
-  FillPatch(*this, S_EM_edge_output, NUM_GROW, NCtime, EM_XY_Type, 0, 6);
+  FillPatch(*this, S_EM_edge_output, NUM_GROW, time, EM_XY_Type, 0, 6);
 #endif
 
   // Update electric field
@@ -8092,10 +8098,10 @@ void CAMReXmp::MaxwellSolverFDTDCN(const Real* dx, Real dt, Real CCtime, Real FC
   FillDomainBoundary(S_EM_output[1], geom, bc_EM);
   */
   MultiFab::Copy(S_EM_X_new, S_EM_output[0], 0, 0, 6, 0);
-  FillPatch(*this, S_EM_output[0], NUM_GROW, FCtime, EM_X_Type, 0, 6);
+  FillPatch(*this, S_EM_output[0], NUM_GROW, time, EM_X_Type, 0, 6);
 #if (AMREX_SPACEDIM >= 2)
   MultiFab::Copy(S_EM_Y_new, S_EM_output[1], 0, 0, 6, 0);
-  FillPatch(*this, S_EM_output[1], NUM_GROW, FCtime, EM_Y_Type, 0, 6);
+  FillPatch(*this, S_EM_output[1], NUM_GROW, time, EM_Y_Type, 0, 6);
 #endif
 
   // Compute cell-centred EM fields from Yee-grid EM fields
@@ -8142,12 +8148,9 @@ void CAMReXmp::MaxwellSolverFDTDCN(const Real* dx, Real dt, Real CCtime, Real FC
   */
   
   MultiFab::Copy(S_new, S_output, BX, BX, 6, 0);
-  //FillPatch(*this, S_input, NUM_GROW, CCtime, Phi_Type, 0, NUM_STATE);
-  
-  //MultiFab::Copy(S_EM_XY_new, S_EM_edge_output, BZ_LOCAL, BZ_LOCAL, 1, 0);
   MultiFab::Copy(S_EM_XY_new, S_EM_edge_output, 0, 0, 6, 0);
 }
-void CAMReXmp::MaxwellSolverFDTDCNAMReX(const Real* dx, Real dt, Real CCtime, Real FCtime, Real NCtime) 
+void CAMReXmp::MaxwellSolverFDTDCNAMReX(const Real* dx, Real dt, Real time) 
 {
 
   // get multifabs references
@@ -8159,30 +8162,26 @@ void CAMReXmp::MaxwellSolverFDTDCNAMReX(const Real* dx, Real dt, Real CCtime, Re
   // input states and fill the data
   MultiFab S_input(grids, dmap, NUM_STATE, NUM_GROW);
   MultiFab S_output(grids, dmap, NUM_STATE, NUM_GROW);
-  FillPatch(*this, S_input, NUM_GROW, CCtime, Phi_Type, 0, NUM_STATE);
-  FillPatch(*this, S_output, NUM_GROW, CCtime, Phi_Type, 0, NUM_STATE);
+  FillPatch(*this, S_input, NUM_GROW, time, Phi_Type, 0, NUM_STATE);
+  FillPatch(*this, S_output, NUM_GROW, time, Phi_Type, 0, NUM_STATE);
 
   Array<MultiFab,AMREX_SPACEDIM> S_EM_input, S_EM_output;
   S_EM_input[0].define(convert(grids,IntVect{AMREX_D_DECL(1,0,0)}), dmap, 6, NUM_GROW);
-  FillPatch(*this, S_EM_input[0], NUM_GROW, FCtime, EM_X_Type, 0, 6);
+  FillPatch(*this, S_EM_input[0], NUM_GROW, time, EM_X_Type, 0, 6);
   S_EM_output[0].define(convert(grids,IntVect{AMREX_D_DECL(1,0,0)}), dmap, 6, NUM_GROW);
-  FillPatch(*this, S_EM_output[0], NUM_GROW, FCtime, EM_X_Type, 0, 6);
+  FillPatch(*this, S_EM_output[0], NUM_GROW, time, EM_X_Type, 0, 6);
 #if (AMREX_SPACEDIM >= 2) 
   S_EM_input[1].define(convert(grids,IntVect{AMREX_D_DECL(0,1,0)}), dmap, 6, NUM_GROW);
-  FillPatch(*this, S_EM_input[1], NUM_GROW, FCtime, EM_Y_Type, 0, 6);
+  FillPatch(*this, S_EM_input[1], NUM_GROW, time, EM_Y_Type, 0, 6);
   S_EM_output[1].define(convert(grids,IntVect{AMREX_D_DECL(0,1,0)}), dmap, 6, NUM_GROW);
-  FillPatch(*this, S_EM_output[1], NUM_GROW, FCtime, EM_Y_Type, 0, 6);
+  FillPatch(*this, S_EM_output[1], NUM_GROW, time, EM_Y_Type, 0, 6);
 #endif
 
-  // note that NCtime should be the old time step
-  // CCtime and FCtime should have been updated before
-  // through the source terms and hyperbolic update
   MultiFab S_EM_edge_input, S_EM_edge_output;
   S_EM_edge_input.define(convert(grids,IntVect{AMREX_D_DECL(1,1,0)}), dmap, 6, NUM_GROW);
   S_EM_edge_output.define(convert(grids,IntVect{AMREX_D_DECL(1,1,0)}), dmap, 6, NUM_GROW);
-  FillPatch(*this, S_EM_edge_input, NUM_GROW, NCtime, EM_XY_Type, 0, 6);
-  FillPatch(*this, S_EM_edge_output, NUM_GROW, NCtime, EM_XY_Type, 0, 6);
-  NCtime += dt;
+  FillPatch(*this, S_EM_edge_input, NUM_GROW, time, EM_XY_Type, 0, 6);
+  FillPatch(*this, S_EM_edge_output, NUM_GROW, time, EM_XY_Type, 0, 6);
 
   IndexType xface(IntVect{AMREX_D_DECL(1,0,0)});
   IndexType yface(IntVect{AMREX_D_DECL(0,1,0)});
@@ -8335,12 +8334,12 @@ void CAMReXmp::MaxwellSolverFDTDCNAMReX(const Real* dx, Real dt, Real CCtime, Re
   FillDomainBoundary(Rhs[2], geom, {bc_EM[2]});
   */
   MultiFab::Copy(S_EM_X_new, Rhs[1], 0, BY_LOCAL, 1, 0);
-  FillPatch(*this, Rhs[1], NUM_GROW, FCtime, EM_X_Type, BY_LOCAL, 1);
+  FillPatch(*this, Rhs[1], NUM_GROW, time, EM_X_Type, BY_LOCAL, 1);
 #if (AMREX_SPACEDIM >= 2)
   MultiFab::Copy(S_EM_Y_new, Rhs[0], 0, BX_LOCAL, 1, 0);
-  FillPatch(*this, Rhs[0], NUM_GROW, FCtime, EM_Y_Type, BX_LOCAL, 1);
+  FillPatch(*this, Rhs[0], NUM_GROW, time, EM_Y_Type, BX_LOCAL, 1);
   MultiFab::Copy(S_EM_XY_new, Rhs[2], 0, BZ_LOCAL, 1, 0);
-  FillPatch(*this, Rhs[2], NUM_GROW, NCtime, EM_XY_Type, BZ_LOCAL, 1);
+  FillPatch(*this, Rhs[2], NUM_GROW, time, EM_XY_Type, BZ_LOCAL, 1);
 #endif
 
   hypre_solverY.solve(Vector<MultiFab*>{&S_X}, Vector<MultiFab const*>{&Rhs[0]},
@@ -8397,12 +8396,12 @@ void CAMReXmp::MaxwellSolverFDTDCNAMReX(const Real* dx, Real dt, Real CCtime, Re
   FillDomainBoundary(S_EM_edge_output, geom, bc_EM);
   */
   MultiFab::Copy(S_EM_X_new, S_EM_output[0], 0, 0, 6, 0);
-  FillPatch(*this, S_EM_output[0], NUM_GROW, FCtime, EM_X_Type, 0, 6);
+  FillPatch(*this, S_EM_output[0], NUM_GROW, time, EM_X_Type, 0, 6);
 #if (AMREX_SPACEDIM >= 2)
   MultiFab::Copy(S_EM_Y_new, S_EM_output[1], 0, 0, 6, 0);
-  FillPatch(*this, S_EM_output[1], NUM_GROW, FCtime, EM_Y_Type, 0, 6);
+  FillPatch(*this, S_EM_output[1], NUM_GROW, time, EM_Y_Type, 0, 6);
   MultiFab::Copy(S_EM_XY_new, S_EM_edge_output, 0, 0, 6, 0);
-  FillPatch(*this, S_EM_edge_output, NUM_GROW, NCtime, EM_XY_Type, 0, 6);
+  FillPatch(*this, S_EM_edge_output, NUM_GROW, time, EM_XY_Type, 0, 6);
 #endif
 
   // Update electric field
@@ -8514,10 +8513,10 @@ void CAMReXmp::MaxwellSolverFDTDCNAMReX(const Real* dx, Real dt, Real CCtime, Re
   FillDomainBoundary(S_EM_output[1], geom, bc_EM);
   */
   MultiFab::Copy(S_EM_X_new, S_EM_output[0], 0, 0, 6, 0);
-  FillPatch(*this, S_EM_output[0], NUM_GROW, FCtime, EM_X_Type, 0, 6);
+  FillPatch(*this, S_EM_output[0], NUM_GROW, time, EM_X_Type, 0, 6);
 #if (AMREX_SPACEDIM >= 2)
   MultiFab::Copy(S_EM_Y_new, S_EM_output[1], 0, 0, 6, 0);
-  FillPatch(*this, S_EM_output[1], NUM_GROW, FCtime, EM_Y_Type, 0, 6);
+  FillPatch(*this, S_EM_output[1], NUM_GROW, time, EM_Y_Type, 0, 6);
 #endif
 
   // Compute cell-centred EM fields from Yee-grid EM fields
@@ -8564,9 +8563,6 @@ void CAMReXmp::MaxwellSolverFDTDCNAMReX(const Real* dx, Real dt, Real CCtime, Re
   */
   
   MultiFab::Copy(S_new, S_output, BX, BX, 6, 0);
-  //FillPatch(*this, S_input, NUM_GROW, CCtime, Phi_Type, 0, NUM_STATE);
-  
-  //MultiFab::Copy(S_EM_XY_new, S_EM_edge_output, BZ_LOCAL, BZ_LOCAL, 1, 0);
   MultiFab::Copy(S_EM_XY_new, S_EM_edge_output, 0, 0, 6, 0);
 }
 void CAMReXmp::MaxwellSolverFVTDWENO(Array<MultiFab,AMREX_SPACEDIM>& S_EM_source, MultiFab& S_source, const Real* dx, Real dt)

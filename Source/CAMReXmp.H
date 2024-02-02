@@ -278,15 +278,22 @@ private:
   ////////////////////////////////////////////////////////////
   void StrangSecond(const Real*, Real, Real);
   void RK2(const Real*, Real, Real);
+  void RK2fluidRK3Maxwell(const Real*, Real, Real);
+  void RK3(const Real*, Real, Real);
+  void fluidSolverVoid(MultiFab&, const Real*, Real);
   void fluidSolverTVD(MultiFab&, const Real*, Real);
+  void fluidSolverWENO(MultiFab&, const Real*, Real);
   void plasmaSolverTVD(MultiFab&, const Real*, Real);
-  void MaxwellSolverFDTDCN(const Real*, Real, Real, Real, Real);
-  void MaxwellSolverFDTDCNAMReX(const Real*, Real, Real, Real, Real);
+  void MaxwellSolverFVTDVoid(Array<MultiFab,AMREX_SPACEDIM>&, MultiFab&, const Real*, Real);
   void MaxwellSolverFVTDTVD(Array<MultiFab,AMREX_SPACEDIM>&, MultiFab&, const Real*, Real);
   void MaxwellSolverFVTDWENO(Array<MultiFab,AMREX_SPACEDIM>&, MultiFab&, const Real*, Real);
-  void elecFieldCellAve(Real, Real);
+  void MaxwellSolverFDTDCN(const Real*, Real, Real);
+  void MaxwellSolverFDTDCNAMReX(const Real*, Real, Real);
+  void elecFieldCellAve(Real);
   void Projection(const Real*, Real);
   void sourceUpdate(Real, Real);
+  void sourceUpdateVoid(Array4<Real>&, int, int, int, Real);
+  void sourceUpdateCyl(const Real*, Real, Real);
   
   void StrangZero(MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], Array<MultiFab,AMREX_SPACEDIM>&, Array<MultiFab,AMREX_SPACEDIM>&, MultiFab&, const Real*, Real, Real);
   void StrangFirst(MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], Array<MultiFab,AMREX_SPACEDIM>&, Array<MultiFab,AMREX_SPACEDIM>&, MultiFab&, const Real*, Real, Real);

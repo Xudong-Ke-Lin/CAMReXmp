@@ -9,6 +9,10 @@
 
 #include "CAMReXmp.H"
 
+// needed for EMwaveTM
+#include <complex>
+
+
 using namespace amrex;
 
 extern std::string test;

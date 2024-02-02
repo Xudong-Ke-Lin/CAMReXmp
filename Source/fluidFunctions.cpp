@@ -1659,6 +1659,10 @@ void CAMReXmp::flattenerAlgorithm(MultiFab& positivity, MultiFab& S_source, Mult
 //   FillDomainBoundary(positivity, geom, {bc[0],bc[0]});  
 
 // }
+void CAMReXmp::fluidSolverVoid(MultiFab& S_source, const Real* dx, Real dt)
+{
+  amrex::Abort("No fluid solver!!");
+}
 void CAMReXmp::fluidSolverTVD(MultiFab& S_source, const Real* dx, Real dt)
 {
 
@@ -1858,6 +1862,307 @@ void CAMReXmp::fluidSolverTVD(MultiFab& S_source, const Real* dx, Real dt)
 	    // Initialise to zero
 	    arr(i,j,k,DIVB) = 0.0;
 	    arr(i,j,k,DIVE) = 1.0/(lambda_d*lambda_d*l_r)*(r_i*arr(i,j,k,RHO_I) + r_e*arr(i,j,k,RHO_E));
+	  }
+	}
+      }    
+    }    
+    //}  
+
+  // We need to compute boundary conditions again after each update
+  S_dest.FillBoundary(geom.periodicity());
+     
+  // added by 2020D 
+  // Fill non-periodic physical boundaries                      
+  FillDomainBoundary(S_dest, geom, bc);  
+
+}
+void CAMReXmp::fluidSolverWENO(MultiFab& S_source, const Real* dx, Real dt)
+{
+
+  MultiFab& S_dest = get_new_data(Phi_Type);
+  
+  // Set up a dimensional multifab that will contain the fluxes
+  MultiFab fluxes[amrex::SpaceDim];
+  for (int j = 0; j < amrex::SpaceDim; j++)
+    {
+      BoxArray ba = S_dest.boxArray();
+      ba.surroundingNodes(j);
+      fluxes[j].define(ba, dmap, NUM_STATE, 0);
+    }
+
+  MultiFab Slopes(grids, dmap, NUM_STATE_FLUID*5, NUM_GROW);
+
+  const int iDomainOffset = 1;
+  const int jDomainOffset = ( amrex::SpaceDim > 1 ? 1 : 0);
+  const int kDomainOffset = ( amrex::SpaceDim == 3 ? 1 : 0);
+
+  // Compute slopes for WENO reconstruction
+  for (int d = 0; d < amrex::SpaceDim ; d++)   
+    {
+      
+      const int iOffset = ( d == 0 ? 1 : 0);
+      const int jOffset = ( d == 1 ? 1 : 0);
+      const int kOffset = ( d == 2 ? 1 : 0);
+      
+      for (MFIter mfi(Slopes, true); mfi.isValid(); ++mfi)
+	{
+	  const Box& bx = mfi.tilebox();
+
+	  const Dim3 lo = lbound(bx);
+	  const Dim3 hi = ubound(bx);
+      
+	  // Indexable arrays for the data, and the directional flux
+	  // Based on the vertex-centred definition of the flux array, the
+	  // data array runs from e.g. [0,N] and the flux array from [0,N+1]
+	  const auto& arr = S_source.array(mfi);
+	  const auto& slopes = Slopes.array(mfi);
+
+	  for(int k = lo.z-kDomainOffset; k <= hi.z+kDomainOffset; k++)
+	    {
+	      for(int j = lo.y-jDomainOffset; j <= hi.y+jDomainOffset; j++)
+		{
+		  for(int i = lo.x-iDomainOffset; i <= hi.x+iDomainOffset; i++)
+		    {
+		      /*//for (int n = 0; n<NUM_STATE_FLUID; n++)
+		      for(int n=0; n<NUM_STATE_FLUID/2; n++)
+			{
+			  Vector<Real> dataX = get_data_stencil(arr, i, j, k, 2*iOffset, 2*jOffset, 2*kOffset, n);
+			  //Vector<Real> dataX = get_data_stencil(arr, i, j, k, 2, 0, 0, n);
+			  std::array<Real, 2> slopesX = WENO3_slope(dataX);		      
+			  slopes(i,j,k,n+2*NUM_STATE_FLUID*d) = slopesX[0];
+			  //slopes(i,j,k,n) = slopesX[0];
+			  slopes(i,j,k,n+NUM_STATE_FLUID+2*NUM_STATE_FLUID*d) = slopesX[1];
+			  //slopes(i,j,k,n+NUM_STATE_FLUID) = slopesX[1];
+			}
+		      */		      
+		      //////////////////////////////////////////////////
+		      // local characteristic reconstruction
+		      WENOcharacteristic(arr,slopes,i,j,k,iOffset,jOffset,kOffset,0,NUM_STATE_FLUID/2,d);
+		      WENOcharacteristic(arr,slopes,i,j,k,iOffset,jOffset,kOffset,NUM_STATE_FLUID/2,NUM_STATE_FLUID/2,d);
+		      //////////////////////////////////////////////////
+		    }
+		}
+	    }
+	}
+    }
+
+#if (AMREX_SPACEDIM >= 2)
+  for (MFIter mfi(Slopes, true); mfi.isValid(); ++mfi)
+    {
+      const Box& bx = mfi.tilebox();
+
+      const Dim3 lo = lbound(bx);
+      const Dim3 hi = ubound(bx);
+      
+      const Dim3 hiDomain = ubound(geom.Domain()); 
+      
+      // Indexable arrays for the data, and the directional flux
+      // Based on the vertex-centred definition of the flux array, the
+      // data array runs from e.g. [0,N] and the flux array from [0,N+1]
+      const auto& arr = S_source.array(mfi);
+      const auto& slopes = Slopes.array(mfi);
+
+      for(int k = lo.z-kDomainOffset; k <= hi.z+kDomainOffset; k++)
+	{
+	  for(int j = lo.y-jDomainOffset; j <= hi.y+jDomainOffset; j++)
+	    {
+	      for(int i = lo.x-iDomainOffset; i <= hi.x+iDomainOffset; i++)
+		{
+		  for (int n = 0; n<NUM_STATE_FLUID; n++)
+		    //for (int n = 0; n<NUM_STATE_FLUID/2; n++)
+		    {
+		      Vector<Real> dataXY = get_data_stencil(arr, i, j, k, 1, 1, 0, n);
+		      Real slopesCross = WENO3_slopeCross(dataXY, {slopes(i,j,k,n),slopes(i,j,k,n+NUM_STATE_FLUID),
+			slopes(i,j,k,n+2*NUM_STATE_FLUID),slopes(i,j,k,n+3*NUM_STATE_FLUID)});
+		      slopes(i,j,k,n+4*NUM_STATE_FLUID) = slopesCross;
+		      
+		      ////////////////////////////////////////////////////////////////////// 
+		      if (!geom.isPeriodic(0) && (i<=1 || i>=hiDomain.x-1))
+			{
+			  Vector<Real> limiterX = get_data_stencil(arr, i, j, k, 1, 0, 0, ENER_I);
+			  for (int n = 0; n<NUM_STATE_FLUID/2; n++)
+			    {
+			      Vector<Real> dataX = get_data_stencil(arr, i, j, k, 1, 0, 0, n);
+			      Real slopesX = TVD_slope(dataX,limiterX);
+			      slopes(i,j,k,n) = slopesX;
+			      slopes(i,j,k,n+NUM_STATE_FLUID) = 0.0;
+			      slopes(i,j,k,n+4*NUM_STATE_FLUID) = 0.0;
+			    }
+			  limiterX = get_data_stencil(arr, i, j, k, 1, 0, 0, ENER_E);
+			  for (int n = NUM_STATE_FLUID/2; n<NUM_STATE_FLUID; n++)
+			    {
+			      Vector<Real> dataX = get_data_stencil(arr, i, j, k, 1, 0, 0, n);
+			      Real slopesX = TVD_slope(dataX,limiterX);
+			      slopes(i,j,k,n) = slopesX;
+			      slopes(i,j,k,n+NUM_STATE_FLUID) = 0.0;
+			      slopes(i,j,k,n+4*NUM_STATE_FLUID) = 0.0;
+			    }
+			}
+		      if (!geom.isPeriodic(1) && (j<=1 || j>=hiDomain.y-1))
+			{
+			  Vector<Real> limiterY = get_data_stencil(arr, i, j, k, 0, 1, 0, ENER_I);
+			  for (int n = 0; n<NUM_STATE_FLUID/2; n++)
+			    {
+			      Vector<Real> dataY = get_data_stencil(arr, i, j, k, 0, 1, 0, n);
+			      Real slopesY = TVD_slope(dataY,limiterY);
+			      slopes(i,j,k,n+2*NUM_STATE_FLUID) = slopesY;
+			      slopes(i,j,k,n+3*NUM_STATE_FLUID) = 0.0;
+			      slopes(i,j,k,n+4*NUM_STATE_FLUID) = 0.0;
+			    }
+			  limiterY = get_data_stencil(arr, i, j, k, 0, 1, 0, ENER_E);
+			  for (int n = NUM_STATE_FLUID/2; n<NUM_STATE_FLUID; n++)
+			    {
+			      Vector<Real> dataY = get_data_stencil(arr, i, j, k, 0, 1, 0, n);
+			      Real slopesY = TVD_slope(dataY,limiterY);
+			      slopes(i,j,k,n+2*NUM_STATE_FLUID) = slopesY;
+			      slopes(i,j,k,n+3*NUM_STATE_FLUID) = 0.0;
+			      slopes(i,j,k,n+4*NUM_STATE_FLUID) = 0.0;
+			    }
+			}
+		      //////////////////////////////////////////////////////////////////////
+		    }
+		}
+	    }
+	}
+    } 
+#endif
+  
+  MultiFab positivity(grids, dmap, 2, 1);
+  //flattenerAlgorithm(positivity, S_source, Slopes, 0, NUM_STATE_FLUID/2);
+  MultiFab positivity_e(grids, dmap, 2, 1);
+  //flattenerAlgorithm(positivity_e, S_source, Slopes, NUM_STATE_FLUID/2, NUM_STATE_FLUID/2);
+  
+  // Update cell-centred fluid variables and z-components of EM fields
+  for (int d = 0; d < amrex::SpaceDim ; d++)   
+  {
+    
+    const int iOffset = ( d == 0 ? 1 : 0);
+    const int jOffset = ( d == 1 ? 1 : 0);
+    const int kOffset = ( d == 2 ? 1 : 0);
+
+    // Loop over all the patches at this level
+    for (MFIter mfi(S_source, true); mfi.isValid(); ++mfi)
+    {
+      const Box& bx = mfi.tilebox();
+
+      const Dim3 lo = lbound(bx);
+      const Dim3 hi = ubound(bx);
+
+      // Indexable arrays for the data, and the directional flux
+      // Based on the vertex-centred definition of the flux array, the
+      // data array runs from e.g. [0,N] and the flux array from [0,N+1]
+      const auto& arr = S_source.array(mfi);
+      const auto& fluxArr = fluxes[d].array(mfi);
+
+      const auto& slopes = Slopes.array(mfi);
+
+      const auto& tau = positivity.array(mfi);
+      const auto& tau_e = positivity_e.array(mfi);
+      
+      for(int k = lo.z; k <= hi.z+kOffset; k++)
+      {
+	for(int j = lo.y; j <= hi.y+jOffset; j++)
+	{
+	  for(int i = lo.x; i <= hi.x+iOffset; i++)
+	  {
+	    Vector<Real> flux_i = WENO_flux(arr, slopes, i, j, k, iOffset, jOffset, kOffset,
+					    0, NUM_STATE_FLUID/2, dx[d], dt, d,
+					    HLLC);
+	    Vector<Real> flux_e = WENO_flux(arr, slopes, i, j, k, iOffset, jOffset, kOffset,
+					    NUM_STATE_FLUID/2, NUM_STATE_FLUID/2, dx[d], dt, d,
+					    HLLC);
+
+	    /*Vector<Real> flux_i = WENO_flux_flat(arr, slopes, tau, i, j, k, iOffset, jOffset, kOffset,
+						 0, NUM_STATE_FLUID/2, dx[d], dt, d, HLLC);
+	    Vector<Real> flux_e = WENO_flux_flat(arr, slopes, tau_e, i, j, k, iOffset, jOffset, kOffset,
+						 NUM_STATE_FLUID/2, NUM_STATE_FLUID/2, dx[d], dt, d, HLLC);
+	    */
+	    for(int n=0; n<NUM_STATE_FLUID/2; n++)
+	      {		
+		fluxArr(i,j,k,n) = flux_i[n];
+		fluxArr(i,j,k,n+NUM_STATE_FLUID/2) = flux_e[n];
+	      }	    
+	  }
+	}
+      }
+    }
+      
+    // We need to compute boundary conditions again after each update
+    //S_source.FillBoundary(geom.periodicity());
+     
+    // added by 2020D 
+    // Fill non-periodic physical boundaries
+    //FillDomainBoundary(S_source, geom, bc);
+    
+    // The fluxes now need scaling for the reflux command.
+    // This scaling is by the size of the boundary through which the flux passes, e.g. the x-flux needs scaling by the dy, dz and dt
+    /*if(do_reflux)
+    {
+      Real scaleFactor = dt;
+      for(int scaledir = 0; scaledir < amrex::SpaceDim; ++scaledir)
+      {
+	// Fluxes don't need scaling by dx[d]
+	if(scaledir == d)
+	{
+	  continue;
+	}
+	scaleFactor *= dx[scaledir];
+      }
+      // The mult function automatically multiplies entries in a multifab by a scalar
+      // scaleFactor: The scalar to multiply by
+      // 0: The first data index in the multifab to multiply
+      // NUM_STATE:  The total number of data indices that will be multiplied
+      fluxes[d].mult(scaleFactor, 0, NUM_STATE);
+      }*/
+  }
+
+  // Unsplit hyperbolic update  
+  /*
+  for (int d = 0; d < amrex::SpaceDim ; d++)   
+  {
+
+    const int iOffset = ( d == 0 ? 1 : 0);
+    const int jOffset = ( d == 1 ? 1 : 0);
+    const int kOffset = ( d == 2 ? 1 : 0);
+  */
+    // Loop over all the patches at this level
+    for (MFIter mfi(S_dest, true); mfi.isValid(); ++mfi)
+    {
+      const Box& bx = mfi.tilebox();
+
+      const Dim3 lo = lbound(bx);
+      const Dim3 hi = ubound(bx);
+
+      // Indexable arrays for the data, and the directional flux
+      // Based on the vertex-centred definition of the flux array, the
+      // data array runs from e.g. [0,N] and the flux array from [0,N+1]
+      const auto& arr = S_dest.array(mfi);
+      const auto& arrOld = S_source.array(mfi);
+      const auto& fluxArrX = fluxes[0].array(mfi);
+#if (AMREX_SPACEDIM >= 2)
+      const auto& fluxArrY = fluxes[1].array(mfi);      
+#endif
+
+      for(int k = lo.z; k <= hi.z; k++)
+      {
+	for(int j = lo.y; j <= hi.y; j++)
+	{
+	  for(int i = lo.x; i <= hi.x; i++)
+	  {	    
+	    for(int n=0; n<NUM_STATE_FLUID; n++)
+	      //for(int n=0; n<NUM_STATE_FLUID/2; n++)
+              {		
+		// Conservative update formula
+		//arr(i,j,k,n) = arr(i,j,k,n) - (dt / dx[d]) * (fluxArr(i+iOffset, j+jOffset, k+kOffset, n) - fluxArr(i,j,k,n));
+		arr(i,j,k,n) = arrOld(i,j,k,n) - (dt / dx[0]) * (fluxArrX(i+1, j, k, n) - fluxArrX(i,j,k,n));
+#if (AMREX_SPACEDIM >= 2)
+		arr(i,j,k,n) -= (dt / dx[1]) * (fluxArrY(i, j+1, k, n) - fluxArrY(i,j,k,n));
+#endif
+              }
+	    // Update cell-centred z-components becuause it is 2D code
+	    //arr(i,j,k,BZ) = arr(i,j,k,BZ) - (dt / dx[d]) * (fluxArr(i+iOffset, j+jOffset, k+kOffset, BZ) - fluxArr(i,j,k,BZ));
+	    //arr(i,j,k,EZ) = arr(i,j,k,EZ) - (dt / dx[d]) * (fluxArr(i+iOffset, j+jOffset, k+kOffset, EZ) - fluxArr(i,j,k,EZ));
+	    
 	  }
 	}
       }    

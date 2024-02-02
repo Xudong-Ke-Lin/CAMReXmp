@@ -4,6 +4,9 @@
 #include <AMReX_TagBox.H>
 #include <AMReX_ParmParse.H>
 
+// needed for EMwaveTM
+//#include <complex>
+
 using namespace amrex;
 
 //
@@ -60,7 +63,7 @@ CAMReXmp::initData ()
   pp.query("c",c);
   pp.query("lambda_d",lambda_d);
   r_e = -r_i*m;
-  
+
   implicitMaxwellSolverSetUp();
   /*
   if (MaxwellMethod=="IM"){  
@@ -113,6 +116,56 @@ CAMReXmp::initData ()
 	    arr(i,j,k,EY_LOCAL) = 0.0;
 	    arr(i,j,k,EZ_LOCAL) = 0.0;	    
 	    
+	  } else if (test=="BrioWu2DCart"){
+	    Real theta = std::atan(std::abs(y/x));
+	    // second quadrant
+	    if (x<=0.0 && y>=0.0)
+	      theta = M_PI-theta;
+	    // third quadrant
+	    else if (x<=0.0 && y<=0.0)
+	      theta = M_PI+theta;
+	    // fourth quadrant
+	    else if (x>=0.0 && y<=0.0)
+	      theta = 2*M_PI-theta;
+
+	    Real rCyl = std::sqrt(x*x+y*y);	    
+	    // parameters
+	    Real xi0 = 2.40482555769577;
+	    Real omega = xi0/(0.1*2.0*M_PI);
+
+	    // function
+	    auto B_theta = std::cyl_bessel_j(1,omega*rCyl);	    
+	    
+	    B_x = -B_theta*std::sin(theta);
+	    B_y = B_theta*std::cos(theta);
+	    B_z = 0.0;
+
+	    arr(i,j,k,BX_LOCAL) = B_x;
+	    arr(i,j,k,BY_LOCAL) = B_y;
+	    arr(i,j,k,BZ_LOCAL) = B_z;
+	    arr(i,j,k,EX_LOCAL) = 0.0;
+	    arr(i,j,k,EY_LOCAL) = 0.0;	    
+	    arr(i,j,k,EZ_LOCAL) = 0.0;	   
+
+	  } else if (test=="BrioWu1DCyl"){
+
+	    // cylindrical coordinates
+	    const Real rCyl = x;
+
+	    // parameters
+	    Real xi0 = 2.40482555769577;
+	    Real omega = xi0/(0.1*2.0*M_PI);
+
+	    // function
+	    auto B_theta = std::cyl_bessel_j(1,omega*rCyl);	    
+
+	    arr(i,j,k,BX_LOCAL) = 0.0;
+	    arr(i,j,k,BY_LOCAL) = 0.0;
+	    arr(i,j,k,BZ_LOCAL) = B_theta;
+	    arr(i,j,k,EX_LOCAL) = 0.0;
+	    arr(i,j,k,EY_LOCAL) = 0.0;	    
+	    arr(i,j,k,EZ_LOCAL) = 0.0;	   
+
 	  } else if (test=="OT" || test=="OTideal"){
 	    v_x = -std::sin(y);
 	    v_y = std::sin(x);
@@ -168,6 +221,87 @@ CAMReXmp::initData ()
 	    arr(i,j,k,EY_LOCAL) = 0.0;
 	    arr(i,j,k,EZ_LOCAL) = 0.0;
 	    
+	  } else if (test=="zpinch1d"){
+
+	    // cylindrical coordinates
+	    Real rCyl = x;
+	    
+	    Real Rp = 1.0/8.0, alpha = 1.0/10.0, J0 = 1.0/10.0;
+	      
+	    Real B_theta_in = J0*(0.5*rCyl-16.0*rCyl*rCyl*rCyl), B_theta_out=J0*(0.5*Rp-16.0*Rp*Rp*Rp)*Rp/rCyl;
+	    if (rCyl<Rp){
+	      B_z = -B_theta_in;
+	    } else{
+	      B_z = -B_theta_out;
+	    }
+
+	    arr(i,j,k,BX_LOCAL) = 0.0;
+	    arr(i,j,k,BY_LOCAL) = 0.0;
+	    // minus sign since in cylindrical coordinates
+	    arr(i,j,k,BZ_LOCAL) = B_z;
+	    arr(i,j,k,EX_LOCAL) = 0.0;
+	    arr(i,j,k,EY_LOCAL) = 0.0;
+	    arr(i,j,k,EZ_LOCAL) = 0.0;
+
+	  } else if (test=="zpinch2d"){
+
+	    // cylindrical coordinates
+	    Real rCyl = x;
+	    Real zCyl = y;
+	    
+	    Real Rp = 1.0/4.0, alpha = 1.0/10.0, J0 = 1.0, epsilon = 1.0/100.0, K = 1.0;
+	    /*Real epsilon0 = lambda_d*lambda_d;
+	      Real mu0 = 1.0/(c*c*epsilon0);*/
+	    Real mu0 = 1.0;
+
+	    Real B_phi_in = 0.5*rCyl*mu0*J0*(1.0 + epsilon*std::sin(2*M_PI*K*zCyl)), B_phi_out = 0.5*(Rp*Rp/rCyl)*mu0*J0*(1.0 + epsilon*std::sin(2*M_PI*K*zCyl)); 
+	    
+	    if (rCyl<Rp){
+	      // minus sign since in cylindrical coordinates
+	      B_z = -B_phi_in;
+	    } else{
+	      B_z = -B_phi_out;
+	    }
+
+	    arr(i,j,k,BX_LOCAL) = 0.0;
+	    arr(i,j,k,BY_LOCAL) = 0.0;
+	    arr(i,j,k,BZ_LOCAL) = B_z;
+	    arr(i,j,k,EX_LOCAL) = 0.0;
+	    arr(i,j,k,EY_LOCAL) = 0.0;
+	    arr(i,j,k,EZ_LOCAL) = 0.0;
+	    
+	  } else if (test=="zpinch2dTrue"){
+
+	    // cylindrical coordinates
+	    Real rCyl = x;
+	    Real zCyl = y;
+
+	    // parameters
+	    Real epsilon0 = 1.0, mu0 = 1.0, n0 = 1.0, P0 = 1.5625*0.01, beta = 1.0/10.0, alpha = 100.0;
+	    Real m_i = 1.0, m_e = 1.0;
+	    Real q_i = r_i*m_i, q_e = r_e*m_e;
+	    // perturbation
+	    Real epsilon = 1.0/100.0, K = 1.0;
+
+	    Real oneR2A = 1.0 + rCyl*rCyl*alpha;
+	    Real oneBR2AB = 1.0 + beta + rCyl*rCyl*alpha*beta;
+	    Real oneBR4A2B = 1.0 + beta - std::pow(rCyl,4)*alpha*alpha*beta;
+	    
+	    Real C1 = -2.0 + rCyl*rCyl*alpha*(-2.0+(P0*alpha*epsilon0)/(n0*n0*q_i*q_i*std::pow(oneBR2AB,2)));
+	    Real C2 = std::sqrt(P0*((rCyl*rCyl*alpha*C1)/std::pow(oneR2A,2)+2.0*std::log(oneR2A))/(rCyl*rCyl*alpha*mu0));
+
+	    Real Btheta = -C2*(1.0 + epsilon*std::sin(2*M_PI*K*zCyl));
+	    Real Er = -(P0*rCyl*alpha)/(q_i*std::pow(oneR2A,2)*(n0/oneR2A+n0*beta));
+	    //Er *= (1.0 + epsilon*std::sin(2*M_PI*K*zCyl));
+	    
+	    arr(i,j,k,BX_LOCAL) = 0.0;
+	    arr(i,j,k,BY_LOCAL) = 0.0;
+	    // minus sign since in cylindrical coordinates
+	    arr(i,j,k,BZ_LOCAL) = -Btheta;
+	    arr(i,j,k,EX_LOCAL) = Er;
+	    arr(i,j,k,EY_LOCAL) = 0.0;
+	    arr(i,j,k,EZ_LOCAL) = 0.0;
+
 	  } else if (test=="convergence"){
 
 	    arr(i,j,k,BX_LOCAL) = 0.0;
@@ -204,6 +338,55 @@ CAMReXmp::initData ()
 	    arr(i,j,k,EY_LOCAL) = c*std::cos(2.0*M_PI*(x));
 	    arr(i,j,k,EZ_LOCAL) = 0.0;
 
+	  } else if (test=="EMwaveTM"){
+
+	    using namespace std::complex_literals;
+	    
+	    // cylindrical coordinates
+	    const Real rCyl = x;
+	    const Real zCyl = y;
+
+	    // parameters
+	    Real xi0 = 2.40482555769577;
+	    Real kr = xi0;
+	    Real kz = M_PI;
+	    Real omega = std::sqrt(kr*kr + kz*kz);
+
+	    // function
+	    auto Bessel0ExpFunc = std::cyl_bessel_j(0,kr*rCyl)*std::exp(1i*kz*zCyl);
+	    auto Bessel1ExpFunc = std::cyl_bessel_j(1,kr*rCyl)*std::exp(1i*kz*zCyl);
+	    
+	    arr(i,j,k,BX_LOCAL) = 0.0;
+	    arr(i,j,k,BY_LOCAL) = 0.0;
+	    // negative sign for theta components in cyl. coord.
+	    arr(i,j,k,BZ_LOCAL) = -std::real(-1i*omega*kr/(omega*omega-kz*kz)*Bessel1ExpFunc);
+	    arr(i,j,k,EX_LOCAL) = std::real(-1i*kz*kr/(omega*omega-kz*kz)*Bessel1ExpFunc);
+	    arr(i,j,k,EY_LOCAL) = std::real(Bessel0ExpFunc);
+	    arr(i,j,k,EZ_LOCAL) = 0.0;
+	    
+	  } else if (test=="EMwaveTE1d"){
+
+	    using namespace std::complex_literals;
+	    
+	    // cylindrical coordinates
+	    const Real rCyl = x;
+	    Real L = 2.0*M_PI; //geom.ProbHi()[0]-geom.ProbLo()[0];
+	    // parameters
+	    Real z1 = 2.40482555769577;
+	    Real omega = z1/L;
+	    
+	    // function
+	    auto Bessel0SinFunc = std::cyl_bessel_j(0,omega*rCyl)*std::sin(omega*0.0);
+	    auto Bessel1CosFunc = std::cyl_bessel_j(1,omega*rCyl)*std::cos(omega*0.0);
+	    
+	    arr(i,j,k,BX_LOCAL) = 0.0;
+	    arr(i,j,k,BY_LOCAL) = -Bessel0SinFunc;	    
+	    arr(i,j,k,BZ_LOCAL) = 0.0;
+	    arr(i,j,k,EX_LOCAL) = 0.0;
+	    arr(i,j,k,EY_LOCAL) = 0.0;
+	    // negative sign for theta components in cyl. coord.
+	    arr(i,j,k,EZ_LOCAL) = -Bessel1CosFunc;
+	    
 	  } else if (test=="gaussianEM"){
 
 	    Real lambda = 1.5, chi = 1.5, a = -2.5, b = -2.5;
@@ -268,6 +451,56 @@ CAMReXmp::initData ()
   	    arr(i,j,k,EY_LOCAL) = 0.0;
   	    arr(i,j,k,EZ_LOCAL) = 0.0;	    
 	    
+	  } else if (test=="BrioWu2DCart"){	
+	    Real theta = std::atan(std::abs(y/x));
+	    // second quadrant
+	    if (x<=0.0 && y>=0.0)
+	      theta = M_PI-theta;
+	    // third quadrant
+	    else if (x<=0.0 && y<=0.0)
+	      theta = M_PI+theta;
+	    // fourth quadrant
+	    else if (x>=0.0 && y<=0.0)
+	      theta = 2*M_PI-theta;
+
+	    Real rCyl = std::sqrt(x*x+y*y);
+	    // parameters
+	    Real xi0 = 2.40482555769577;
+	    Real omega = xi0/(0.1*2.0*M_PI);
+
+	    // function
+	    auto B_theta = std::cyl_bessel_j(1,omega*rCyl);	    
+	    
+	    B_x = -B_theta*std::sin(theta);
+	    B_y = B_theta*std::cos(theta);
+	    B_z = 0.0;
+
+	    arr(i,j,k,BX_LOCAL) = B_x;
+	    arr(i,j,k,BY_LOCAL) = B_y;
+	    arr(i,j,k,BZ_LOCAL) = B_z;
+	    arr(i,j,k,EX_LOCAL) = 0.0;
+	    arr(i,j,k,EY_LOCAL) = 0.0;	    
+	    arr(i,j,k,EZ_LOCAL) = 0.0;	   
+
+	  } else if (test=="BrioWu1DCyl"){
+
+	    // cylindrical coordinates
+	    const Real rCyl = x;
+
+	    // parameters
+	    Real xi0 = 2.40482555769577;
+	    Real omega = xi0/(0.1*2.0*M_PI);
+
+	    // function
+	    auto B_theta = std::cyl_bessel_j(1,omega*rCyl);	    
+
+	    arr(i,j,k,BX_LOCAL) = 0.0;
+	    arr(i,j,k,BY_LOCAL) = 0.0;
+	    arr(i,j,k,BZ_LOCAL) = B_theta;
+	    arr(i,j,k,EX_LOCAL) = 0.0;
+	    arr(i,j,k,EY_LOCAL) = 0.0;	    
+	    arr(i,j,k,EZ_LOCAL) = 0.0;	   
+
   	  } else if (test=="OT" || test=="OTideal"){
   	    v_x = -std::sin(y);
   	    v_y = std::sin(x);
@@ -322,6 +555,87 @@ CAMReXmp::initData ()
 	    arr(i,j,k,EY_LOCAL) = 0.0;
 	    arr(i,j,k,EZ_LOCAL) = 0.0;
 	    
+	  } else if (test=="zpinch1d"){
+
+	    // cylindrical coordinates
+	    Real rCyl = x;
+	    
+	    Real Rp = 1.0/8.0, alpha = 1.0/10.0, J0 = 1.0/10.0;
+	      
+	    Real B_theta_in = J0*(0.5*rCyl-16.0*rCyl*rCyl*rCyl), B_theta_out=J0*(0.5*Rp-16.0*Rp*Rp*Rp)*Rp/rCyl;
+	    if (rCyl<Rp){
+	      B_z = -B_theta_in;
+	    } else{
+	      B_z = -B_theta_out;
+	    }
+
+	    arr(i,j,k,BX_LOCAL) = 0.0;
+	    arr(i,j,k,BY_LOCAL) = 0.0;
+	    // minus sign since in cylindrical coordinates
+	    arr(i,j,k,BZ_LOCAL) = B_z;
+	    arr(i,j,k,EX_LOCAL) = 0.0;
+	    arr(i,j,k,EY_LOCAL) = 0.0;
+	    arr(i,j,k,EZ_LOCAL) = 0.0;
+
+	  } else if (test=="zpinch2d"){
+
+	    // cylindrical coordinates
+	    Real rCyl = x;
+	    Real zCyl = y;
+	    
+	    Real Rp = 1.0/4.0, alpha = 1.0/10.0, J0 = 1.0, epsilon = 1.0/100.0, K = 1.0;
+	    /*Real epsilon0 = lambda_d*lambda_d;
+	      Real mu0 = 1.0/(c*c*epsilon0);*/
+	    Real mu0 = 1.0;
+
+	    Real B_phi_in = 0.5*rCyl*mu0*J0*(1.0 + epsilon*std::sin(2*M_PI*K*zCyl)), B_phi_out = 0.5*(Rp*Rp/rCyl)*mu0*J0*(1.0 + epsilon*std::sin(2*M_PI*K*zCyl)); 
+	    
+	    if (rCyl<Rp){
+	      // minus sign since in cylindrical coordinates
+	      B_z = -B_phi_in;
+	    } else{
+	      B_z = -B_phi_out;
+	    }
+
+	    arr(i,j,k,BX_LOCAL) = 0.0;
+	    arr(i,j,k,BY_LOCAL) = 0.0;
+	    arr(i,j,k,BZ_LOCAL) = B_z;
+	    arr(i,j,k,EX_LOCAL) = 0.0;
+	    arr(i,j,k,EY_LOCAL) = 0.0;
+	    arr(i,j,k,EZ_LOCAL) = 0.0;
+	    
+	  } else if (test=="zpinch2dTrue"){
+
+	    // cylindrical coordinates
+	    Real rCyl = x;
+	    Real zCyl = y;
+
+	    // parameters
+	    Real epsilon0 = 1.0, mu0 = 1.0, n0 = 1.0, P0 = 1.5625*0.01, beta = 1.0/10.0, alpha = 100.0;
+	    Real m_i = 1.0, m_e = 1.0;
+	    Real q_i = r_i*m_i, q_e = r_e*m_e;
+	    // perturbation
+	    Real epsilon = 1.0/100.0, K = 1.0;
+
+	    Real oneR2A = 1.0 + rCyl*rCyl*alpha;
+	    Real oneBR2AB = 1.0 + beta + rCyl*rCyl*alpha*beta;
+	    Real oneBR4A2B = 1.0 + beta - std::pow(rCyl,4)*alpha*alpha*beta;
+	    
+	    Real C1 = -2.0 + rCyl*rCyl*alpha*(-2.0+(P0*alpha*epsilon0)/(n0*n0*q_i*q_i*std::pow(oneBR2AB,2)));
+	    Real C2 = std::sqrt(P0*((rCyl*rCyl*alpha*C1)/std::pow(oneR2A,2)+2.0*std::log(oneR2A))/(rCyl*rCyl*alpha*mu0));
+
+	    Real Btheta = -C2*(1.0 + epsilon*std::sin(2*M_PI*K*zCyl));
+	    Real Er = -(P0*rCyl*alpha)/(q_i*std::pow(oneR2A,2)*(n0/oneR2A+n0*beta));
+	    //Er *= (1.0 + epsilon*std::sin(2*M_PI*K*zCyl));
+	    
+	    arr(i,j,k,BX_LOCAL) = 0.0;
+	    arr(i,j,k,BY_LOCAL) = 0.0;
+	    // minus sign since in cylindrical coordinates
+	    arr(i,j,k,BZ_LOCAL) = -Btheta;
+	    arr(i,j,k,EX_LOCAL) = Er;
+	    arr(i,j,k,EY_LOCAL) = 0.0;
+	    arr(i,j,k,EZ_LOCAL) = 0.0;
+
 	  } else if (test=="convergence"){
 
 	    arr(i,j,k,BX_LOCAL) = 0.0;
@@ -358,6 +672,55 @@ CAMReXmp::initData ()
 	    arr(i,j,k,EY_LOCAL) = c*std::cos(2.0*M_PI*(x));
 	    arr(i,j,k,EZ_LOCAL) = 0.0;
 
+	  } else if (test=="EMwaveTM"){
+
+	    using namespace std::complex_literals;
+	    
+	    // cylindrical coordinates
+	    const Real rCyl = x;
+	    const Real zCyl = y;
+
+	    // parameters
+	    Real xi0 = 2.40482555769577;
+	    Real kr = xi0;
+	    Real kz = M_PI;
+	    Real omega = std::sqrt(kr*kr + kz*kz);
+
+	    // function
+	    auto Bessel0ExpFunc = std::cyl_bessel_j(0,kr*rCyl)*std::exp(1i*kz*zCyl);
+	    auto Bessel1ExpFunc = std::cyl_bessel_j(1,kr*rCyl)*std::exp(1i*kz*zCyl);
+	    
+	    arr(i,j,k,BX_LOCAL) = 0.0;
+	    arr(i,j,k,BY_LOCAL) = 0.0;
+	    // negative sign for theta components in cyl. coord.
+	    arr(i,j,k,BZ_LOCAL) = -std::real(-1i*omega*kr/(omega*omega-kz*kz)*Bessel1ExpFunc);
+	    arr(i,j,k,EX_LOCAL) = std::real(-1i*kz*kr/(omega*omega-kz*kz)*Bessel1ExpFunc);
+	    arr(i,j,k,EY_LOCAL) = std::real(Bessel0ExpFunc);
+	    arr(i,j,k,EZ_LOCAL) = 0.0;
+	    
+	  } else if (test=="EMwaveTE1d"){
+
+	    using namespace std::complex_literals;
+	    
+	    // cylindrical coordinates
+	    const Real rCyl = x;
+	    Real L = 2.0*M_PI; //geom.ProbHi()[0]-geom.ProbLo()[0];
+	    // parameters
+	    Real z1 = 2.40482555769577;
+	    Real omega = z1/L;
+	    
+	    // function
+	    auto Bessel0SinFunc = std::cyl_bessel_j(0,omega*rCyl)*std::sin(omega*0.0);
+	    auto Bessel1CosFunc = std::cyl_bessel_j(1,omega*rCyl)*std::cos(omega*0.0);
+	    
+	    arr(i,j,k,BX_LOCAL) = 0.0;
+	    arr(i,j,k,BY_LOCAL) = -Bessel0SinFunc;	    
+	    arr(i,j,k,BZ_LOCAL) = 0.0;
+	    arr(i,j,k,EX_LOCAL) = 0.0;
+	    arr(i,j,k,EY_LOCAL) = 0.0;
+	    // negative sign for theta components in cyl. coord.
+	    arr(i,j,k,EZ_LOCAL) = -Bessel1CosFunc;
+	    
 	  } else if (test=="gaussianEM"){
 
 	    Real lambda = 1.5, chi = 1.5, a = -2.5, b = -2.5;
@@ -421,6 +784,56 @@ CAMReXmp::initData ()
 	    arr(i,j,k,EY_LOCAL) = 0.0;
 	    arr(i,j,k,EZ_LOCAL) = 0.0;	    
 	    
+	  } else if (test=="BrioWu2DCart"){
+	    Real theta = std::atan(std::abs(y/x));
+	    // second quadrant
+	    if (x<=0.0 && y>=0.0)
+	      theta = M_PI-theta;
+	    // third quadrant
+	    else if (x<=0.0 && y<=0.0)
+	      theta = M_PI+theta;
+	    // fourth quadrant
+	    else if (x>=0.0 && y<=0.0)
+	      theta = 2*M_PI-theta;
+
+	    Real rCyl = std::sqrt(x*x+y*y);
+	    // parameters
+	    Real xi0 = 2.40482555769577;
+	    Real omega = xi0/(0.1*2.0*M_PI);
+
+	    // function
+	    auto B_theta = std::cyl_bessel_j(1,omega*rCyl);	    
+	    
+	    B_x = -B_theta*std::sin(theta);
+	    B_y = B_theta*std::cos(theta);
+	    B_z = 0.0;
+
+	    arr(i,j,k,BX_LOCAL) = B_x;
+	    arr(i,j,k,BY_LOCAL) = B_y;
+	    arr(i,j,k,BZ_LOCAL) = B_z;
+	    arr(i,j,k,EX_LOCAL) = 0.0;
+	    arr(i,j,k,EY_LOCAL) = 0.0;	    
+	    arr(i,j,k,EZ_LOCAL) = 0.0;	   
+
+	  } else if (test=="BrioWu1DCyl"){
+
+	    // cylindrical coordinates
+	    const Real rCyl = x;
+
+	    // parameters
+	    Real xi0 = 2.40482555769577;
+	    Real omega = xi0/(0.1*2.0*M_PI);
+
+	    // function
+	    auto B_theta = std::cyl_bessel_j(1,omega*rCyl);	    
+
+	    arr(i,j,k,BX_LOCAL) = 0.0;
+	    arr(i,j,k,BY_LOCAL) = 0.0;
+	    arr(i,j,k,BZ_LOCAL) = B_theta;
+	    arr(i,j,k,EX_LOCAL) = 0.0;
+	    arr(i,j,k,EY_LOCAL) = 0.0;	    
+	    arr(i,j,k,EZ_LOCAL) = 0.0;	   
+
 	  } else if (test=="OT" || test=="OTideal"){
 	    v_x = -std::sin(y);
 	    v_y = std::sin(x);
@@ -478,6 +891,87 @@ CAMReXmp::initData ()
 	    arr(i,j,k,EY_LOCAL) = 0.0;
 	    arr(i,j,k,EZ_LOCAL) = 0.0;
 	    
+	  } else if (test=="zpinch1d"){
+
+	    // cylindrical coordinates
+	    Real rCyl = x;
+	    
+	    Real Rp = 1.0/8.0, alpha = 1.0/10.0, J0 = 1.0/10.0;
+	      
+	    Real B_theta_in = J0*(0.5*rCyl-16.0*rCyl*rCyl*rCyl), B_theta_out=J0*(0.5*Rp-16.0*Rp*Rp*Rp)*Rp/rCyl;
+	    if (rCyl<Rp){
+	      B_z = -B_theta_in;
+	    } else{
+	      B_z = -B_theta_out;
+	    }
+
+	    arr(i,j,k,BX_LOCAL) = 0.0;
+	    arr(i,j,k,BY_LOCAL) = 0.0;
+	    // minus sign since in cylindrical coordinates
+	    arr(i,j,k,BZ_LOCAL) = B_z;
+	    arr(i,j,k,EX_LOCAL) = 0.0;
+	    arr(i,j,k,EY_LOCAL) = 0.0;
+	    arr(i,j,k,EZ_LOCAL) = 0.0;
+
+	  } else if (test=="zpinch2d"){
+
+	    // cylindrical coordinates
+	    Real rCyl = x;
+	    Real zCyl = y;
+	    
+	    Real Rp = 1.0/4.0, alpha = 1.0/10.0, J0 = 1.0, epsilon = 1.0/100.0, K = 1.0;
+	    /*Real epsilon0 = lambda_d*lambda_d;
+	      Real mu0 = 1.0/(c*c*epsilon0);*/
+	    Real mu0 = 1.0;
+
+	    Real B_phi_in = 0.5*rCyl*mu0*J0*(1.0 + epsilon*std::sin(2*M_PI*K*zCyl)), B_phi_out = 0.5*(Rp*Rp/rCyl)*mu0*J0*(1.0 + epsilon*std::sin(2*M_PI*K*zCyl)); 
+	    
+	    if (rCyl<Rp){
+	      // minus sign since in cylindrical coordinates
+	      B_z = -B_phi_in;
+	    } else{
+	      B_z = -B_phi_out;
+	    }
+
+	    arr(i,j,k,BX_LOCAL) = 0.0;
+	    arr(i,j,k,BY_LOCAL) = 0.0;
+	    arr(i,j,k,BZ_LOCAL) = B_z;
+	    arr(i,j,k,EX_LOCAL) = 0.0;
+	    arr(i,j,k,EY_LOCAL) = 0.0;
+	    arr(i,j,k,EZ_LOCAL) = 0.0;
+	    
+	  } else if (test=="zpinch2dTrue"){
+
+	    // cylindrical coordinates
+	    Real rCyl = x;
+	    Real zCyl = y;
+
+	    // parameters
+	    Real epsilon0 = 1.0, mu0 = 1.0, n0 = 1.0, P0 = 1.5625*0.01, beta = 1.0/10.0, alpha = 100.0;
+	    Real m_i = 1.0, m_e = 1.0;
+	    Real q_i = r_i*m_i, q_e = r_e*m_e;
+	    // perturbation
+	    Real epsilon = 1.0/100.0, K = 1.0;
+
+	    Real oneR2A = 1.0 + rCyl*rCyl*alpha;
+	    Real oneBR2AB = 1.0 + beta + rCyl*rCyl*alpha*beta;
+	    Real oneBR4A2B = 1.0 + beta - std::pow(rCyl,4)*alpha*alpha*beta;
+	    
+	    Real C1 = -2.0 + rCyl*rCyl*alpha*(-2.0+(P0*alpha*epsilon0)/(n0*n0*q_i*q_i*std::pow(oneBR2AB,2)));
+	    Real C2 = std::sqrt(P0*((rCyl*rCyl*alpha*C1)/std::pow(oneR2A,2)+2.0*std::log(oneR2A))/(rCyl*rCyl*alpha*mu0));
+
+	    Real Btheta = -C2*(1.0 + epsilon*std::sin(2*M_PI*K*zCyl));
+	    Real Er = -(P0*rCyl*alpha)/(q_i*std::pow(oneR2A,2)*(n0/oneR2A+n0*beta));
+	    //Er *= (1.0 + epsilon*std::sin(2*M_PI*K*zCyl));
+	    
+	    arr(i,j,k,BX_LOCAL) = 0.0;
+	    arr(i,j,k,BY_LOCAL) = 0.0;
+	    // minus sign since in cylindrical coordinates
+	    arr(i,j,k,BZ_LOCAL) = -Btheta;
+	    arr(i,j,k,EX_LOCAL) = Er;
+	    arr(i,j,k,EY_LOCAL) = 0.0;
+	    arr(i,j,k,EZ_LOCAL) = 0.0;
+
 	  } else if (test=="convergence"){
 
 	    arr(i,j,k,BX_LOCAL) = 0.0;
@@ -514,6 +1008,55 @@ CAMReXmp::initData ()
 	    arr(i,j,k,EY_LOCAL) = c*std::cos(2.0*M_PI*(x));
 	    arr(i,j,k,EZ_LOCAL) = 0.0;
 
+	  } else if (test=="EMwaveTM"){
+
+	    using namespace std::complex_literals;
+	    
+	    // cylindrical coordinates
+	    const Real rCyl = x;
+	    const Real zCyl = y;
+
+	    // parameters
+	    Real xi0 = 2.40482555769577;
+	    Real kr = xi0;
+	    Real kz = M_PI;
+	    Real omega = std::sqrt(kr*kr + kz*kz);
+
+	    // function
+	    auto Bessel0ExpFunc = std::cyl_bessel_j(0,kr*rCyl)*std::exp(1i*kz*zCyl);
+	    auto Bessel1ExpFunc = std::cyl_bessel_j(1,kr*rCyl)*std::exp(1i*kz*zCyl);
+	    
+	    arr(i,j,k,BX_LOCAL) = 0.0;
+	    arr(i,j,k,BY_LOCAL) = 0.0;
+	    // negative sign for theta components in cyl. coord.
+	    arr(i,j,k,BZ_LOCAL) = -std::real(-1i*omega*kr/(omega*omega-kz*kz)*Bessel1ExpFunc);
+	    arr(i,j,k,EX_LOCAL) = std::real(-1i*kz*kr/(omega*omega-kz*kz)*Bessel1ExpFunc);
+	    arr(i,j,k,EY_LOCAL) = std::real(Bessel0ExpFunc);
+	    arr(i,j,k,EZ_LOCAL) = 0.0;
+	    
+	  } else if (test=="EMwaveTE1d"){
+
+	    using namespace std::complex_literals;
+	    
+	    // cylindrical coordinates
+	    const Real rCyl = x;
+	    Real L = 2.0*M_PI; //geom.ProbHi()[0]-geom.ProbLo()[0];
+	    // parameters
+	    Real z1 = 2.40482555769577;
+	    Real omega = z1/L;
+	    
+	    // function
+	    auto Bessel0SinFunc = std::cyl_bessel_j(0,omega*rCyl)*std::sin(omega*0.0);
+	    auto Bessel1CosFunc = std::cyl_bessel_j(1,omega*rCyl)*std::cos(omega*0.0);
+	    
+	    arr(i,j,k,BX_LOCAL) = 0.0;
+	    arr(i,j,k,BY_LOCAL) = -Bessel0SinFunc;	    
+	    arr(i,j,k,BZ_LOCAL) = 0.0;
+	    arr(i,j,k,EX_LOCAL) = 0.0;
+	    arr(i,j,k,EY_LOCAL) = 0.0;
+	    // negative sign for theta components in cyl. coord.
+	    arr(i,j,k,EZ_LOCAL) = -Bessel1CosFunc;
+	    
 	  } else if (test=="gaussianEM"){
 
 	    Real lambda = 1.5, chi = 1.5, a = -2.5, b = -2.5;
@@ -603,7 +1146,104 @@ CAMReXmp::initData ()
 	    arr(i,j,k,DIVE) = 0.0;	    
 	    
 	    // set speed of light
-	    c = 100.0;
+	    //c = 100.0;
+	    
+	  } else if (test=="BrioWu2DCart"){
+	    Real rho_in = 1.0, v_x_in = 0.0, v_y_in = 0.0, v_z_in = 0.0, p_in = 0.5;
+	    Real rho_out = 0.125, v_x_out = 0.0, v_y_out = 0.0, v_z_out = 0.0, p_out = 0.05;
+	    
+	    if (x*x+y*y<=0.4*0.4){
+	      rho = rho_in, v_x = v_x_in, v_y = v_y_in, v_z = v_z_in, p = p_in;
+	    } else{
+	      rho = rho_out, v_x = v_x_out, v_y = v_y_out, v_z = v_z_out, p = p_out;
+	    }
+	    
+	    Real theta = std::atan(std::abs(y/x));
+	    // second quadrant
+	    if (x<=0.0 && y>=0.0)
+	      theta = M_PI-theta;
+	    // third quadrant
+	    else if (x<=0.0 && y<=0.0)
+	      theta = M_PI+theta;
+	    // fourth quadrant
+	    else if (x>=0.0 && y<=0.0)
+	      theta = 2*M_PI-theta;
+
+	    Real rCyl = std::sqrt(x*x+y*y);
+	    // parameters
+	    Real xi0 = 2.40482555769577;
+	    Real omega = xi0/(0.1*2.0*M_PI);
+
+	    // function
+	    auto B_theta = std::cyl_bessel_j(1,omega*rCyl);	    
+	    
+	    B_x = -B_theta*std::sin(theta);
+	    B_y = B_theta*std::cos(theta);
+	    B_z = 0.0;
+
+	    arr(i,j,k,0) = rho;
+	    arr(i,j,k,1) = arr(i,j,k,0)*v_x;
+	    arr(i,j,k,2) = arr(i,j,k,0)*v_y;
+	    arr(i,j,k,3) = arr(i,j,k,0)*v_z;
+	    Vector<Real> w_i{arr(i,j,k,0), v_x, v_y, v_z, p};
+	    arr(i,j,k,ENER_I) = get_energy(w_i);
+	    
+	    arr(i,j,k,RHO_E) = rho/m;
+	    arr(i,j,k,MOMX_E) = arr(i,j,k,RHO_E)*v_x;
+	    arr(i,j,k,MOMY_E) = arr(i,j,k,RHO_E)*v_y;
+	    arr(i,j,k,MOMZ_E) = arr(i,j,k,RHO_E)*v_z;
+	    Vector<Real> w_e{arr(i,j,k,RHO_E), v_x, v_y, v_z, p};
+	    arr(i,j,k,ENER_E) = get_energy(w_e);
+
+	    arr(i,j,k,BX) = B_x;
+	    arr(i,j,k,BY) = B_y;
+	    arr(i,j,k,BZ) = B_z;
+	    arr(i,j,k,EX) = 0.0;
+	    arr(i,j,k,EY) = 0.0;	    
+	    arr(i,j,k,EZ) = 0.0;
+	    arr(i,j,k,DIVB) = 0.0;
+	    arr(i,j,k,DIVE) = 0.0;	    
+	    
+	  } else if (test=="BrioWu1DCyl"){
+	    Real rho_in = 1.0, v_x_in = 0.0, v_y_in = 0.0, v_z_in = 0.0, p_in = 0.5;
+	    Real rho_out = 0.125, v_x_out = 0.0, v_y_out = 0.0, v_z_out = 0.0, p_out = 0.05;
+	    
+	    if (x<=0.4){
+	      rho = rho_in, v_x = v_x_in, v_y = v_y_in, v_z = v_z_in, p = p_in;
+	    } else{
+	      rho = rho_out, v_x = v_x_out, v_y = v_y_out, v_z = v_z_out, p = p_out;
+	    }	   
+
+	    arr(i,j,k,0) = rho;
+	    arr(i,j,k,1) = arr(i,j,k,0)*v_x;
+	    arr(i,j,k,2) = arr(i,j,k,0)*v_y;
+	    arr(i,j,k,3) = arr(i,j,k,0)*v_z;
+	    Vector<Real> w_i{arr(i,j,k,0), v_x, v_y, v_z, p};
+	    arr(i,j,k,ENER_I) = get_energy(w_i);
+	    
+	    arr(i,j,k,RHO_E) = rho/m;
+	    arr(i,j,k,MOMX_E) = arr(i,j,k,RHO_E)*v_x;
+	    arr(i,j,k,MOMY_E) = arr(i,j,k,RHO_E)*v_y;
+	    arr(i,j,k,MOMZ_E) = arr(i,j,k,RHO_E)*v_z;
+	    Vector<Real> w_e{arr(i,j,k,RHO_E), v_x, v_y, v_z, p};
+	    arr(i,j,k,ENER_E) = get_energy(w_e);
+
+	    // cylindrical coordinates
+	    const Real rCyl = x;
+
+	    // parameters
+	    Real xi0 = 2.40482555769577;
+	    Real omega = xi0/(0.1*2.0*M_PI);
+
+	    // function
+	    auto B_theta = std::cyl_bessel_j(1,omega*rCyl);
+	    
+	    arr(i,j,k,BX) = 0.0;
+	    arr(i,j,k,BY) = 0.0;
+	    arr(i,j,k,BZ) = B_theta;
+	    arr(i,j,k,EX) = 0.0;
+	    arr(i,j,k,EY) = 0.0;	    
+	    arr(i,j,k,EZ) = 0.0;	   
 	    
 	  } else if (test=="OT"){
 
@@ -789,18 +1429,81 @@ CAMReXmp::initData ()
 	    arr(i,j,k,EY) = 0.0;
 	    arr(i,j,k,EZ) = 0.0;
 
+	  } else if (test=="zpinch1d"){
+
+	    // cylindrical coordinates
+	    Real rCyl = x;
+
+	    Real m_e = 1.0/m;
+	    Real q_e = r_e*m_e;
+	    
+	    Real Rp = 1.0/8.0, alpha = 1.0/10.0, J0 = 1.0/10.0;
+	    Real p0 = J0*J0/(1-alpha)*(0.25*Rp*Rp-12.0*std::pow(Rp,4)+(4.0/3.0)*128.0*std::pow(Rp,6));
+	      
+	    Real j_z_e_in = J0*(1.0-64.0*rCyl*rCyl), j_z_e_out = 0.0;
+	    Real B_theta_in = J0*(0.5*rCyl-16.0*rCyl*rCyl*rCyl), B_theta_out=J0*(0.5*Rp-16.0*Rp*Rp*Rp)*Rp/rCyl;
+	    Real p_in = p0 - J0*J0*(0.25*rCyl*rCyl-12.0*std::pow(rCyl,4)+(4.0/3.0)*128.0*std::pow(rCyl,6));
+	    Real p_out = p0 - J0*J0*(0.25*Rp*Rp-12.0*std::pow(Rp,4)+(4.0/3.0)*128.0*std::pow(Rp,6));
+
+	    Real v_r_in = 0.0, v_theta_in = 0.0, v_z_in = 0.0;
+	    Real v_r_out = 0.0, v_theta_out = 0.0, v_z_out = 0.0;
+	    
+	    // number density
+	    Real n_in = p_in/p0, n_out = p_out/p0;
+
+	    // electron velocity
+	    Real v_z_e;
+
+	    if (rCyl<Rp){
+	      rho = n_in, v_z_e = j_z_e_in/(q_e*n_in), p = p_in/2.0, B_z = -B_theta_in;
+	      v_x = v_r_in, v_y = v_z_in, v_z = -v_theta_in;
+	    } else{
+	      rho = n_out, v_z_e = j_z_e_out/(q_e*n_out), p = p_out/2.0, B_z = -B_theta_out;
+	      v_x = v_r_out, v_y= v_z_out, v_z = -v_theta_out;
+	    }
+
+	    arr(i,j,k,0) = rho;
+	    arr(i,j,k,1) = arr(i,j,k,0)*v_x;
+	    arr(i,j,k,2) = arr(i,j,k,0)*v_y;
+	    arr(i,j,k,3) = arr(i,j,k,0)*v_z;
+	    Vector<Real> w_i{arr(i,j,k,0), v_x, v_y, v_z, p};
+	    arr(i,j,k,ENER_I) = get_energy(w_i);
+	    
+	    arr(i,j,k,RHO_E) = rho/m;
+	    arr(i,j,k,MOMX_E) = arr(i,j,k,RHO_E)*v_x;
+	    arr(i,j,k,MOMY_E) = arr(i,j,k,RHO_E)*v_z_e;	    
+	    arr(i,j,k,MOMZ_E) = arr(i,j,k,RHO_E)*v_z;
+	    Vector<Real> w_e{arr(i,j,k,RHO_E), v_x, v_z_e, v_z, p};
+	    arr(i,j,k,ENER_E) = get_energy(w_e);
+
+	    arr(i,j,k,BX) = 0.0;
+	    arr(i,j,k,BY) = 0.0;
+	    // minus sign since in cylindrical coordinates
+	    arr(i,j,k,BZ) = B_z;
+	    arr(i,j,k,EX) = 0.0;
+	    arr(i,j,k,EY) = 0.0;
+	    arr(i,j,k,EZ) = 0.0;
+
 	  } else if (test=="zpinch2d"){
-	    Real Rp = 1.0/4.0, alpha = 1.0/10.0, J0 = 1.0, epsilon = 1.0/100.0, K = 8.0;
-	    //Real epsilon0 = lambda_d*lambda_d*l_r;
-	    //Real mu0 = 1.0/(c*c*epsilon0);
-	    Real mu0 = 1.0;
+
+	    // cylindrical coordinates
+	    Real rCyl = x;
+	    Real zCyl = y;
+
+	    Real m_e = 1.0/m;
+	    Real q_e = r_e*m_e/l_r;
+
+	    Real Rp = 1.0/4.0, alpha = 1.0/10.0, J0 = 1.0, epsilon = 1.0/100.0, K = 1.0;
+	    /*Real epsilon0 = lambda_d*lambda_d;
+	      Real mu0 = 1.0/(c*c*epsilon0);*/
+	    Real mu0 = 1.0;//*l_r;
 	    Real p0 = (1+alpha)*mu0*J0*J0*Rp*Rp/4.0;
 	      
 	    Real j_z_e_in = J0, j_z_e_out = 0.0;
 	    //Real B_phi_in = 0.5*x*mu0*J0*(1.0 + epsilon*std::sin(2*M_PI*K*y)), B_phi_out = 0.5*(Rp*Rp/x)*mu0*J0*(1.0 + epsilon*std::sin(2*M_PI*K*y));
-	    Real B_phi_in = 0.5*y*mu0*J0*(1.0 + epsilon*std::sin(2*M_PI*K*x)), B_phi_out = 0.5*(Rp*Rp/y)*mu0*J0*(1.0 + epsilon*std::sin(2*M_PI*K*x)); 
+	    Real B_phi_in = 0.5*rCyl*mu0*J0*(1.0 + epsilon*std::sin(2*M_PI*K*zCyl)), B_phi_out = 0.5*(Rp*Rp/rCyl)*mu0*J0*(1.0 + epsilon*std::sin(2*M_PI*K*zCyl)); 
 	    //Real p_in = p0 - 0.25*mu0*J0*J0*x*x, p_out  = alpha*mu0*J0*J0*Rp*Rp;
-	    Real p_in = p0 - 0.25*mu0*J0*J0*y*y, p_out  = alpha*mu0*J0*J0*Rp*Rp;
+	    Real p_in = p0 - 0.25*mu0*J0*J0*rCyl*rCyl, p_out  = 0.25*alpha*mu0*J0*J0*Rp*Rp;
 
 	    Real v_x_L = 0.0, v_y_L = 0.0, v_z_L = 0.0;
 	    Real v_x_R = 0.0, v_y_R = 0.0, v_z_R = 0.0;
@@ -811,14 +1514,16 @@ CAMReXmp::initData ()
 	    // electron velocity
 	    Real v_z_e;
 	    
-	    //if (x<Rp){
-	    if (y<Rp){	    
-	      rho = n_in, v_z_e = -j_z_e_in/(n_in*r_i), p = p_in/2.0, B_y = B_phi_in;
+	    if (rCyl<Rp){	    
+	      rho = n_in, v_z_e = j_z_e_in/(q_e*n_in), p = p_in/2.0, B_z = -B_phi_in;
 	      v_x = v_x_L, v_y = v_y_L, v_z = v_z_L;
+	      //v_z_e = -j_z_e_in/m;	      
 	    } else{
-	      rho = n_out, v_z_e = -j_z_e_out/(n_out*r_i), p = p_out/2.0, B_y = B_phi_out;
+	      rho = n_out, v_z_e = j_z_e_out/(q_e*n_out), p = p_out/2.0, B_z = -B_phi_out;
 	      v_x = v_x_R, v_y = v_y_R, v_z = v_z_R;
+	      //v_z_e = -j_z_e_out/m;
 	    }
+	    //v_z_e /= r_i;
 	    /*
 	    arr(i,j,k,0) = rho;
 	    arr(i,j,k,1) = arr(i,j,k,0)*v_x;
@@ -842,29 +1547,87 @@ CAMReXmp::initData ()
 	    arr(i,j,k,EZ) = 0.0;
 	    */
 	    arr(i,j,k,0) = rho;
-	    arr(i,j,k,1) = arr(i,j,k,0)*v_z;
-	    arr(i,j,k,2) = arr(i,j,k,0)*v_x;
-	    arr(i,j,k,3) = arr(i,j,k,0)*v_y;
+	    arr(i,j,k,1) = arr(i,j,k,0)*v_x;
+	    arr(i,j,k,2) = arr(i,j,k,0)*v_y;
+	    arr(i,j,k,3) = arr(i,j,k,0)*v_z;
 	    Vector<Real> w_i{arr(i,j,k,0), v_x, v_y, v_z, p};
 	    arr(i,j,k,ENER_I) = get_energy(w_i);
 	    
 	    arr(i,j,k,RHO_E) = rho/m;
-	    arr(i,j,k,MOMX_E) = arr(i,j,k,RHO_E)*v_z_e;
-	    arr(i,j,k,MOMY_E) = arr(i,j,k,RHO_E)*v_x;
-	    arr(i,j,k,MOMZ_E) = arr(i,j,k,RHO_E)*v_y;
-	    Vector<Real> w_e{arr(i,j,k,RHO_E), v_x, v_y, v_z_e, p};
+	    arr(i,j,k,MOMX_E) = arr(i,j,k,RHO_E)*v_x;
+	    arr(i,j,k,MOMY_E) = arr(i,j,k,RHO_E)*v_z_e;
+	    arr(i,j,k,MOMZ_E) = arr(i,j,k,RHO_E)*v_z;
+	    Vector<Real> w_e{arr(i,j,k,RHO_E), v_x, v_z_e, v_z, p};
 	    arr(i,j,k,ENER_E) = get_energy(w_e);
 
 	    arr(i,j,k,BX) = 0.0;
 	    arr(i,j,k,BY) = 0.0;
 	    // minus sign since in cylindrical coordinates
-	    arr(i,j,k,BZ) = B_y;
+	    arr(i,j,k,BZ) = B_z;
 	    arr(i,j,k,EX) = 0.0;
 	    arr(i,j,k,EY) = 0.0;
 	    arr(i,j,k,EZ) = 0.0;
 	    
-	    c_a = std::max(c_a, get_speed_a(rho, B_y));
-	    c = std::max(c, 8.0*c_a);	    
+	    //c_a = std::max(c_a, get_speed_a(rho, B_y));
+	    //c = std::max(c, 8.0*c_a);
+
+	    arr(i,j,k,DIVB) = std::abs(v_z_e/get_speed({rho,0.0,0.0,0.0,arr(i,j,k,ENER_I)}));
+
+	  } else if (test=="zpinch2dTrue"){
+
+	    // cylindrical coordinates
+	    Real rCyl = x;
+	    Real zCyl = y;
+
+	    // parameters
+	    Real epsilon0 = 1.0, mu0 = 1.0, n0 = 1.0, P0 = 1.5625*0.01, beta = 1.0/10.0, alpha = 100.0;
+	    Real m_i = 1.0, m_e = 1.0;
+	    Real q_i = r_i*m_i, q_e = r_e*m_e;
+
+	    // perturbation
+	    Real epsilon = 1.0/100.0, K = 1.0;
+
+	    Real oneR2A = 1.0 + rCyl*rCyl*alpha;
+	    Real oneBR2AB = 1.0 + beta + rCyl*rCyl*alpha*beta;
+	    Real oneBR4A2B = 1.0 + beta - std::pow(rCyl,4)*alpha*alpha*beta;
+	    
+	    Real C1 = -2.0 + rCyl*rCyl*alpha*(-2.0+(P0*alpha*epsilon0)/(n0*n0*q_i*q_i*std::pow(oneBR2AB,2)));
+	    Real C2 = std::sqrt(P0*((rCyl*rCyl*alpha*C1)/std::pow(oneR2A,2)+2.0*std::log(oneR2A))/(rCyl*rCyl*alpha*mu0));
+	    Real C3 = n0*n0*q_i*q_i*oneR2A*std::pow(oneBR2AB,3);
+
+	    Real n_i = n0/oneR2A + n0*beta;
+	    Real n_e = (n0*n0*(1.0/oneR2A+beta) + (2.0*P0*alpha*oneBR4A2B*epsilon0)/(q_i*q_i*oneR2A*oneR2A*oneBR2AB*oneBR2AB))/n0;
+	    Real P = P0/oneR2A + P0*beta;
+	    Real P_i = P/2.0, P_e = P/2.0;
+	    Real Btheta = -C2*(1.0 + epsilon*std::sin(2*M_PI*K*zCyl));
+
+	    Real mey = (2.0*P0*rCyl*alpha*(C3+P0*alpha*oneBR4A2B*epsilon0))/(n0*n0*q_i*q_i*q_i*std::pow(oneR2A,3)*std::pow(oneBR2AB,3)*mu0*mu0*C2);
+	    Real Er = -(P0*rCyl*alpha)/(q_i*std::pow(oneR2A,2)*(n0/oneR2A+n0*beta));
+	    //Er *= (1.0 + epsilon*std::sin(2*M_PI*K*zCyl));
+	    
+	    arr(i,j,k,0) = n_i/m_i;
+	    arr(i,j,k,1) = arr(i,j,k,0)*0.0;
+	    arr(i,j,k,2) = arr(i,j,k,0)*0.0;
+	    arr(i,j,k,3) = arr(i,j,k,0)*0.0;
+	    Vector<Real> w_i{arr(i,j,k,0), 0.0, 0.0, 0.0, P_i};
+	    arr(i,j,k,ENER_I) = get_energy(w_i);
+	    
+	    arr(i,j,k,RHO_E) = n_e/m_e;
+	    arr(i,j,k,MOMX_E) = arr(i,j,k,RHO_E)*0.0;
+	    arr(i,j,k,MOMY_E) = mey;
+	    arr(i,j,k,MOMZ_E) = arr(i,j,k,RHO_E)*0.0;
+	    Vector<Real> w_e{arr(i,j,k,RHO_E), 0.0, mey/arr(i,j,k,RHO_E), 0.0, P_e};
+	    arr(i,j,k,ENER_E) = get_energy(w_e);
+
+	    arr(i,j,k,BX) = 0.0;
+	    arr(i,j,k,BY) = 0.0;
+	    // minus sign since in cylindrical coordinates
+	    arr(i,j,k,BZ) = -Btheta;
+	    arr(i,j,k,EX) = Er;
+	    arr(i,j,k,EY) = 0.0;
+	    arr(i,j,k,EZ) = 0.0;
+
+	    arr(i,j,k,DIVB) = (mey/arr(i,j,k,RHO_E))/get_speed({n_i,0.0,0.0,0.0,arr(i,j,k,ENER_I)});
 
 	  } else if (test=="convergence"){
 	    arr(i,j,k,0) = 2.0+std::sin(2*M_PI*x);
@@ -1001,8 +1764,37 @@ CAMReXmp::initData ()
 	    Vector<Real> w_i{arr(i,j,k,0), v_x, v_y, v_z, p};
 	    arr(i,j,k,ENER_I) = get_energy(w_i);
 	    
-	    // set speed of light
-	    c = 100.0;
+	    arr(i,j,k,RHO_E) = rho/m;
+	    arr(i,j,k,MOMX_E) = arr(i,j,k,RHO_E)*v_x;
+	    arr(i,j,k,MOMY_E) = arr(i,j,k,RHO_E)*v_y;
+	    arr(i,j,k,MOMZ_E) = arr(i,j,k,RHO_E)*v_z;
+	    Vector<Real> w_e{arr(i,j,k,RHO_E), v_x, v_y, v_z, p};
+	    arr(i,j,k,ENER_E) = get_energy(w_e);
+	    
+	  } else if (test=="sphExp"){
+
+	    Real rho_L = 1.0, v_x_L = 0.0, v_y_L = 0.0, v_z_L = 0.0, p_L = 1.0;
+	    Real rho_R = 0.125, v_x_R = 0.0, v_y_R = 0.0, v_z_R = 0.0, p_R = 0.1;
+	    
+	    if (x*x+y*y<=0.4*0.4){
+	      rho = rho_L, v_x = v_x_L, v_y = v_y_L, v_z = v_z_L, p = p_L;
+	    } else{
+	      rho = rho_R, v_x = v_x_R, v_y = v_y_R, v_z = v_z_R, p = p_R;
+	    }
+	    
+	    arr(i,j,k,0) = rho;
+	    arr(i,j,k,1) = arr(i,j,k,0)*v_x;
+	    arr(i,j,k,2) = arr(i,j,k,0)*v_y;
+	    arr(i,j,k,3) = arr(i,j,k,0)*v_z;
+	    Vector<Real> w_i{arr(i,j,k,0), v_x, v_y, v_z, p};
+	    arr(i,j,k,ENER_I) = get_energy(w_i);
+	    
+	    arr(i,j,k,RHO_E) = rho/m;
+	    arr(i,j,k,MOMX_E) = arr(i,j,k,RHO_E)*v_x;
+	    arr(i,j,k,MOMY_E) = arr(i,j,k,RHO_E)*v_y;
+	    arr(i,j,k,MOMZ_E) = arr(i,j,k,RHO_E)*v_z;
+	    Vector<Real> w_e{arr(i,j,k,RHO_E), v_x, v_y, v_z, p};
+	    arr(i,j,k,ENER_E) = get_energy(w_e);
 	    
 	  } else if (test=="LiuLax"){
 
@@ -1082,6 +1874,61 @@ CAMReXmp::initData ()
 	    arr(i,j,k,EY) = c*std::cos(2.0*M_PI*(x));
 	    arr(i,j,k,EZ) = 0.0;
 
+	  } else if (test=="EMwaveTM"){
+
+	    using namespace std::complex_literals;
+
+	    // cylindrical coordinates
+	    const Real rCyl = x;
+	    const Real zCyl = y;
+
+	    // parameters
+	    Real xi0 = 2.40482555769577;
+	    Real kr = xi0;
+	    Real kz = M_PI;
+	    Real omega = std::sqrt(kr*kr + kz*kz);
+
+	    // function
+	    auto Bessel0ExpFunc = std::cyl_bessel_j(0,kr*rCyl)*std::exp(1i*kz*zCyl);
+	    auto Bessel1ExpFunc = std::cyl_bessel_j(1,kr*rCyl)*std::exp(1i*kz*zCyl);
+	    
+	    for (int n=0; n<NUM_STATE_FLUID; n++)
+	      arr(i,j,k,n) = 0.0;
+
+	    arr(i,j,k,BX) = 0.0;
+	    arr(i,j,k,BY) = 0.0;
+	    // negative sign for theta components in cyl. coord.
+	    arr(i,j,k,BZ) = -std::real(-1i*omega*kr/(omega*omega-kz*kz)*Bessel1ExpFunc);
+	    arr(i,j,k,EX) = std::real(-1i*kz*kr/(omega*omega-kz*kz)*Bessel1ExpFunc);
+	    arr(i,j,k,EY) = std::real(Bessel0ExpFunc);
+	    arr(i,j,k,EZ) = 0.0;
+
+	  } else if (test=="EMwaveTE1d"){
+
+	    using namespace std::complex_literals;
+	    
+	    // cylindrical coordinates
+	    const Real rCyl = x;
+	    Real L = 2.0*M_PI; //geom.ProbHi()[0]-geom.ProbLo()[0];
+	    // parameters
+	    Real z1 = 2.40482555769577;
+	    Real omega = z1/L;
+	    
+	    // function
+	    auto Bessel0SinFunc = std::cyl_bessel_j(0,omega*rCyl)*std::sin(omega*0.0);
+	    auto Bessel1CosFunc = std::cyl_bessel_j(1,omega*rCyl)*std::cos(omega*0.0);
+	    
+	    for (int n=0; n<NUM_STATE_FLUID; n++)
+	      arr(i,j,k,n) = 0.0;
+
+	    arr(i,j,k,BX) = 0.0;
+	    arr(i,j,k,BY) = -Bessel0SinFunc;	    
+	    arr(i,j,k,BZ) = 0.0;
+	    arr(i,j,k,EX) = 0.0;
+	    arr(i,j,k,EY) = 0.0;
+	    // negative sign for theta components in cyl. coord.
+	    arr(i,j,k,EZ) = -Bessel1CosFunc;
+	    
 	  } else if (test=="gaussianEM"){
 
 	    Real lambda = 1.5, chi = 1.5, a = -2.5, b = -2.5;

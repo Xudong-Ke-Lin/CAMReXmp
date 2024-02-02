@@ -205,7 +205,7 @@ CAMReXmp::variableSetUp ()
   ParmParse pp;
   pp.query("test",test);
   
-  if (test=="BrioWu" || (test.find("Toro") != std::string::npos) || test=="cylExp"
+  if (test=="BrioWu" || test=="BrioWu2DCart" || (test.find("Toro") != std::string::npos) || test=="cylExp"
       || test=="LiuLax"  || test=="LiuLax2")
     {
       for (int idim = 0; idim < amrex::SpaceDim; ++idim)
@@ -217,6 +217,38 @@ CAMReXmp::variableSetUp ()
 	    }
 	}
       // Euler problem in 1D
+    } else if (test=="BrioWu1DCyl")
+    {
+
+      // top and bottom are periodic (z-axis)
+      for (int n = 0; n < NUM_STATE; ++n)
+	{
+	  bc[n].setLo(1, BCType::int_dir);
+	  bc[n].setHi(1, BCType::int_dir);
+	}
+      
+      // left use geometric boundaries
+      // reflective even for most variables      
+      for (int n = 0; n < NUM_STATE; ++n)
+	{
+	  bc[n].setLo(0, BCType::reflect_even);
+	}
+      // reflective odd for vectors in radial and azimuthal direction
+      // these are x and z respectively
+      bc[MOMX_I].setLo(0, BCType::reflect_odd);
+      bc[MOMZ_I].setLo(0, BCType::reflect_odd);
+      bc[MOMX_E].setLo(0, BCType::reflect_odd);
+      bc[MOMZ_E].setLo(0, BCType::reflect_odd);
+      bc[BX].setLo(0, BCType::reflect_odd);
+      bc[BZ].setLo(0, BCType::reflect_odd);
+      bc[EX].setLo(0, BCType::reflect_odd);	  
+      bc[EZ].setLo(0, BCType::reflect_odd);
+      
+      // right use transmissive
+      for (int n = 0; n < NUM_STATE; ++n)
+	{
+	  bc[n].setHi(0, BCType::foextrap);
+	}
     } else if (test=="Colella")
     {
       for (int idim = 0; idim < amrex::SpaceDim; ++idim)
@@ -232,6 +264,32 @@ CAMReXmp::variableSetUp ()
 	  bc[4].setLo(idim, BCType::foextrap);
 	  bc[4].setHi(idim, BCType::foextrap);
 	}
+      // sperical explosion in cylindrical coordinates
+    } else if (test=="sphExp")
+    {
+
+      // top and bottom are transmissive (z-axis)
+      for (int n = 0; n < NUM_STATE; ++n)
+	{
+	  bc[n].setLo(1, BCType::foextrap);
+	  bc[n].setHi(1, BCType::foextrap);
+	}
+      
+      // left use geometric boundaries
+      // reflective even for most variables      
+      for (int n = 0; n < NUM_STATE; ++n)
+	{
+	  bc[n].setLo(0, BCType::reflect_even);
+	  // transmissive on the right
+	  bc[n].setHi(0, BCType::foextrap);
+	}
+      // reflective odd for vectors in radial and azimuthal direction
+      // these are x and z respectively
+      bc[MOMX_I].setLo(0, BCType::reflect_odd);
+      bc[MOMZ_I].setLo(0, BCType::reflect_odd);
+      bc[MOMX_E].setLo(0, BCType::reflect_odd);	  
+      bc[MOMZ_E].setLo(0, BCType::reflect_odd);	  
+      
       // EM problem in 2D
     } else if (test=="EMwave" || test=="EMwave1d")
     {
@@ -242,7 +300,72 @@ CAMReXmp::variableSetUp ()
 	      bc[n].setLo(idim, BCType::int_dir); // interior
 	      bc[n].setHi(idim, BCType::int_dir);
 	    }
-	}      
+	}
+    } else if (test=="EMwaveTM")
+    {
+
+      // top and bottom are periodic (z-axis)
+      for (int n = 0; n < NUM_STATE; ++n)
+	{
+	  bc[n].setLo(1, BCType::int_dir);
+	  bc[n].setHi(1, BCType::int_dir);
+	}
+      
+      // left use geometric boundaries
+      // reflective even for most variables      
+      for (int n = 0; n < NUM_STATE; ++n)
+	{
+	  bc[n].setLo(0, BCType::reflect_even);
+	}
+      // reflective odd for vectors in radial and azimuthal direction
+      // these are x and z respectively
+      bc[BX].setLo(0, BCType::reflect_odd);
+      bc[BZ].setLo(0, BCType::reflect_odd);
+      //bc[BZ].setLo(0, BCType::reflect_even);
+      bc[EX].setLo(0, BCType::reflect_odd);	  
+      bc[EZ].setLo(0, BCType::reflect_odd);
+      //bc[EZ].setLo(0, BCType::reflect_even);	  
+      
+      // right use conducting wall
+      // foextrap for most variables      
+      for (int n = 0; n < NUM_STATE; ++n)
+	{
+	  bc[n].setHi(0, BCType::foextrap);
+	}
+      // reflective odd for normal magnetic field and tangencials electric fields
+      // these are Br (Bx) and, Ez (Ey) and Etheta (Ez) respectively
+      bc[BX].setHi(0, BCType::reflect_odd);
+      bc[EY].setHi(0, BCType::reflect_odd);	  
+      bc[EZ].setHi(0, BCType::reflect_odd);	  
+            
+    } else if (test=="EMwaveTE1d")
+    {
+
+      // left use geometric boundaries
+      // reflective even for most variables      
+      for (int n = 0; n < NUM_STATE; ++n)
+	{
+	  bc[n].setLo(0, BCType::reflect_even);
+	}
+      // reflective odd for vectors in radial and azimuthal direction
+      // these are x and z respectively
+      bc[BX].setLo(0, BCType::reflect_odd);
+      bc[BZ].setLo(0, BCType::reflect_odd);
+      bc[EX].setLo(0, BCType::reflect_odd);	  
+      bc[EZ].setLo(0, BCType::reflect_odd);	  
+      
+      // right use conducting wall
+      // foextrap for most variables      
+      for (int n = 0; n < NUM_STATE; ++n)
+	{
+	  bc[n].setHi(0, BCType::foextrap);
+	}
+      // reflective odd for normal magnetic field and tangencials electric fields
+      // these are Br (Bx) and, Ez (Ey) and Etheta (Ez) respectively
+      bc[BX].setHi(0, BCType::reflect_odd);
+      bc[EY].setHi(0, BCType::reflect_odd);	  
+      bc[EZ].setHi(0, BCType::reflect_odd);	  
+            
     } else if (test=="gaussianEM")
     {
       for (int idim = 0; idim < amrex::SpaceDim; ++idim)
@@ -338,100 +461,47 @@ CAMReXmp::variableSetUp ()
 	      bc[n].setHi(idim, BCType::foextrap);
 	    }
 	}      
-    } else if (test=="zpinch2d")
+    } else if (test=="zpinch1d" || test=="zpinch2d" || test=="zpinch2dTrue")
     {
-      /*// top and bottom periodic boundaries
+
+      // top and bottom are periodic (z-axis)
       for (int n = 0; n < NUM_STATE; ++n)
 	{
 	  bc[n].setLo(1, BCType::int_dir);
 	  bc[n].setHi(1, BCType::int_dir);
 	}
       
-      // left use reflective boundaries
-      // reflective even for most variables
+      // left use geometric boundaries
+      // reflective even for most variables      
       for (int n = 0; n < NUM_STATE; ++n)
 	{
 	  bc[n].setLo(0, BCType::reflect_even);
+	}
+      // reflective odd for vectors in radial and azimuthal direction
+      // these are x and z respectively
+      bc[MOMX_I].setLo(0, BCType::reflect_odd);
+      bc[MOMZ_I].setLo(0, BCType::reflect_odd);
+      bc[MOMX_E].setLo(0, BCType::reflect_odd);	  
+      bc[MOMZ_E].setLo(0, BCType::reflect_odd);	  
+      bc[BX].setLo(0, BCType::reflect_odd);
+      bc[BZ].setLo(0, BCType::reflect_odd);
+      bc[EX].setLo(0, BCType::reflect_odd);	  
+      bc[EZ].setLo(0, BCType::reflect_odd);
+      
+      // right use conducting wall
+      // foextrap for most variables      
+      for (int n = 0; n < NUM_STATE; ++n)
+	{
 	  bc[n].setHi(0, BCType::foextrap);
 	}
-      // reflective odd for vectors in radial and azimuthal direction
-      bc[MOMX_I].setLo(0, BCType::reflect_odd);
-      bc[MOMY_I].setLo(0, BCType::reflect_odd);
-      bc[MOMX_E].setLo(0, BCType::reflect_odd);	  
-      bc[MOMY_E].setLo(0, BCType::reflect_odd);	  
-      bc[BX].setLo(0, BCType::reflect_odd);
-      bc[BY].setLo(0, BCType::reflect_odd);
-      bc[EX].setLo(0, BCType::reflect_odd);
-      bc[EY].setLo(0, BCType::reflect_odd);
-
-      // right use conducting wall boundary
-      bc[RHO_I].setHi(0, BCType::foextrap);
-      bc[RHO_E].setHi(0, BCType::foextrap);
-
+      // reflective odd for normal magnetic field and tangencials electric fields
+      // these are Br (Bx) and, Ez (Ey) and Etheta (Ez) respectively
       bc[MOMX_I].setHi(0, BCType::reflect_odd);
-      bc[MOMY_I].setHi(0, BCType::foextrap);
-      bc[MOMZ_I].setHi(0, BCType::foextrap);
       bc[MOMX_E].setHi(0, BCType::reflect_odd);
-      bc[MOMY_E].setHi(0, BCType::foextrap);
-      bc[MOMZ_E].setHi(0, BCType::foextrap);
-
-      bc[ENER_I].setHi(0, BCType::foextrap);
-      bc[ENER_E].setHi(0, BCType::foextrap);
-      
       bc[BX].setHi(0, BCType::reflect_odd);
-      bc[BY].setHi(0, BCType::foextrap);
-      bc[BZ].setHi(0, BCType::foextrap);
-
-      bc[EX].setHi(0, BCType::foextrap);
-      bc[EY].setHi(0, BCType::reflect_odd);
-      bc[EZ].setHi(0, BCType::reflect_odd);
-      */
-      // top and bottom periodic boundaries
-      for (int n = 0; n < NUM_STATE; ++n)
-	{
-	  bc[n].setLo(0, BCType::int_dir);
-	  bc[n].setHi(0, BCType::int_dir);
-	}
-      
-      // left use reflective boundaries
-      // reflective even for most variables
-      for (int n = 0; n < NUM_STATE; ++n)
-	{
-	  bc[n].setLo(1, BCType::reflect_even);
-	  bc[n].setHi(1, BCType::foextrap);
-	}
-      // reflective odd for vectors in radial and azimuthal direction
-      bc[MOMY_I].setLo(1, BCType::reflect_odd);
-      bc[MOMZ_I].setLo(1, BCType::reflect_odd);
-      bc[MOMY_E].setLo(1, BCType::reflect_odd);	  
-      bc[MOMZ_E].setLo(1, BCType::reflect_odd);	  
-      bc[BY].setLo(1, BCType::reflect_odd);
-      bc[BZ].setLo(1, BCType::reflect_odd);
-      bc[EY].setLo(1, BCType::reflect_odd);
-      bc[EZ].setLo(1, BCType::reflect_odd);
-
-      // right use conducting wall boundary
-      bc[RHO_I].setHi(1, BCType::foextrap);
-      bc[RHO_E].setHi(1, BCType::foextrap);
-
-      bc[MOMY_I].setHi(1, BCType::reflect_odd);
-      bc[MOMZ_I].setHi(1, BCType::foextrap);
-      bc[MOMX_I].setHi(1, BCType::foextrap);
-      bc[MOMY_E].setHi(1, BCType::reflect_odd);
-      bc[MOMZ_E].setHi(1, BCType::foextrap);
-      bc[MOMX_E].setHi(1, BCType::foextrap);
-
-      bc[ENER_I].setHi(1, BCType::foextrap);
-      bc[ENER_E].setHi(1, BCType::foextrap);
-      
-      bc[BY].setHi(1, BCType::reflect_odd);
-      bc[BZ].setHi(1, BCType::foextrap);
-      bc[BX].setHi(1, BCType::foextrap);
-
-      bc[EY].setHi(1, BCType::foextrap);
-      bc[EZ].setHi(1, BCType::reflect_odd);
-      bc[EX].setHi(1, BCType::reflect_odd);
-      
+      bc[EY].setHi(0, BCType::reflect_odd);	  
+      bc[EZ].setHi(0, BCType::reflect_odd);	  
+                  
     } else if (test=="convergence" || test=="convergence2D")
     {
       for (int i = 0; i < amrex::SpaceDim; ++i)
@@ -496,52 +566,52 @@ CAMReXmp::variableSetUp ()
 			StateDescriptor::BndryFunc(nullfill));
 
   // face-cenctred primary variables in 2D
-  //desc_lst.setComponent(EM_X_Type, BX_LOCAL, "magxFace", bc[BX],
+  //desc_lst.setComponent(EM_X_Type, BX_LOCAL, "magxFace", bc_EM[BX_LOCAL],
   //                      StateDescriptor::BndryFunc(nullfill));
-  desc_lst.setComponent(EM_Y_Type, BX_LOCAL, "magxFace", bc[BX],
+  desc_lst.setComponent(EM_Y_Type, BX_LOCAL, "magxFace", bc_EM[BX_LOCAL],
 			StateDescriptor::BndryFunc(nullfill));
-  //desc_lst.setComponent(EM_Y_Type, BY_LOCAL, "magyFace", bc[BY],
+  //desc_lst.setComponent(EM_Y_Type, BY_LOCAL, "magyFace", bc_EM[BY_LOCAL],
   //                      StateDescriptor::BndryFunc(nullfill));
-  desc_lst.setComponent(EM_X_Type, BY_LOCAL, "magyFace", bc[BY],
+  desc_lst.setComponent(EM_X_Type, BY_LOCAL, "magyFace", bc_EM[BY_LOCAL],
                         StateDescriptor::BndryFunc(nullfill));
-  desc_lst.setComponent(EM_X_Type, EX_LOCAL, "elecxFace", bc[EX],
+  desc_lst.setComponent(EM_X_Type, EX_LOCAL, "elecxFace", bc_EM[EX_LOCAL],
                         StateDescriptor::BndryFunc(nullfill));
-  desc_lst.setComponent(EM_Y_Type, EY_LOCAL, "elecyFace", bc[EY],
+  desc_lst.setComponent(EM_Y_Type, EY_LOCAL, "elecyFace", bc_EM[EY_LOCAL],
                         StateDescriptor::BndryFunc(nullfill));
   // face-centred moments of the primary variables in 2D
   // used for the divergence-free (second or higher order) reconstruction
-  //desc_lst.setComponent(EM_X_Type, BY_LOCAL, "magyFaceX", bc[BY],
+  //desc_lst.setComponent(EM_X_Type, BY_LOCAL, "magyFaceX", bc_EM[BY_LOCAL],
   //                      StateDescriptor::BndryFunc(nullfill));
-  desc_lst.setComponent(EM_Y_Type, BY_LOCAL, "magyFaceY", bc[BY],
+  desc_lst.setComponent(EM_Y_Type, BY_LOCAL, "magyFaceY", bc_EM[BY_LOCAL],
                         StateDescriptor::BndryFunc(nullfill));
-  desc_lst.setComponent(EM_X_Type, BZ_LOCAL, "magzFaceX", bc[BZ],
+  desc_lst.setComponent(EM_X_Type, BZ_LOCAL, "magzFaceX", bc_EM[BZ_LOCAL],
                         StateDescriptor::BndryFunc(nullfill));
-  //desc_lst.setComponent(EM_Y_Type, BX_LOCAL, "magxFaceY", bc[BX],
+  //desc_lst.setComponent(EM_Y_Type, BX_LOCAL, "magxFaceY", bc_EM[BX_LOCAL],
   //                      StateDescriptor::BndryFunc(nullfill));
-  desc_lst.setComponent(EM_X_Type, BX_LOCAL, "magxFaceX", bc[BX],
+  desc_lst.setComponent(EM_X_Type, BX_LOCAL, "magxFaceX", bc_EM[BX_LOCAL],
                         StateDescriptor::BndryFunc(nullfill));
-  desc_lst.setComponent(EM_Y_Type, BZ_LOCAL, "magzFaceY", bc[BZ],
+  desc_lst.setComponent(EM_Y_Type, BZ_LOCAL, "magzFaceY", bc_EM[BZ_LOCAL],
                         StateDescriptor::BndryFunc(nullfill));
-  desc_lst.setComponent(EM_X_Type, EY_LOCAL, "elecyFaceX", bc[EY],
+  desc_lst.setComponent(EM_X_Type, EY_LOCAL, "elecyFaceX", bc_EM[EY_LOCAL],
                         StateDescriptor::BndryFunc(nullfill));
-  desc_lst.setComponent(EM_X_Type, EZ_LOCAL, "eleczFaceX", bc[EZ],
+  desc_lst.setComponent(EM_X_Type, EZ_LOCAL, "eleczFaceX", bc_EM[EZ_LOCAL],
                         StateDescriptor::BndryFunc(nullfill));
-  desc_lst.setComponent(EM_Y_Type, EX_LOCAL, "elecxFaceY", bc[EX],
+  desc_lst.setComponent(EM_Y_Type, EX_LOCAL, "elecxFaceY", bc_EM[EX_LOCAL],
                         StateDescriptor::BndryFunc(nullfill));
-  desc_lst.setComponent(EM_Y_Type, EZ_LOCAL, "eleczFaceY", bc[EZ],
+  desc_lst.setComponent(EM_Y_Type, EZ_LOCAL, "eleczFaceY", bc_EM[EZ_LOCAL],
                         StateDescriptor::BndryFunc(nullfill));
 
-  desc_lst.setComponent(EM_XY_Type, BX_LOCAL, "magxEdge", bc[BX],
+  desc_lst.setComponent(EM_XY_Type, BX_LOCAL, "magxEdge", bc_EM[BX_LOCAL],
                         StateDescriptor::BndryFunc(nullfill));
-  desc_lst.setComponent(EM_XY_Type, BY_LOCAL, "magyEdge", bc[BY],
+  desc_lst.setComponent(EM_XY_Type, BY_LOCAL, "magyEdge", bc_EM[BY_LOCAL],
                         StateDescriptor::BndryFunc(nullfill));
-  desc_lst.setComponent(EM_XY_Type, BZ_LOCAL, "magzEdge", bc[BZ],
+  desc_lst.setComponent(EM_XY_Type, BZ_LOCAL, "magzEdge", bc_EM[BZ_LOCAL],
                         StateDescriptor::BndryFunc(nullfill));
-  desc_lst.setComponent(EM_XY_Type, EX_LOCAL, "elecxEdge", bc[EX],
+  desc_lst.setComponent(EM_XY_Type, EX_LOCAL, "elecxEdge", bc_EM[EX_LOCAL],
                         StateDescriptor::BndryFunc(nullfill));
-  desc_lst.setComponent(EM_XY_Type, EY_LOCAL, "elecyEdge", bc[EY],
+  desc_lst.setComponent(EM_XY_Type, EY_LOCAL, "elecyEdge", bc_EM[EY_LOCAL],
                         StateDescriptor::BndryFunc(nullfill));
-  desc_lst.setComponent(EM_XY_Type, EZ_LOCAL, "eleczEdge", bc[EZ],
+  desc_lst.setComponent(EM_XY_Type, EZ_LOCAL, "eleczEdge", bc_EM[EZ_LOCAL],
                         StateDescriptor::BndryFunc(nullfill));
 
 }
@@ -738,7 +808,7 @@ CAMReXmp::advance (Real time,
   S_EMNew[1].define(convert(grids,IntVect{AMREX_D_DECL(0,1,0)}), dmap, 6, NUM_GROW);
   FillPatch(*this, S_EMNew[1], NUM_GROW, time+dt, EM_Y_Type, 0, 6);  
 #endif
-
+  
   ParmParse pp;
   Real stop_time;
   pp.query("stop_time",stop_time);
@@ -812,6 +882,7 @@ CAMReXmp::advance (Real time,
       MultiFab& S_new = get_new_data(Phi_Type);
       MultiFab::Copy(S_new, SNew, DIVB, DIVB, 2, 0);
     }
+  
   /*
   // Density errors for convergence problem
   for (MFIter mfi(S_EMNew[0], true); mfi.isValid(); ++mfi)
@@ -903,38 +974,154 @@ CAMReXmp::advance (Real time,
   	}      
     }
   */
-    /*  
+  /*
   // Bz and Ey errors for EM wave problem
-  for (MFIter mfi(SNew, true); mfi.isValid(); ++mfi)
+  ParmParse pp;
+  Real stop_time;
+  pp.query("stop_time",stop_time);
+  if (cur_time>=stop_time)
     {
-      const Box& bx = mfi.tilebox();
+      amrex::Print() << "Last time step: calculating EM errors" << std::endl;
+      for (MFIter mfi(SNew, true); mfi.isValid(); ++mfi)
+	{
+	  const Box& bx = mfi.tilebox();
 	  
-      const Dim3 lo = lbound(bx);
-      const Dim3 hi = ubound(bx);
-	
-      Array4<Real> arr = SNew.array(mfi);
-	
-      for(int k = lo.z; k <= hi.z; k++)
-  	{
-  	  for(int j = lo.y; j <= hi.y; j++)
+	  const Dim3 lo = lbound(bx);
+	  const Dim3 hi = ubound(bx);
+	  
+	  Array4<Real> arr = SNew.array(mfi);
+	  
+	  for(int k = lo.z; k <= hi.z; k++)
 	    {
-	      const Real y = prob_lo[1] + (double(j)+0.5) * dx[1];
-	      for(int i = lo.x; i <= hi.x; i++)
+	      for(int j = lo.y; j <= hi.y; j++)
 		{
-		  const Real x = prob_lo[0] + (double(i)+0.5) * dx[0];
-		  arr(i,j,k,DIVB) = arr(i,j,k,BZ)-std::cos(2.0*M_PI*(x+y-std::sqrt(2.0)*c*cur_time));	 
-		  arr(i,j,k,DIVE) = (arr(i,j,k,EY)-c*std::cos(2.0*M_PI*(x+y-std::sqrt(2.0)*c*cur_time))/std::sqrt(2.0)); 
+		  const Real y = prob_lo[1] + (double(j)+0.5) * dx[1];
+		  for(int i = lo.x; i <= hi.x; i++)
+		    {
+		      const Real x = prob_lo[0] + (double(i)+0.5) * dx[0];
+		      arr(i,j,k,DIVB) = arr(i,j,k,BZ)-std::cos(2.0*M_PI*(x+y-std::sqrt(2.0)*c*cur_time));	 
+		      arr(i,j,k,DIVE) = (arr(i,j,k,EY)-c*std::cos(2.0*M_PI*(x+y-std::sqrt(2.0)*c*cur_time))/std::sqrt(2.0)); 
+		    }
 		}
-	    }
-  	}      
-    }  
-    */
+	    }      
+	}  
+      // copy errors
+      MultiFab& S_new = get_new_data(Phi_Type);
+      MultiFab::Copy(S_new, SNew, DIVB, DIVB, 2, 0);
+    }
   // We need to compute boundary conditions again after each update       
   //Sborder.FillBoundary(geom.periodicity());
   
   // Fill non-periodic physical boundaries 
   //FillDomainBoundary(Sborder, geom, bc);
-  
+  */
+  // Btheta (Bz) and Er (Ex) errors for EM circular waveguide problem
+  /*ParmParse pp;
+  Real stop_time;
+  pp.query("stop_time",stop_time);
+  //if (cur_time>=stop_time)
+    {
+      amrex::Print() << "Last time step: calculating EM errors" << std::endl;
+      for (MFIter mfi(SNew, true); mfi.isValid(); ++mfi)
+	{
+	  const Box& bx = mfi.tilebox();
+	  
+	  const Dim3 lo = lbound(bx);
+	  const Dim3 hi = ubound(bx);
+	  
+	  Array4<Real> arr = SNew.array(mfi);
+	  
+	  for(int k = lo.z; k <= hi.z; k++)
+	    {
+	      for(int j = lo.y; j <= hi.y; j++)
+		{
+		  const Real y = prob_lo[1] + (double(j)+0.5) * dx[1];
+		  for(int i = lo.x; i <= hi.x; i++)
+		    {
+		      const Real x = prob_lo[0] + (double(i)+0.5) * dx[0];
+
+		      using namespace std::complex_literals;
+		      
+		      // cylindrical coordinates
+		      const Real rCyl = x;
+		      const Real zCyl = y;
+
+		      // parameters
+		      Real xi0 = 2.40482555769577;
+		      Real kr = xi0;
+		      Real kz = M_PI;
+		      Real omega = std::sqrt(kr*kr + kz*kz);
+
+		      // function
+		      auto Bessel0ExpFunc = std::cyl_bessel_j(0,kr*rCyl)*std::exp(1i*kz*zCyl)*std::exp(-1i*omega*cur_time);
+		      auto Bessel1ExpFunc = std::cyl_bessel_j(1,kr*rCyl)*std::exp(1i*kz*zCyl)*std::exp(-1i*omega*cur_time);
+
+		      // negative sign for theta components in cyl. coord.
+		      arr(i,j,k,DIVB) = arr(i,j,k,BZ)+std::real(-1i*omega*kr/(omega*omega-kz*kz)*Bessel1ExpFunc);
+		      //arr(i,j,k,DIVE) = arr(i,j,k,EX)-std::real(-1i*kz*kr/(omega*omega-kz*kz)*Bessel1ExpFunc);
+		      arr(i,j,k,DIVE) = arr(i,j,k,EY)-std::real(Bessel0ExpFunc);
+
+		    }
+		}
+	    }      
+	}  
+      // copy errors
+      MultiFab& S_new = get_new_data(Phi_Type);
+      MultiFab::Copy(S_new, SNew, DIVB, DIVB, 2, 0);
+    }
+  */
+  // Btheta (Bz) and Ez (Ex) exact sols for cylindrical Brio-Wu test with EM circular waveguide
+  /*ParmParse pp;
+  Real stop_time;
+  pp.query("stop_time",stop_time);
+  //if (cur_time>=stop_time)
+    {
+      //amrex::Print() << "Last time step: calculating EM errors" << std::endl;
+      for (MFIter mfi(SNew, true); mfi.isValid(); ++mfi)
+	{
+	  const Box& bx = mfi.tilebox();
+	  
+	  const Dim3 lo = lbound(bx);
+	  const Dim3 hi = ubound(bx);
+	  
+	  Array4<Real> arr = SNew.array(mfi);
+	  
+	  for(int k = lo.z; k <= hi.z; k++)
+	    {
+	      for(int j = lo.y; j <= hi.y; j++)
+		{
+		  const Real y = prob_lo[1] + (double(j)+0.5) * dx[1];
+		  for(int i = lo.x; i <= hi.x; i++)
+		    {
+		      const Real x = prob_lo[0] + (double(i)+0.5) * dx[0];
+
+		      using namespace std::complex_literals;
+		      
+		      // cylindrical coordinates
+		      const Real rCyl = x;
+
+		      // parameters
+		      Real xi0 = 2.40482555769577;
+		      Real omega = xi0/(0.1*2.0*M_PI);
+
+		      // function
+		      auto Bessel0SinFunc = std::cyl_bessel_j(0,omega*rCyl)*std::sin(omega*c*cur_time);
+		      auto Bessel1CosFunc = std::cyl_bessel_j(1,omega*rCyl)*std::cos(omega*c*cur_time);
+
+		      // negative sign for theta components in cyl. coord.
+		      arr(i,j,k,DIVB) = Bessel1CosFunc;		     
+		      arr(i,j,k,DIVE) = c*Bessel0SinFunc;
+
+		    }
+		}
+	    }      
+	}  
+      // copy errors
+      MultiFab& S_new = get_new_data(Phi_Type);
+      MultiFab::Copy(S_new, SNew, DIVB, DIVB, 2, 0);
+      //MultiFab::Copy(S_new, SNew, EX, EX, 1, 0);
+    }  
+  */
   /*for (int d = 0; d < amrex::SpaceDim ; d++)   
   {
 
@@ -1066,7 +1253,7 @@ CAMReXmp::estTimeStep (Real)
   // added by 2020D            
   // Fill non-periodic physical boundaries     
   FillDomainBoundary(Sborder, geom, bc);
-
+  
   bool fluidconstraint = (fluidOrder != 0 ? true : false);
   bool EMconstraint = (MaxwellOrder != 0 ? true : false);
   
@@ -1167,9 +1354,9 @@ CAMReXmp::estTimeStep (Real)
       dt_est = std::min(dt_est, dx[d]/c);
     else
       dt_est = std::min(dt_est, dx[d]/c_h);
-
     
-    // dt also needs to resolve plasma and cyclotron frequencies
+    // dt does not need to resolve plasma and cyclotron frequencies
+    // because usually an implicit souce term update is used
     //dt_est = std::min(dt_est, 0.5/std::max(omega_pe,omega_ce)*1.0/cfl);
     //dt_est = std::min(dt_est, 1.0/std::max(omega_pe,omega_ce)*1.0/cfl);
 
@@ -1571,29 +1758,29 @@ CAMReXmp::read_params ()
   
   ppn.get("fluid",fluidOrder);
   amrex::Print() << "Reading fluid method: " << std::endl;
-  /*if (fluidOrder==0){
+  if (fluidOrder==0){
     amrex::Print() << "no fluid solver" << std::endl;
-    fluidSolverWithChosenOrder = &CAMReXmp::fluidSolverNothing;
+    fluidSolverWithChosenSpaceOrder = &CAMReXmp::fluidSolverVoid;
   }
-  else */if (fluidOrder==2){
+  else if (fluidOrder==2){
     amrex::Print() << "fluid 2nd order TVD" << std::endl;
     fluidSolverWithChosenOrder = &CAMReXmp::fluidSolverTVD;
     fluidSolverWithChosenSpaceOrder = &CAMReXmp::fluidSolverTVD;
   }
-  /*else if (fluidOrder==3){
+  else if (fluidOrder==3){
     amrex::Print() << "fluid 3rd order WENO" << std::endl;
-    fluidSolverWithChosenOrder = &CAMReXmp::fluidSolverWENO;
-    }*/
+    fluidSolverWithChosenSpaceOrder = &CAMReXmp::fluidSolverWENO;
+  }
   else
     amrex::Abort("Please specify a valid fluid order: 0, 2 or 3");
 
   ppn.get("Maxwell",MaxwellOrder);
   amrex::Print() << "Reading Maxwell method: " << std::endl;
-  /*if (MaxwellOrder==0){
+  if (MaxwellOrder==0){
     amrex::Print() << "no Maxwell solver" << std::endl;
-    MaxwellSolverWithChosenOrder = &CAMReXmp::MaxwellSolverDivFreeNothing;
+    MaxwellSolverWithChosenSpaceOrder = &CAMReXmp::MaxwellSolverFVTDVoid;
   }
-  else */if (MaxwellOrder==2){
+  else if (MaxwellOrder==2){
     amrex::Print() << "Maxwell 2nd order TVD" << std::endl;
     MaxwellSolverWithChosenOrder = &CAMReXmp::MaxwellSolverDivFreeTVD;
     MaxwellSolverWithChosenSpaceOrder = &CAMReXmp::MaxwellSolverFVTDTVD;
@@ -1624,7 +1811,7 @@ CAMReXmp::read_params ()
   ppn.get("MaxwellDivMethod",MaxwellDivMethod);
   amrex::Print() << "Reading Maxwell divergence cleaning method: " << std::endl;
   if (MaxwellDivMethod=="FVTD"){
-    amrex::Print() << "fintite-volume time-domain" << std::endl;
+    amrex::Print() << "finite-volume time-domain" << std::endl;
     if (MaxwellTimeMethod!="EX" && MaxwellTimeMethod!="EXsubcycling")
       amrex::Abort("MaxwellDivMethod=FVTD only works with MaxwellTimeMethod=EX or EXsubcycling");
   }
@@ -1645,11 +1832,16 @@ CAMReXmp::read_params ()
 
   ppn.get("source",sourceMethod);
   amrex::Print() << "Reading source method: " << std::endl;
+  if (sourceMethod=="no"){
+    amrex::Print() << "no source treatment" << std::endl;
+    sourceUpdateWithChosenMethod = &CAMReXmp::sourceUpdateVoid;
+  }
   /*if (sourceMethod=="EX"){
     amrex::Print() << "EX source treatment" << std::endl;
     sourceUpdateWithChosenMethod = &CAMReXmp::sourceUpdateEX;
   }
-  else */if (sourceMethod=="IM"){
+  */
+  else if (sourceMethod=="IM"){
     amrex::Print() << "IM source treatment" << std::endl;
     sourceUpdateWithChosenMethod = &CAMReXmp::sourceUpdateIMMidpoint;
   }

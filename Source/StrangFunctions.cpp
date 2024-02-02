@@ -141,38 +141,76 @@ void CAMReXmp::StrangSecond(MultiFab& S_dest, MultiFab& S_source, MultiFab (&flu
 }
 void CAMReXmp::StrangSecond(const Real* dx, Real dt, Real time)
 {
+  // copy old data to new data
+  {    
+    MultiFab& S_new = get_new_data(Phi_Type);
+    
+    // input states and fill the data
+    MultiFab S_input(grids, dmap, NUM_STATE, NUM_GROW);
+    FillPatch(*this, S_input, NUM_GROW, time, Phi_Type, 0, NUM_STATE);
+    MultiFab::Copy(S_new, S_input, 0, 0, NUM_STATE, 0);
+    
+    if (MaxwellOrder!=0)
+      {
+	MultiFab& S_EM_X_new = get_new_data(EM_X_Type);
+	MultiFab& S_EM_Y_new = get_new_data(EM_Y_Type);
+
+	Array<MultiFab,AMREX_SPACEDIM> S_EM_input;
+	S_EM_input[0].define(convert(grids,IntVect{AMREX_D_DECL(1,0,0)}), dmap, 6, NUM_GROW);
+	FillPatch(*this, S_EM_input[0], NUM_GROW, time, EM_X_Type, 0, 6);
+#if (AMREX_SPACEDIM >= 2) 
+	S_EM_input[1].define(convert(grids,IntVect{AMREX_D_DECL(0,1,0)}), dmap, 6, NUM_GROW);
+	FillPatch(*this, S_EM_input[1], NUM_GROW, time, EM_Y_Type, 0, 6);
+#endif
+
+	MultiFab::Copy(S_EM_X_new, S_EM_input[0], 0, 0, 6, 0);
+#if (AMREX_SPACEDIM >= 2)
+	MultiFab::Copy(S_EM_Y_new, S_EM_input[1], 0, 0, 6, 0);
+#endif
+	if (MaxwellTimeMethod=="IM" && MaxwellDivMethod=="FDTD")
+	  {
+	    MultiFab& S_EM_XY_new = get_new_data(EM_XY_Type);
+	    MultiFab S_EM_edge_input;
+	    S_EM_edge_input.define(convert(grids,IntVect{AMREX_D_DECL(1,1,0)}), dmap, 6, NUM_GROW);
+	    FillPatch(*this, S_EM_edge_input, NUM_GROW, time, EM_XY_Type, 0, 6);
+	    MultiFab::Copy(S_EM_XY_new, S_EM_edge_input, 0, 0, 6, 0);
+	  }
+      }
+  }
+
+  if (sourceMethod!="no")
+    sourceUpdate(0.5*dt, time+dt);
+
+  if (geom.Coord()==1)
+    sourceUpdateCyl(dx, 0.5*dt, time+dt);
   
-  // cell-centered and face-centered times
-  Real CCtime = time;
-  Real FCtime = time;
-  Real NCtime = time;
-  
-  sourceUpdate(0.5*dt, CCtime);
-  CCtime += dt;
-  
-  if (sourceMethod=="IM" && MaxwellDivMethod!="HDC")
+  if ((sourceMethod=="IM" || (geom.Coord()==1 && MaxwellOrder!=0)) && MaxwellDivMethod!="HDC")
     {
-      elecFieldCellAve(CCtime,FCtime);
-      FCtime += dt;
+      elecFieldCellAve(time+dt);
     }
 
-  // note that if no source terms are used
-  // there is a difference between the starting and ending CCtime (and FCtime)
-  RK2(dx,dt,CCtime);
+  RK2(dx,dt,time+dt);
+  //RK2fluidRK3Maxwell(dx,dt,time+dt);
+  //RK3(dx,dt,time+dt);
   if (MaxwellTimeMethod=="IM" && MaxwellDivMethod=="FDTD")
-    MaxwellSolverFDTDCN(dx,dt,CCtime,FCtime,NCtime);
-    //MaxwellSolverFDTDCNAMReX(dx,dt,CCtime,FCtime,NCtime);
-  
-  sourceUpdate(0.5*dt, CCtime);
-  
-  if (sourceMethod=="IM" && MaxwellDivMethod!="HDC")
+    MaxwellSolverFDTDCN(dx,dt,time+dt);
+    //MaxwellSolverFDTDCNAMReX(dx,dt,time+dt);
+
+  if (sourceMethod!="no") 
+    sourceUpdate(0.5*dt, time+dt);
+
+  if (geom.Coord()==1)
+    sourceUpdateCyl(dx, 0.5*dt, time+dt);
+
+  //if (sourceMethod=="IM" && MaxwellDivMethod!="HDC")
+  if ((sourceMethod=="IM" || (geom.Coord()==1 && MaxwellOrder!=0)) && MaxwellDivMethod!="HDC")
     {
-      elecFieldCellAve(CCtime,FCtime);
+      elecFieldCellAve(time+dt);
       if (projectionStep!= 0 &&
 	  parent->levelSteps(0)!=0 &&
 	  (parent->levelSteps(0))%projectionStep==0)
 	{
-	  Projection(dx,CCtime);      
+	  Projection(dx,time+dt);      
 	}
     }
 }

@@ -85,7 +85,7 @@ void CAMReXmp::sourceUpdate(Real dt, Real time)
 	    {
 	      for(int i = lo.x; i <= hi.x; i++)
 		{
-		  (this->*sourceUpdateWithChosenMethod)(arr, i, j, k, dt);
+		  (this->*sourceUpdateWithChosenMethod)(arr, i, j, k, dt);		  
 		}
 	    }
 	}      
@@ -96,7 +96,160 @@ void CAMReXmp::sourceUpdate(Real dt, Real time)
   //FillPatch(*this, S_old, NUM_GROW, time, Phi_Type, 0, NUM_STATE);
 
 }
+void CAMReXmp::sourceUpdateCyl(const Real* dx, Real dt, Real time)
+{
 
+  MultiFab S_input(grids, dmap, NUM_STATE, NUM_GROW);
+  FillPatch(*this, S_input, NUM_GROW, time, Phi_Type, 0, NUM_STATE);
+
+  if (MaxwellOrder!=0)
+    {
+      for (MFIter mfi(S_input, true); mfi.isValid(); ++mfi)
+	{
+	  const Box& bx = mfi.tilebox();
+      
+	  const Dim3 lo = lbound(bx);
+	  const Dim3 hi = ubound(bx);
+      
+	  Array4<Real> arr = S_input.array(mfi);
+      
+	  for(int k = lo.z; k <= hi.z; k++)
+	    {
+	      for(int j = lo.y; j <= hi.y; j++)
+		{
+		  for(int i = lo.x; i <= hi.x; i++)
+		    {
+		      const Real x = geom.ProbLo()[0]+(double(i)+0.5)*dx[0];
+
+		      Real B_x = arr(i,j,k,BX);
+		      Real B_y = arr(i,j,k,BY);
+		      Real B_z = arr(i,j,k,BZ);
+		      Real E_x = arr(i,j,k,EX);
+		      Real E_y = arr(i,j,k,EY);
+		      Real E_z = arr(i,j,k,EZ);
+		      
+		      // z-component (y-) needs a theta-component (z-) update
+		      // use negative sign because theta-component is reversed??
+		      arr(i,j,k,BY) += -dt*(-E_z/x);
+		      arr(i,j,k,EY) += -dt*(c*c*B_z/x);
+		    }
+		}
+	    }      
+	}
+
+      MultiFab& S_new = get_new_data(Phi_Type);
+      MultiFab::Copy(S_new, S_input, 0, 0, NUM_STATE, 0); 
+      //MultiFab::Copy(S_new, S_input, BY, BY, 1, 0);
+      //MultiFab::Copy(S_new, S_input, EY, EY, 1, 0);
+      FillPatch(*this, S_input, NUM_GROW, time, Phi_Type, 0, NUM_STATE);
+
+      Array<MultiFab,AMREX_SPACEDIM> S_EM_input;
+#if (AMREX_SPACEDIM >= 2) 
+      S_EM_input[1].define(convert(grids,IntVect{AMREX_D_DECL(0,1,0)}), dmap, 6, NUM_GROW);
+      FillPatch(*this, S_EM_input[1], NUM_GROW, time, EM_Y_Type, 0, 6);
+#endif
+  
+      for (MFIter mfi(S_EM_input[1], true); mfi.isValid(); ++mfi)
+	{
+	  const Box& bx = mfi.tilebox();
+      
+	  const Dim3 lo = lbound(bx);
+	  const Dim3 hi = ubound(bx);
+      
+	  // Indexable arrays for the data, and the directional flux
+	  // Based on the corner-centred definition of the flux array, the
+	  // data array runs from e.g. [0,N+1] and the flux array from [-1,N+1]
+	  //const auto& arr = S_dest.array(mfi);
+	  const auto& arrEM = S_EM_input[1].array(mfi);
+	  const auto& arr = S_input.array(mfi);
+
+	  const Dim3 hiDomain = ubound(geom.Domain());
+      
+	  for(int k = lo.z; k <= hi.z; k++)
+	    {
+	      for(int j = lo.y; j <= hi.y; j++)
+		{
+		  for(int i = lo.x; i <= hi.x; i++)
+		    {
+		      arrEM(i,j,k,BY_LOCAL) = 0.5*(arr(i,j-1,k,BY)+arr(i,j,k,BY));
+		      // electric field is updated using elecFieldCellAve() in the next step
+		      arrEM(i,j,k,EY_LOCAL) = 0.5*(arr(i,j-1,k,EY)+arr(i,j,k,EY));
+		    }
+		}
+	    }      
+	}
+
+      MultiFab& S_EM_Y_new = get_new_data(EM_Y_Type);
+      MultiFab::Copy(S_EM_Y_new, S_EM_input[1], BY_LOCAL, BY_LOCAL, 1, 0);
+      MultiFab::Copy(S_EM_Y_new, S_EM_input[1], EY_LOCAL, EY_LOCAL, 1, 0);
+
+    }
+  if (fluidOrder!=0)
+    {
+
+      MFIter::allowMultipleMFIters(true);
+  
+      for (MFIter mfi(S_input, true); mfi.isValid(); ++mfi)
+	{
+	  const Box& bx = mfi.tilebox();
+      
+	  const Dim3 lo = lbound(bx);
+	  const Dim3 hi = ubound(bx);
+      
+	  Array4<Real> arr = S_input.array(mfi);
+      
+	  for(int k = lo.z; k <= hi.z; k++)
+	    {
+	      for(int j = lo.y; j <= hi.y; j++)
+		{
+		  for(int i = lo.x; i <= hi.x; i++)
+		    {
+		      const Real x = geom.ProbLo()[0]+(double(i)+0.5)*dx[0];
+
+		      // define conserved variables
+		      Real rho_i = arr(i,j,k,0);
+		      Real momX_i = arr(i,j,k,1);
+		      Real momY_i = arr(i,j,k,2);
+		      Real momZ_i = arr(i,j,k,MOMZ_I);
+		      Real E_i = arr(i,j,k,ENER_I);
+		      Real rho_e = arr(i,j,k,RHO_E);
+		      Real momX_e = arr(i,j,k,MOMX_E);
+		      Real momY_e = arr(i,j,k,MOMY_E);
+		      Real momZ_e = arr(i,j,k,MOMZ_E);
+		      Real E_e = arr(i,j,k,ENER_E);
+		  
+		      // define primitive variables
+		      Real v_x_i = momX_i/rho_i;
+		      Real v_y_i = momY_i/rho_i;
+		      Real v_z_i = momZ_i/rho_i;
+		      Real p_i = get_pressure({rho_i,momX_i,momY_i,momZ_i,E_i});
+		      Real v_x_e = momX_e/rho_e;
+		      Real v_y_e = momY_e/rho_e;
+		      Real v_z_e = momZ_e/rho_e;
+		      Real p_e = get_pressure({rho_e,momX_e,momY_e,momZ_e,E_e});
+		      
+		      arr(i,j,k,0) -= dt*(rho_i*v_x_i/x);
+		      arr(i,j,k,1) -= dt*(rho_i*v_x_i*v_x_i/x);
+		      arr(i,j,k,2) -= dt*(rho_i*v_x_i*v_y_i/x);
+		      arr(i,j,k,ENER_I) -= dt*((E_i+p_i)*v_x_i/x);
+    
+		      arr(i,j,k,RHO_E) -= dt*(rho_e*v_x_e/x);
+		      arr(i,j,k,MOMX_E) -= dt*(rho_e*v_x_e*v_x_e/x);
+		      arr(i,j,k,MOMY_E) -= dt*(rho_e*v_x_e*v_y_e/x);
+		      arr(i,j,k,ENER_E) -= dt*((E_e+p_e)*v_x_e/x);
+		    }
+		}
+	    }      
+	}
+
+      MultiFab& S_new = get_new_data(Phi_Type);
+      MultiFab::Copy(S_new, S_input, 0, 0, NUM_STATE_FLUID, 0);
+    }  
+}
+void CAMReXmp::sourceUpdateVoid(Array4<Real>& arr, int i, int j, int k, Real dt)
+{
+  amrex::Abort("No source terms!!");
+}
 void CAMReXmp::cylSourceUpdateImplicitRK2(MultiFab& Sborder, MultiFab& Sold, const Real* dx, Real dt)
 {
 MFIter::allowMultipleMFIters(true);
