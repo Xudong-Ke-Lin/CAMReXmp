@@ -27,3 +27,5 @@ typedef boost::numeric::ublas::matrix< double > matrix_type;
 
 
 size_t stiffSolver(std::vector<double>& u, double chargeToMassRatio, double larmorRadius, double dt);
+size_t stiffSolverFull(std::vector<double>& u, double chargeToMassRatioI, double chargeToMassRatioE,
+		       double larmorRadius, double debyeLength, double dt);

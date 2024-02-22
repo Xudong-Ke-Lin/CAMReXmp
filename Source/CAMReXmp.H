@@ -180,6 +180,7 @@ public:
   void sourceUpdateIMMidpoint(Array4<Real>& arr, int i, int j, int k, Real dt);
   void sourceUpdateANEX(Array4<Real>& arr, int i, int j, int k, Real dt);
   void sourceUpdateStiff(Array4<Real>& arr, int i, int j, int k, Real dt);
+  void sourceUpdateExact(Array4<Real>& arr, int i, int j, int k, Real dt);
   void cylSourceUpdate(Array4<Real>& arr, int i, int j, int k, Real dt, Real x);
   void cylSourceUpdateImplicitRK2(MultiFab& Sborder, MultiFab& Sold, const Real* dx, Real dt);
 

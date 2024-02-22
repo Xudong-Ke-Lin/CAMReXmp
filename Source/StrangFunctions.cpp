@@ -184,7 +184,8 @@ void CAMReXmp::StrangSecond(const Real* dx, Real dt, Real time)
   if (geom.Coord()==1)
     sourceUpdateCyl(dx, 0.5*dt, time+dt);
   
-  if ((sourceMethod=="IM" || (geom.Coord()==1 && MaxwellOrder!=0)) && MaxwellDivMethod!="HDC")
+  if (((sourceMethod=="IM" || sourceMethod=="STIFF" || sourceMethod=="EXACT")
+       || (geom.Coord()==1 && MaxwellOrder!=0)) && MaxwellDivMethod!="HDC")
     {
       elecFieldCellAve(time+dt);
     }
@@ -203,7 +204,8 @@ void CAMReXmp::StrangSecond(const Real* dx, Real dt, Real time)
     sourceUpdateCyl(dx, 0.5*dt, time+dt);
 
   //if (sourceMethod=="IM" && MaxwellDivMethod!="HDC")
-  if ((sourceMethod=="IM" || (geom.Coord()==1 && MaxwellOrder!=0)) && MaxwellDivMethod!="HDC")
+  if (((sourceMethod=="IM" || sourceMethod=="STIFF" || sourceMethod=="EXACT")
+       || (geom.Coord()==1 && MaxwellOrder!=0)) && MaxwellDivMethod!="HDC")
     {
       elecFieldCellAve(time+dt);
       if (projectionStep!= 0 &&

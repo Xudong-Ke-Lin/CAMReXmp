@@ -473,6 +473,12 @@ void CAMReXmp::sourceUpdateIMMidpoint(Array4<Real>& arr, int i, int j, int k, Re
   Real v_z_e = momZ_e/rho_e;
   Real p_e = get_pressure({rho_e,momX_e,momY_e,momZ_e,E_e});
 
+  // get kinetic energies
+  Real v_i = get_magnitude(v_x_i, v_y_i, v_z_i);
+  Real v_e = get_magnitude(v_x_e, v_y_e, v_z_e);
+  Real kin_i = 0.5*rho_i*v_i*v_i;
+  Real kin_e = 0.5*rho_e*v_e*v_e;
+  
   // matrix for momentum and electric field source terms update
   MatrixXd matrix = MatrixXd::Constant(9,9,0.0);
   matrix(0,1) = r_i*B_z/l_r, matrix(0,2) = -r_i*B_y/l_r, matrix(0,6) = r_i*rho_i/l_r;
@@ -515,20 +521,29 @@ void CAMReXmp::sourceUpdateIMMidpoint(Array4<Real>& arr, int i, int j, int k, Re
   functionInt[EY] = source_var_new(7);
   functionInt[EZ] = source_var_new(8);
   
-  functionInt[ENER_I] = E_i + 0.5*dt*r_i/l_r*(functionInt[EX]*functionInt[1] + functionInt[EY]*functionInt[2] + functionInt[EZ]*functionInt[3]);
-  functionInt[ENER_E] = E_e + 0.5*dt*r_e/l_r*(functionInt[EX]*functionInt[MOMX_E] + functionInt[EY]*functionInt[MOMY_E] + functionInt[EZ]*functionInt[MOMZ_E]);
-#if (AMREX_SPACEDIM >= 2)
-  if (MaxwellDivMethod=="HDC")
-    {
-      Real psi_b = arr(i,j,k,DIVB);
-      Real psi_e = arr(i,j,k,DIVE);
-      functionInt[DIVB] = psi_b;
-      functionInt[DIVE] = psi_e + ce*0.5*dt*1.0/(lambda_d*lambda_d*l_r)*(r_i*rho_i + r_e*rho_e);
-    }
-#endif
+  functionInt[ENER_I] = E_i;
+  functionInt[ENER_E] = E_e;
   
   for (int n=0; n<NUM_STATE; n++)
     arr(i,j,k,n) = 2.0*functionInt[n]-arr(i,j,k,n);
+
+  // get new kinetic energies
+  Real mom_i_new = get_magnitude(arr(i,j,k,MOMX_I), arr(i,j,k,MOMY_I), arr(i,j,k,MOMZ_I));
+  Real mom_e_new = get_magnitude(arr(i,j,k,MOMX_E), arr(i,j,k,MOMY_E), arr(i,j,k,MOMZ_E));
+  Real kin_i_new = 0.5*mom_i_new*mom_i_new/rho_i;
+  Real kin_e_new = 0.5*mom_e_new*mom_e_new/rho_e;
+
+  arr(i,j,k,ENER_I) += kin_i_new-kin_i;
+  arr(i,j,k,ENER_E) += kin_e_new-kin_e;
+
+#if (AMREX_SPACEDIM >= 2)
+  if (MaxwellDivMethod=="HDC")
+    {
+      Real psi_e = arr(i,j,k,DIVE);
+      arr(i,j,k,DIVE) = psi_e + ce*dt*1.0/(lambda_d*lambda_d*l_r)*(r_i*rho_i + r_e*rho_e);
+    }
+#endif  
+  
 }
 void CAMReXmp::sourceUpdateANEX(Array4<Real>& arr, int i, int j, int k, Real dt)
 {
@@ -560,19 +575,6 @@ void CAMReXmp::sourceUpdateANEX(Array4<Real>& arr, int i, int j, int k, Real dt)
   Real v_y_e = momY_e/rho_e;
   Real v_z_e = momZ_e/rho_e;
   Real p_e = get_pressure({rho_e,momX_e,momY_e,momZ_e,E_e});
-  /*
-  if (p_i<0.0 || p_e <0.0)
-    {
-      std::cout << "Negative in pressure " << p_i << " " << p_e << " at " << i << " " << j << std::endl;
-      if (p_i<0.0)
-	std::cout << "Ion " << get_energy({rho_i,momX_i,momY_i,momZ_i,E_i}) << " " << get_specific_energy({rho_i,momX_i,momY_i,momZ_i,E_i}) << std::endl;
-      if (p_e <0.0)
-	std::cout << "Electron " << get_energy({rho_e,momX_e,momY_e,momZ_e,E_e}) << " " << get_specific_energy({rho_e,momX_e,momY_e,momZ_e,E_e}) << std::endl;
-      amrex::Abort();
-    }
-  */
-  //arr(i,j,k,EZ) = E_z - dt*1.0/(lambda_d*lambda_d*l_r)*(r_i*rho_i*v_z_i + r_e*rho_e*v_z_e);
-  //E_z = arr(i,j,k,EZ);
   
   // useful constants
   Real B_squared = get_magnitude_squared(B_x, B_y, B_z);
@@ -680,7 +682,7 @@ void CAMReXmp::sourceUpdateStiff(Array4<Real>& arr, int i, int j, int k, Real dt
   Real v_z_e = momZ_e/rho_e;
 
   // define input
-  std::vector<double> u_i = {rho_i,v_x_i,v_y_i,v_z_i,E_i,
+  /*std::vector<double> u_i = {rho_i,v_x_i,v_y_i,v_z_i,E_i,
 			     B_x,B_y,B_z,E_x,E_y,E_z};
 
   size_t num_of_steps = stiffSolver(u_i, r_i, l_r, dt);
@@ -699,6 +701,28 @@ void CAMReXmp::sourceUpdateStiff(Array4<Real>& arr, int i, int j, int k, Real dt
   arr(i,j,k,MOMY_E) = rho_e*u_e[2];
   arr(i,j,k,MOMZ_E) = rho_e*u_e[3];
   arr(i,j,k,ENER_E) = u_e[4];
+  */
+
+  // get kinetic energies
+  Real v_i = get_magnitude(v_x_i, v_y_i, v_z_i);
+  Real v_e = get_magnitude(v_x_e, v_y_e, v_z_e);
+  Real kin_i = 0.5*rho_i*v_i*v_i;
+  Real kin_e = 0.5*rho_e*v_e*v_e;
+
+  std::vector<double> u = get_data_zone(arr,i,j,k,0,NUM_STATE);
+
+  size_t num_of_steps = stiffSolverFull(u, r_i, r_e, l_r, lambda_d, dt);
+  for (int n=0; n<NUM_STATE; n++)
+    arr(i,j,k,n) = u[n];
+
+  // get new kinetic energies
+  Real mom_i_new = get_magnitude(arr(i,j,k,MOMX_I), arr(i,j,k,MOMY_I), arr(i,j,k,MOMZ_I));
+  Real mom_e_new = get_magnitude(arr(i,j,k,MOMX_E), arr(i,j,k,MOMY_E), arr(i,j,k,MOMZ_E));
+  Real kin_i_new = 0.5*mom_i_new*mom_i_new/rho_i;
+  Real kin_e_new = 0.5*mom_e_new*mom_e_new/rho_e;
+
+  arr(i,j,k,ENER_I) += kin_i_new-kin_i;
+  arr(i,j,k,ENER_E) += kin_e_new-kin_e;
   
 }
 

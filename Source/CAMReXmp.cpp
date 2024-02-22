@@ -1848,11 +1848,15 @@ CAMReXmp::read_params ()
   /*else if (sourceMethod=="ANEX"){
     amrex::Print() << "ANEX source treatment" << std::endl;
     sourceUpdateWithChosenMethod = &CAMReXmp::sourceUpdateANEX;
-  }
+    }*/
   else if (sourceMethod=="STIFF"){
     amrex::Print() << "STIFF source treatment" << std::endl;
     sourceUpdateWithChosenMethod = &CAMReXmp::sourceUpdateStiff;
-    }*/
+  }
+  else if (sourceMethod=="EXACT"){
+    amrex::Print() << "EXACR source treatment" << std::endl;
+    sourceUpdateWithChosenMethod = &CAMReXmp::sourceUpdateExact;
+  }
   else
     amrex::Abort("Please specify a valid source method: EX, IM, ANEX or STIFF");
 
