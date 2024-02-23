@@ -44,11 +44,6 @@ enum StateVariableMaxwell {
 
 class CAMReXmp;
 
-typedef void (CAMReXmp::*advanceFunctionPointer)(MultiFab&, amrex::MultiFab (&)[AMREX_SPACEDIM], const Real*, Real);
-typedef void (CAMReXmp::*StrangFunctionPointer)(MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], Array<MultiFab,AMREX_SPACEDIM>&, Array<MultiFab,AMREX_SPACEDIM>&, MultiFab&, const Real*, Real, Real);
-typedef void (CAMReXmp::*RKFunctionPointer)(MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], Array<MultiFab,AMREX_SPACEDIM>&, Array<MultiFab,AMREX_SPACEDIM>&, MultiFab&, const Real*, Real, Real);
-typedef void (CAMReXmp::*fluidFunctionPointer)(MultiFab&, MultiFab&,  amrex::MultiFab (&)[AMREX_SPACEDIM], const Real*, Real);
-typedef void (CAMReXmp::*MaxwellFunctionPointer)(Array<MultiFab,AMREX_SPACEDIM>&, Array<MultiFab,AMREX_SPACEDIM>&,MultiFab&, MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], const Real*, Real);
 typedef void (CAMReXmp::*sourceFunctionPointer)(Array4<Real>&, int, int, int, Real);
 typedef void (CAMReXmp::*fluidSpaceFunctionPointer)(MultiFab&, const Real*, Real);
 typedef void (CAMReXmp::*MaxwellSpaceFunctionPointer)(Array<MultiFab,AMREX_SPACEDIM>&, MultiFab&, const Real*, Real);
@@ -193,8 +188,6 @@ public:
   static int NUM_STATE_FLUID;
   static int NUM_STATE_MAXWELL;
 
-  static int StrangOrder;
-  static int RKOrder;
   static int fluidOrder;
   static int MaxwellOrder;
   static std::string MaxwellTimeMethod;
@@ -250,10 +243,6 @@ protected:
     static Vector<BCRec> bc;
     static Vector<BCRec> bc_EM;
   
-  static StrangFunctionPointer StrangWithChosenUpdateOrder;
-  static RKFunctionPointer RKWithChosenUpdateOrder;
-  static fluidFunctionPointer fluidSolverWithChosenOrder;
-  static MaxwellFunctionPointer MaxwellSolverWithChosenOrder;
   static sourceFunctionPointer sourceUpdateWithChosenMethod;  
   static fluidSpaceFunctionPointer fluidSolverWithChosenSpaceOrder;
   static MaxwellSpaceFunctionPointer MaxwellSolverWithChosenSpaceOrder;
@@ -282,9 +271,6 @@ private:
   ////////////////////////////////////////////////////////////
   void StrangSecond(const Real*, Real, Real);
   void RK2(const Real*, Real, Real);
-#if (AMREX_SPACEDIM >= 2)  
-  void RK2fluidRK3Maxwell(const Real*, Real, Real);
-#endif  
   void RK3(const Real*, Real, Real);
   void fluidSolverVoid(MultiFab&, const Real*, Real);
   void fluidSolverTVD(MultiFab&, const Real*, Real);
@@ -304,13 +290,6 @@ private:
   void sourceUpdateVoid(Array4<Real>&, int, int, int, Real);
   void sourceUpdateCyl(const Real*, Real, Real);
   
-  void StrangZero(MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], Array<MultiFab,AMREX_SPACEDIM>&, Array<MultiFab,AMREX_SPACEDIM>&, MultiFab&, const Real*, Real, Real);
-  void StrangFirst(MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], Array<MultiFab,AMREX_SPACEDIM>&, Array<MultiFab,AMREX_SPACEDIM>&, MultiFab&, const Real*, Real, Real);
-  void StrangSecond(MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], Array<MultiFab,AMREX_SPACEDIM>&, Array<MultiFab,AMREX_SPACEDIM>&, MultiFab&, const Real*, Real, Real);
-
-  void RK1(MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], Array<MultiFab,AMREX_SPACEDIM>&, Array<MultiFab,AMREX_SPACEDIM>&, MultiFab&, const Real*, Real, Real);
-  void RK2(MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], Array<MultiFab,AMREX_SPACEDIM>&, Array<MultiFab,AMREX_SPACEDIM>&, MultiFab&, const Real*, Real, Real);
-  void RK3(MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], Array<MultiFab,AMREX_SPACEDIM>&, Array<MultiFab,AMREX_SPACEDIM>&, MultiFab&, const Real*, Real, Real);  
   void linearCombination(MultiFab&, MultiFab&, Real, MultiFab&, Real, int, int);
   
   void fluidSolverNothing(MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], const Real*, Real);

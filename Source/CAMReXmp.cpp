@@ -35,18 +35,12 @@ std::array<LinOpBCType, AMREX_SPACEDIM> CAMReXmp::mlmg_hibc_Y;
 std::array<LinOpBCType, AMREX_SPACEDIM> CAMReXmp::mlmg_lobc_Z;
 std::array<LinOpBCType, AMREX_SPACEDIM> CAMReXmp::mlmg_hibc_Z;
 
-StrangFunctionPointer CAMReXmp::StrangWithChosenUpdateOrder = &CAMReXmp::StrangSecond;
-RKFunctionPointer CAMReXmp::RKWithChosenUpdateOrder = &CAMReXmp::RK2;
-fluidFunctionPointer CAMReXmp::fluidSolverWithChosenOrder = &CAMReXmp::fluidSolverTVD;
-MaxwellFunctionPointer CAMReXmp::MaxwellSolverWithChosenOrder = &CAMReXmp::MaxwellSolverDivFreeTVD;
 sourceFunctionPointer CAMReXmp::sourceUpdateWithChosenMethod = &CAMReXmp::sourceUpdateIMMidpoint;
 fluidSpaceFunctionPointer CAMReXmp::fluidSolverWithChosenSpaceOrder = &CAMReXmp::fluidSolverTVD;
 #if (AMREX_SPACEDIM >= 2)
 MaxwellSpaceFunctionPointer CAMReXmp::MaxwellSolverWithChosenSpaceOrder = &CAMReXmp::MaxwellSolverFVTDTVD;
 #endif
 
-int CAMReXmp::StrangOrder = 2;
-int CAMReXmp::RKOrder = 2;
 int CAMReXmp::fluidOrder = 2;
 int CAMReXmp::MaxwellOrder = 2;
 std::string CAMReXmp::MaxwellTimeMethod = "EX";
@@ -1728,41 +1722,7 @@ CAMReXmp::read_params ()
   get_tagging_params(probin_file_name.dataPtr(), &probin_file_length);
 
   ParmParse ppn("num");
-  
-  ppn.get("Strang", StrangOrder);
-  amrex::Print() << "Reading Strang splitting order: " << std::endl; 
-  /*if (StrangOrder==0){
-    amrex::Print() << "No Strang splitting" << std::endl;
-    StrangWithChosenUpdateOrder = &CAMReXmp::StrangZero;
-  }
-  else if (StrangOrder==1){
-    amrex::Print() << "1st order Strang splitting" << std::endl;
-    StrangWithChosenUpdateOrder = &CAMReXmp::StrangFirst;
-  }
-  else */if (StrangOrder==2){
-    amrex::Print() << "2nd order Strang splitting" << std::endl;
-    StrangWithChosenUpdateOrder = &CAMReXmp::StrangSecond;
-  }
-  else
-    amrex::Abort("Please specify a valid Strang splitting order: 0, 1 or 2");
-  
-  ppn.get("RK", RKOrder);
-  amrex::Print() << "Reading RK order: " << std::endl;
-  /*if (RKOrder==1){
-    amrex::Print() << "1st order RK" << std::endl;
-    RKWithChosenUpdateOrder = &CAMReXmp::RK1;
-  }
-  else */if (RKOrder==2){
-    amrex::Print() << "2nd order RK" << std::endl;
-    RKWithChosenUpdateOrder = &CAMReXmp::RK2;
-  }
-  /*else if (RKOrder==3){
-    amrex::Print() << "3rd order RK" << std::endl;
-    RKWithChosenUpdateOrder = &CAMReXmp::RK3;
-    }*/
-  else
-    amrex::Abort("Please specify a valid RK order: 1, 2 or 3");
-  
+      
   ppn.get("fluid",fluidOrder);
   amrex::Print() << "Reading fluid method: " << std::endl;
   if (fluidOrder==0){
@@ -1771,7 +1731,6 @@ CAMReXmp::read_params ()
   }
   else if (fluidOrder==2){
     amrex::Print() << "fluid 2nd order TVD" << std::endl;
-    fluidSolverWithChosenOrder = &CAMReXmp::fluidSolverTVD;
     fluidSolverWithChosenSpaceOrder = &CAMReXmp::fluidSolverTVD;
   }
   else if (fluidOrder==3){
@@ -1790,12 +1749,10 @@ CAMReXmp::read_params ()
   }
   else if (MaxwellOrder==2){
     amrex::Print() << "Maxwell 2nd order TVD" << std::endl;
-    MaxwellSolverWithChosenOrder = &CAMReXmp::MaxwellSolverDivFreeTVD;
     MaxwellSolverWithChosenSpaceOrder = &CAMReXmp::MaxwellSolverFVTDTVD;
   }
   else if (MaxwellOrder==3){
     amrex::Print() << "Maxwell 3rd order WENO" << std::endl;
-    MaxwellSolverWithChosenOrder = &CAMReXmp::MaxwellSolverDivFreeWENO;
     MaxwellSolverWithChosenSpaceOrder = &CAMReXmp::MaxwellSolverFVTDWENO;
   }
   else
@@ -1830,6 +1787,7 @@ CAMReXmp::read_params ()
   }
   else if (MaxwellDivMethod=="HDC"){
     amrex::Print() << "hyperbolic divergence cleaning" << std::endl;
+    amrex::Print() << "reading cb and ce" << std::endl;
     ppn.get("cb",cb);
     ppn.get("ce",ce);
     if (MaxwellTimeMethod!="EX")
