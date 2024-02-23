@@ -24,19 +24,21 @@ CAMReXmp::initData ()
   // Create a multifab which can store the initial data
   MultiFab& S_new = get_new_data(Phi_Type);
   Real cur_time   = state[Phi_Type].curTime();
-     
+
+#if (AMREX_SPACEDIM >= 2)  
   // Set up a multifab that will contain the electromagnetic fields
   MultiFab& S_EM_X = get_new_data(EM_X_Type);
   MultiFab& S_EM_Y = get_new_data(EM_Y_Type);
   MultiFab& S_EM_XY = get_new_data(EM_XY_Type);
-
+  
   BoxArray ba = S_new.boxArray();
   const DistributionMapping& dm = S_new.DistributionMap();
   
   S_EM_X.define(convert(ba,IntVect{AMREX_D_DECL(1,0,0)}), dm, 6, 2);
   S_EM_Y.define(convert(ba,IntVect{AMREX_D_DECL(0,1,0)}), dm, 6, 2);
   S_EM_XY.define(convert(ba,IntVect{AMREX_D_DECL(1,1,0)}), dm, 6, 2);
-
+#endif
+  
   // amrex::Print works like std::cout, but in parallel only prints from the root processor
   if (verbose) {
     amrex::Print() << "Initializing the data at level " << level << std::endl;
@@ -74,6 +76,7 @@ CAMReXmp::initData ()
   Real rho, v_x, v_y, v_z, p, B_x, B_y, B_z;
   Real c_a = 0.0;
 
+#if (AMREX_SPACEDIM >= 2)     
   // Set values for the x-components of the EM fields at the x-faces
   for (MFIter mfi(S_EM_X); mfi.isValid(); ++mfi)
   {
@@ -408,7 +411,6 @@ CAMReXmp::initData ()
       }
     }
   }
-#if (AMREX_SPACEDIM >= 2)   
   // Set values for the y-components of the EM fields at the y-faces
   for (MFIter mfi(S_EM_Y); mfi.isValid(); ++mfi)
   {
@@ -1087,8 +1089,10 @@ CAMReXmp::initData ()
     const Dim3 hi = ubound(bx);
 
     const auto& arr = S_new.array(mfi);
+#if (AMREX_SPACEDIM >= 2)    
     const auto& arrEMX = S_EM_X.array(mfi);
     const auto& arrEMY = S_EM_Y.array(mfi);    
+#endif
     
     for(int k = lo.z; k <= hi.z; k++)
     {
@@ -1132,13 +1136,9 @@ CAMReXmp::initData ()
 	    Vector<Real> w_e{arr(i,j,k,RHO_E), v_x, v_y, v_z, p};
 	    arr(i,j,k,ENER_E) = get_energy(w_e);
 
-	    //arr(i,j,k,BX) = 0.5*(arrEMX(i,j,k,BX_LOCAL)+arrEMX(i+1,j,k,BX_LOCAL));
-	    //arr(i,j,k,BY) = 0.5*(arrEMY(i,j,k,BY_LOCAL)+arrEMY(i,j+1,k,BY_LOCAL));
 	    arr(i,j,k,BX) = B_x;
 	    arr(i,j,k,BY) = B_y;
 	    arr(i,j,k,BZ) = B_z;
-	    //arr(i,j,k,EX) = 0.5*(arrEMX(i,j,k,EX_LOCAL)+arrEMX(i+1,j,k,EX_LOCAL));
-	    //arr(i,j,k,EY) = 0.5*(arrEMY(i,j,k,EY_LOCAL)+arrEMY(i,j+1,k,EY_LOCAL));
 	    arr(i,j,k,EX) = 0.0;
 	    arr(i,j,k,EY) = 0.0;	    
 	    arr(i,j,k,EZ) = 0.0;	   
@@ -1271,11 +1271,11 @@ CAMReXmp::initData ()
 	    Vector<Real> w_e{arr(i,j,k,RHO_E), v_x, v_y, v_z, p};
 	    arr(i,j,k,ENER_E) = get_energy(w_e);
 
-	    arr(i,j,k,BX) = 0.5*(arrEMX(i,j,k,BX_LOCAL)+arrEMX(i+1,j,k,BX_LOCAL));
-	    arr(i,j,k,BY) = 0.5*(arrEMY(i,j,k,BY_LOCAL)+arrEMY(i,j+1,k,BY_LOCAL));
+	    arr(i,j,k,BX) = B_x;
+	    arr(i,j,k,BY) = B_y;
 	    arr(i,j,k,BZ) = B_z;
-	    arr(i,j,k,EX) = 0.5*(arrEMX(i,j,k,EX_LOCAL)+arrEMX(i+1,j,k,EX_LOCAL));
-	    arr(i,j,k,EY) = 0.5*(arrEMY(i,j,k,EY_LOCAL)+arrEMY(i,j+1,k,EY_LOCAL));
+	    arr(i,j,k,EX) = -vcrossB[0];
+	    arr(i,j,k,EY) = -vcrossB[1];
 	    arr(i,j,k,EZ) = -vcrossB[2];
 	    arr(i,j,k,DIVB) = 0.0;	    
 	    arr(i,j,k,DIVE) = 0.0;
@@ -1343,13 +1343,11 @@ CAMReXmp::initData ()
 	    Vector<Real> w_e{arr(i,j,k,RHO_E), v_x, v_y, v_z_e, p/6.0};
 	    arr(i,j,k,ENER_E) = get_energy(w_e);
 
-	    //arr(i,j,k,BX) = 0.5*(arrEMX(i,j,k,BX_LOCAL)+arrEMX(i+1,j,k,BX_LOCAL));
-	    //arr(i,j,k,BY) = 0.5*(arrEMY(i,j,k,BY_LOCAL)+arrEMY(i,j+1,k,BY_LOCAL));
 	    arr(i,j,k,BX) = B_x;
 	    arr(i,j,k,BY) = B_y;
 	    arr(i,j,k,BZ) = B_z;
-	    arr(i,j,k,EX) = 0.5*(arrEMX(i,j,k,EX_LOCAL)+arrEMX(i+1,j,k,EX_LOCAL));
-	    arr(i,j,k,EY) = 0.5*(arrEMY(i,j,k,EY_LOCAL)+arrEMY(i,j+1,k,EY_LOCAL));
+	    arr(i,j,k,EX) = 0.0;
+	    arr(i,j,k,EY) = 0.0;
 	    arr(i,j,k,EZ) = 0.0;
 	    arr(i,j,k,DIVB) = 0.0;	    
 	    arr(i,j,k,DIVE) = 0.0;
@@ -1384,13 +1382,11 @@ CAMReXmp::initData ()
 	    Vector<Real> w_e{arr(i,j,k,RHO_E), v_x, v_y, v_z_e, p/6.0};
 	    arr(i,j,k,ENER_E) = get_energy(w_e);
 
-	    //arr(i,j,k,BX) = 0.5*(arrEMX(i,j,k,BX_LOCAL)+arrEMX(i+1,j,k,BX_LOCAL));
-	    //arr(i,j,k,BY) = 0.5*(arrEMY(i,j,k,BY_LOCAL)+arrEMY(i,j+1,k,BY_LOCAL));
 	    arr(i,j,k,BX) = B_x;
 	    arr(i,j,k,BY) = B_y;
 	    arr(i,j,k,BZ) = B_z;
-	    arr(i,j,k,EX) = 0.5*(arrEMX(i,j,k,EX_LOCAL)+arrEMX(i+1,j,k,EX_LOCAL));
-	    arr(i,j,k,EY) = 0.5*(arrEMY(i,j,k,EY_LOCAL)+arrEMY(i,j+1,k,EY_LOCAL));
+	    arr(i,j,k,EX) = 0.0;
+	    arr(i,j,k,EY) = 0.0;
 	    arr(i,j,k,EZ) = 0.0;
 	    arr(i,j,k,DIVB) = 0.0;	    
 	    arr(i,j,k,DIVE) = 0.0;
@@ -1420,8 +1416,6 @@ CAMReXmp::initData ()
 	    Vector<Real> w_e{arr(i,j,k,RHO_E), v_x, v_y, v_z, p};
 	    arr(i,j,k,ENER_E) = get_energy(w_e);
 
-	    //arr(i,j,k,BX) = 0.5*(arrEMX(i,j,k,BX_LOCAL)+arrEMX(i+1,j,k,BX_LOCAL));
-	    //arr(i,j,k,BY) = 0.5*(arrEMY(i,j,k,BY_LOCAL)+arrEMY(i,j+1,k,BY_LOCAL));
 	    arr(i,j,k,BX) = B0;
 	    arr(i,j,k,BY) = 0.0;
 	    arr(i,j,k,BZ) = 0.0;

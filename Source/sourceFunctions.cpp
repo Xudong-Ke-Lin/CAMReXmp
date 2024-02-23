@@ -143,11 +143,10 @@ void CAMReXmp::sourceUpdateCyl(const Real* dx, Real dt, Real time)
       //MultiFab::Copy(S_new, S_input, EY, EY, 1, 0);
       FillPatch(*this, S_input, NUM_GROW, time, Phi_Type, 0, NUM_STATE);
 
+#if (AMREX_SPACEDIM >= 2)       
       Array<MultiFab,AMREX_SPACEDIM> S_EM_input;
-#if (AMREX_SPACEDIM >= 2) 
       S_EM_input[1].define(convert(grids,IntVect{AMREX_D_DECL(0,1,0)}), dmap, 6, NUM_GROW);
       FillPatch(*this, S_EM_input[1], NUM_GROW, time, EM_Y_Type, 0, 6);
-#endif
   
       for (MFIter mfi(S_EM_input[1], true); mfi.isValid(); ++mfi)
 	{
@@ -182,8 +181,9 @@ void CAMReXmp::sourceUpdateCyl(const Real* dx, Real dt, Real time)
       MultiFab& S_EM_Y_new = get_new_data(EM_Y_Type);
       MultiFab::Copy(S_EM_Y_new, S_EM_input[1], BY_LOCAL, BY_LOCAL, 1, 0);
       MultiFab::Copy(S_EM_Y_new, S_EM_input[1], EY_LOCAL, EY_LOCAL, 1, 0);
-
+#endif
     }
+
   if (fluidOrder!=0)
     {
 

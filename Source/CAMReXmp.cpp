@@ -44,7 +44,9 @@ fluidFunctionPointer CAMReXmp::fluidSolverWithChosenOrder = &CAMReXmp::fluidSolv
 MaxwellFunctionPointer CAMReXmp::MaxwellSolverWithChosenOrder = &CAMReXmp::MaxwellSolverDivFreeTVD;
 sourceFunctionPointer CAMReXmp::sourceUpdateWithChosenMethod = &CAMReXmp::sourceUpdateIMMidpoint;
 fluidSpaceFunctionPointer CAMReXmp::fluidSolverWithChosenSpaceOrder = &CAMReXmp::fluidSolverTVD;
+#if (AMREX_SPACEDIM >= 2)
 MaxwellSpaceFunctionPointer CAMReXmp::MaxwellSolverWithChosenSpaceOrder = &CAMReXmp::MaxwellSolverFVTDTVD;
+#endif
 
 int CAMReXmp::StrangOrder = 2;
 int CAMReXmp::RKOrder = 2;
@@ -169,6 +171,7 @@ CAMReXmp::variableSetUp ()
   // from documentation (https://amrex-codes.github.io/amrex/doxygen/AMReX__Interpolater_8cpp.html)
   // &face_linear_interp or &face_divfree_interp
   // can use .ixType() to check the type, xface will give (N,C) -> Nodal in x and center in y
+#if (AMREX_SPACEDIM >= 2)
   IndexType xface(IntVect{AMREX_D_DECL(1,0,0)});
   IndexType yface(IntVect{AMREX_D_DECL(0,1,0)});
   IndexType edge(IntVect{AMREX_D_DECL(1,1,0)});
@@ -181,7 +184,8 @@ CAMReXmp::variableSetUp ()
   desc_lst.addDescriptor(EM_XY_Type,edge,
 			 StateDescriptor::Point,storedGhostZones,6,
 			 &node_bilinear_interp);
-
+#endif
+  
   /*//Set up boundary conditions, all boundaries can be set
   //independently, including for individual variables, but lo (left) and hi (right) are useful ways to
   //store them, for consistent access notation for the boundary
@@ -200,7 +204,9 @@ CAMReXmp::variableSetUp ()
   // added by 2020D
 
   bc.resize(NUM_STATE);
+#if (AMREX_SPACEDIM >= 2)  
   bc_EM.resize(6);
+#endif
   
   ParmParse pp;
   pp.query("test",test);
@@ -516,12 +522,13 @@ CAMReXmp::variableSetUp ()
     {
       amrex::Abort("Please enter valid test in inputs file");
     }
-
+#if (AMREX_SPACEDIM >= 2)
   // bc array for the electromagnetic field
   for (int n=BX_LOCAL; n<=EZ_LOCAL; n++)
     {
       bc_EM[n] = bc[n+NUM_STATE_FLUID];
     }
+#endif
   // Set up variable-specific information; needs to be done for each variable in NUM_STATE
   // Phi_Type: Enumerator for the variable type being set
   // 0: Position of the variable in the variable vector.  Single variable for advection.
@@ -565,6 +572,7 @@ CAMReXmp::variableSetUp ()
   desc_lst.setComponent(Phi_Type, DIVE, "divEerror", bc[DIVE],
 			StateDescriptor::BndryFunc(nullfill));
 
+#if (AMREX_SPACEDIM >= 2)  
   // face-cenctred primary variables in 2D
   //desc_lst.setComponent(EM_X_Type, BX_LOCAL, "magxFace", bc_EM[BX_LOCAL],
   //                      StateDescriptor::BndryFunc(nullfill));
@@ -613,7 +621,7 @@ CAMReXmp::variableSetUp ()
                         StateDescriptor::BndryFunc(nullfill));
   desc_lst.setComponent(EM_XY_Type, EZ_LOCAL, "eleczEdge", bc_EM[EZ_LOCAL],
                         StateDescriptor::BndryFunc(nullfill));
-
+#endif
 }
 
 //
@@ -720,10 +728,12 @@ CAMReXmp::advance (Real time,
   // S_new is the MultiFab that will be operated upon to update the data
   MultiFab& S_new = get_new_data(Phi_Type);
 
+#if (AMREX_SPACEDIM >= 2)  
   // Set up a multifab that will contain the electromagnetic fields
   MultiFab& S_EM_X_new = get_new_data(EM_X_Type);
   MultiFab& S_EM_Y_new = get_new_data(EM_Y_Type);
-
+#endif
+  
   const Real prev_time = state[Phi_Type].prevTime();
   const Real cur_time = state[Phi_Type].curTime();
   const Real ctr_time = 0.5*(prev_time + cur_time);
@@ -801,10 +811,10 @@ CAMReXmp::advance (Real time,
 
   MultiFab SNew(grids, dmap, NUM_STATE, NUM_GROW);
   FillPatch(*this, SNew, NUM_GROW, time+dt, Phi_Type, 0, NUM_STATE);
+#if (AMREX_SPACEDIM >= 2)  
   Array<MultiFab,AMREX_SPACEDIM> S_EMNew;
   S_EMNew[0].define(convert(grids,IntVect{AMREX_D_DECL(1,0,0)}), dmap, 6, NUM_GROW);
   FillPatch(*this, S_EMNew[0], NUM_GROW, time+dt, EM_X_Type, 0, 6);
-#if (AMREX_SPACEDIM >= 2)
   S_EMNew[1].define(convert(grids,IntVect{AMREX_D_DECL(0,1,0)}), dmap, 6, NUM_GROW);
   FillPatch(*this, S_EMNew[1], NUM_GROW, time+dt, EM_Y_Type, 0, 6);  
 #endif
@@ -857,8 +867,10 @@ CAMReXmp::advance (Real time,
 	      const Dim3 hi = ubound(bx);
 	
 	      Array4<Real> arr = SNew.array(mfi);
+#if (AMREX_SPACEDIM >= 2)	      
 	      Array4<Real> arrEM = S_EMNew[d].array(mfi);	
-	
+#endif
+	      
 	      //for(int k = lo.z; k <= hi.z+kOffset; k++)
 	      for(int k = lo.z; k <= hi.z; k++)
 		{
@@ -1774,6 +1786,7 @@ CAMReXmp::read_params ()
   else
     amrex::Abort("Please specify a valid fluid order: 0, 2 or 3");
 
+#if (AMREX_SPACEDIM >= 2)  
   ppn.get("Maxwell",MaxwellOrder);
   amrex::Print() << "Reading Maxwell method: " << std::endl;
   if (MaxwellOrder==0){
@@ -1792,7 +1805,7 @@ CAMReXmp::read_params ()
   }
   else
     amrex::Abort("Please specify a valid Maxwell order: 2 or 3");
-  
+#endif
   
   ppn.get("MaxwellTimeMethod",MaxwellTimeMethod);
   amrex::Print() << "Reading Maxwell time stepping method: " << std::endl;
@@ -1827,9 +1840,14 @@ CAMReXmp::read_params ()
     if (MaxwellTimeMethod!="EX")
       amrex::Abort("MaxwellDivMethod=HDC only works with MaxwellTimeMethod=EX");
   }
+  else if (MaxwellDivMethod=="NONE"){
+  }
   else
     amrex::Abort("Please specify a valid Maxwell divergence cleaning method: FVTD, FDTD or HDC");
 
+  if (amrex::SpaceDim==1 && (MaxwellDivMethod=="FVTD" || MaxwellDivMethod=="FDTD"))
+    amrex::Abort("FVTD and FDTD only work for non-1D setup");
+  
   ppn.get("source",sourceMethod);
   amrex::Print() << "Reading source method: " << std::endl;
   if (sourceMethod=="no"){

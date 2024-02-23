@@ -14,10 +14,10 @@ void CAMReXmp::RK1(MultiFab& S_dest, MultiFab& S_source, MultiFab (&fluxes)[AMRE
   amrex::Abort("Add a function like MUSCLHancokFluidSolverTVD");
   
   S_dest.FillBoundary(geom.periodicity());
-  FillDomainBoundary(S_dest, geom, bc);  
+  FillDomainBoundary(S_dest, geom, bc);
+#if (AMREX_SPACEDIM >= 2)  
   S_EM_dest[0].FillBoundary(geom.periodicity());
   FillDomainBoundary(S_EM_dest[0], geom, bc_EM);
-#if (AMREX_SPACEDIM >= 2)
   S_EM_dest[1].FillBoundary(geom.periodicity());
   FillDomainBoundary(S_EM_dest[1], geom, bc_EM);  
 #endif    
@@ -98,22 +98,24 @@ void CAMReXmp::RK2(const Real* dx, Real dt, Real time)
 
   // get multifabs references
   MultiFab& S_new = get_new_data(Phi_Type);
+#if (AMREX_SPACEDIM >= 2)  
   MultiFab& S_EM_X_new = get_new_data(EM_X_Type);
   MultiFab& S_EM_Y_new = get_new_data(EM_Y_Type);  
+#endif
   
   // input states
-  MultiFab S_input(grids, dmap, NUM_STATE, NUM_GROW);  
+  MultiFab S_input(grids, dmap, NUM_STATE, NUM_GROW);
+#if (AMREX_SPACEDIM >= 2)  
   Array<MultiFab,AMREX_SPACEDIM> S_EM_input;
-  S_EM_input[0].define(convert(grids,IntVect{AMREX_D_DECL(1,0,0)}), dmap, 6, NUM_GROW);
-#if (AMREX_SPACEDIM >= 2) 
+  S_EM_input[0].define(convert(grids,IntVect{AMREX_D_DECL(1,0,0)}), dmap, 6, NUM_GROW); 
   S_EM_input[1].define(convert(grids,IntVect{AMREX_D_DECL(0,1,0)}), dmap, 6, NUM_GROW);
 #endif
   
   // intermediate states in RK2
   MultiFab S1(grids, dmap, NUM_STATE, NUM_GROW);
+#if (AMREX_SPACEDIM >= 2)  
   Array<MultiFab,AMREX_SPACEDIM> S_EM1;
   S_EM1[0].define(convert(grids,IntVect{AMREX_D_DECL(1,0,0)}), dmap, 6, NUM_GROW);  
-#if (AMREX_SPACEDIM >= 2)
   S_EM1[1].define(convert(grids,IntVect{AMREX_D_DECL(0,1,0)}), dmap, 6, NUM_GROW);
 #endif  
 
@@ -134,6 +136,7 @@ void CAMReXmp::RK2(const Real* dx, Real dt, Real time)
   //////////////////////////////////////////////////////////////////////////////////////////
   // Maxwell solver for FVTD with explicit time stepping
   //////////////////////////////////////////////////////////////////////////////////////////
+#if (AMREX_SPACEDIM >= 2)  
   if (MaxwellOrder!=0 && MaxwellDivMethod=="FVTD" && MaxwellTimeMethod=="EX")
     {
       // fill initial input data
@@ -144,11 +147,10 @@ void CAMReXmp::RK2(const Real* dx, Real dt, Real time)
       // fill intermediate states
       FillPatch(*this, S1, NUM_GROW, time, Phi_Type, 0, NUM_STATE);
       FillPatch(*this, S_EM1[0], NUM_GROW, time, EM_X_Type, 0, 6);
-#if (AMREX_SPACEDIM >= 2)
       FillPatch(*this, S_EM1[1], NUM_GROW, time, EM_Y_Type, 0, 6);
-#endif      
     }
-
+#endif
+  
   //////////////////////////////////////////////////////////////////////////////////////////
   // fluid or plasma solver
   //////////////////////////////////////////////////////////////////////////////////////////
@@ -170,20 +172,21 @@ void CAMReXmp::RK2(const Real* dx, Real dt, Real time)
   //////////////////////////////////////////////////////////////////////////////////////////
   // Maxwell solver for FVTD with explicit time stepping
   //////////////////////////////////////////////////////////////////////////////////////////
+#if (AMREX_SPACEDIM >= 2)
   if (MaxwellOrder!=0 && MaxwellDivMethod=="FVTD" && MaxwellTimeMethod=="EX")
     {
       //MaxwellSolverFVTDTVD(S_EM1,S1,dx,dt);
       (this->*MaxwellSolverWithChosenSpaceOrder)(S_EM1,S1,dx,dt);
       linearCombination(S_new, S_new, 1.0/2.0, S_input, 1.0/2.0, BX, 6);
       linearCombination(S_EM_X_new, S_EM_X_new, 1.0/2.0, S_EM_input[0], 1.0/2.0, 0, 6);
-#if (AMREX_SPACEDIM >= 2)
       linearCombination(S_EM_Y_new, S_EM_Y_new, 1.0/2.0, S_EM_input[1], 1.0/2.0, 0, 6);
-#endif
     }
+#endif  
   
   //////////////////////////////////////////////////////////////////////////////////////////
   // Maxwell solver for FVTD with explicit time stepping with sub-cycling
-  //////////////////////////////////////////////////////////////////////////////////////////  
+  //////////////////////////////////////////////////////////////////////////////////////////
+#if (AMREX_SPACEDIM >= 2)  
   if (MaxwellOrder!=0 && MaxwellDivMethod=="FVTD" && MaxwellTimeMethod=="EXsubcycling")
     {
       Real dtEM = cfl*std::min(dx[0],dx[1])/c;
@@ -204,17 +207,13 @@ void CAMReXmp::RK2(const Real* dx, Real dt, Real time)
 	// fill intermediate states 
 	FillPatch(*this, S1, NUM_GROW, time, Phi_Type, 0, NUM_STATE);
 	FillPatch(*this, S_EM1[0], NUM_GROW, time, EM_X_Type, 0, 6);
-#if (AMREX_SPACEDIM >= 2)
 	FillPatch(*this, S_EM1[1], NUM_GROW, time, EM_Y_Type, 0, 6);
-#endif          
 
 	//MaxwellSolverFVTDTVD(S_EM1,S1,dx,dtEM);
 	(this->*MaxwellSolverWithChosenSpaceOrder)(S_EM1,S1,dx,dtEM);
 	linearCombination(S_new, S_new, 1.0/2.0, S_input, 1.0/2.0, BX, 6);
 	linearCombination(S_EM_X_new, S_EM_X_new, 1.0/2.0, S_EM_input[0], 1.0/2.0, 0, 6);
-#if (AMREX_SPACEDIM >= 2)
 	linearCombination(S_EM_Y_new, S_EM_Y_new, 1.0/2.0, S_EM_input[1], 1.0/2.0, 0, 6);
-#endif
     
 	if (dt_current+dtEM > dt)
 	  {
@@ -229,6 +228,7 @@ void CAMReXmp::RK2(const Real* dx, Real dt, Real time)
 	dt_current += dtEM;
       } while (dt_current <= dt);
     }
+#endif            
 }
 // RK2 with subcycling
 void CAMReXmp::RK2(MultiFab& S_dest, MultiFab& S_source, MultiFab (&fluxes)[AMREX_SPACEDIM], Array<MultiFab,AMREX_SPACEDIM>& S_EM_dest, Array<MultiFab,AMREX_SPACEDIM>& S_EM_source, MultiFab& fluxesEM, const Real* dx, Real time, Real dt)
@@ -250,14 +250,13 @@ void CAMReXmp::RK2(MultiFab& S_dest, MultiFab& S_source, MultiFab (&fluxes)[AMRE
   MultiFab S_sourceCycle(grids, dmap, NUM_STATE, NUM_GROW);
   MultiFab::Copy(S_sourceCycle, S_source, 0, 0, NUM_STATE, NUM_GROW);
   MultiFab::Copy(S1, S_source, 0, 0, NUM_STATE, NUM_GROW);
+
   Array<MultiFab,AMREX_SPACEDIM> S_EM_sourceCycle;
   S_EM_sourceCycle[0].define(convert(grids,IntVect{AMREX_D_DECL(1,0,0)}), dmap, 6, NUM_GROW);  
-#if (AMREX_SPACEDIM >= 2)
   S_EM_sourceCycle[1].define(convert(grids,IntVect{AMREX_D_DECL(0,1,0)}), dmap, 6, NUM_GROW);
-#endif
   MultiFab::Copy(S_EM_sourceCycle[0], S_EM_source[0], 0, 0, 6, NUM_GROW);
   MultiFab::Copy(S_EM_sourceCycle[1], S_EM_source[1], 0, 0, 6, NUM_GROW);
-
+  
   Real cflEM=cfl/1.0;
   Real dtEM = cflEM*std::min(dx[0],dx[1])/c;
   Real dt_current = dtEM;
@@ -266,9 +265,7 @@ void CAMReXmp::RK2(MultiFab& S_dest, MultiFab& S_source, MultiFab (&fluxes)[AMRE
 
     Array<MultiFab,AMREX_SPACEDIM> S_EM1;
     S_EM1[0].define(convert(grids,IntVect{AMREX_D_DECL(1,0,0)}), dmap, 6, NUM_GROW);  
-#if (AMREX_SPACEDIM >= 2)
     S_EM1[1].define(convert(grids,IntVect{AMREX_D_DECL(0,1,0)}), dmap, 6, NUM_GROW);
-#endif
 
     (this->*MaxwellSolverWithChosenOrder)(S_EM1,S_EM_sourceCycle,fluxesEM,S1,S_sourceCycle,fluxes,dx,dtEM);
 
@@ -276,40 +273,30 @@ void CAMReXmp::RK2(MultiFab& S_dest, MultiFab& S_source, MultiFab (&fluxes)[AMRE
     MultiFab& S_EM_Y_int = get_new_data(EM_Y_Type);  
     MultiFab::Copy(S_EM_X_int, S_EM1[0], 0, 0, 6, 0);
     FillPatch(*this, S_EM1[0], NUM_GROW, time+dt, EM_X_Type, 0, 6);
-#if (AMREX_SPACEDIM >= 2)
     MultiFab::Copy(S_EM_Y_int, S_EM1[1], 0, 0, 6, 0);
     FillPatch(*this, S_EM1[1], NUM_GROW, time+dt, EM_Y_Type, 0, 6);
-#endif
 
     Array<MultiFab,AMREX_SPACEDIM> S_EM2;
     S_EM2[0].define(convert(grids,IntVect{AMREX_D_DECL(1,0,0)}), dmap, 6, NUM_GROW);
-#if (AMREX_SPACEDIM >= 2)
     S_EM2[1].define(convert(grids,IntVect{AMREX_D_DECL(0,1,0)}), dmap, 6, NUM_GROW);
-#endif
 
     (this->*MaxwellSolverWithChosenOrder)(S_EM2,S_EM1,fluxesEM,S2,S1,fluxes,dx,dtEM);
 
     linearCombination(S_sourceCycle, S_sourceCycle, 1.0/2.0, S2, 1.0/2.0, BX, 6);
     linearCombination(S_EM_sourceCycle[0], S_EM_sourceCycle[0], 1.0/2.0, S_EM2[0], 1.0/2.0, 0, 6);
-#if (AMREX_SPACEDIM >= 2)
     linearCombination(S_EM_sourceCycle[1], S_EM_sourceCycle[1], 1.0/2.0, S_EM2[1], 1.0/2.0, 0, 6);
-#endif
 
     S_sourceCycle.FillBoundary(geom.periodicity());
     FillDomainBoundary(S_sourceCycle, geom, bc);  
     S_EM_sourceCycle[0].FillBoundary(geom.periodicity());
     FillDomainBoundary(S_EM_sourceCycle[0], geom, bc_EM);
-#if (AMREX_SPACEDIM >= 2)
     S_EM_sourceCycle[1].FillBoundary(geom.periodicity());
     FillDomainBoundary(S_EM_sourceCycle[1], geom, bc_EM);  
-#endif    
 
     MultiFab::Copy(S_EM_X_int, S_EM_sourceCycle[0], 0, 0, 6, 0);
     FillPatch(*this, S_EM_sourceCycle[0], NUM_GROW, time+dt, EM_X_Type, 0, 6);
-#if (AMREX_SPACEDIM >= 2)
     MultiFab::Copy(S_EM_Y_int, S_EM_sourceCycle[1], 0, 0, 6, 0);
     FillPatch(*this, S_EM_sourceCycle[1], NUM_GROW, time+dt, EM_Y_Type, 0, 6);
-#endif
     
     if (dt_current+dtEM > dt)
       {
@@ -331,9 +318,7 @@ void CAMReXmp::RK3(MultiFab& S_dest, MultiFab& S_source, MultiFab (&fluxes)[AMRE
   MultiFab S1(grids, dmap, NUM_STATE+2, NUM_GROW);
   Array<MultiFab,AMREX_SPACEDIM> S_EM1;
   S_EM1[0].define(convert(grids,IntVect{AMREX_D_DECL(1,0,0)}), dmap, 6, NUM_GROW);  
-#if (AMREX_SPACEDIM >= 2)
   S_EM1[1].define(convert(grids,IntVect{AMREX_D_DECL(0,1,0)}), dmap, 6, NUM_GROW);
-#endif
   
   (this->*fluidSolverWithChosenOrder)(S1,S_source,fluxes,dx,dt);
   (this->*MaxwellSolverWithChosenOrder)(S_EM1,S_EM_source,fluxesEM,S1,S_source,fluxes,dx,dt);
@@ -342,54 +327,42 @@ void CAMReXmp::RK3(MultiFab& S_dest, MultiFab& S_source, MultiFab (&fluxes)[AMRE
   MultiFab& S_EM_Y_int = get_new_data(EM_Y_Type);  
   MultiFab::Copy(S_EM_X_int, S_EM1[0], 0, 0, 6, 0);
   FillPatch(*this, S_EM1[0], NUM_GROW, time+dt, EM_X_Type, 0, 6);
-#if (AMREX_SPACEDIM >= 2)
   MultiFab::Copy(S_EM_Y_int, S_EM1[1], 0, 0, 6, 0);  
   FillPatch(*this, S_EM1[1], NUM_GROW, time+dt, EM_Y_Type, 0, 6);
-#endif
   
   MultiFab S2(grids, dmap, NUM_STATE+2, NUM_GROW);
   Array<MultiFab,AMREX_SPACEDIM> S_EM2;
   S_EM2[0].define(convert(grids,IntVect{AMREX_D_DECL(1,0,0)}), dmap, 6, NUM_GROW);
-#if (AMREX_SPACEDIM >= 2)
   S_EM2[1].define(convert(grids,IntVect{AMREX_D_DECL(0,1,0)}), dmap, 6, NUM_GROW);
-#endif
 
   (this->*fluidSolverWithChosenOrder)(S2,S1,fluxes,dx,dt);
   (this->*MaxwellSolverWithChosenOrder)(S_EM2,S_EM1,fluxesEM,S2,S1,fluxes,dx,dt);
   
   linearCombination(S1, S_source, 0.75, S2, 0.25, 0, NUM_STATE+2);
   linearCombination(S_EM1[0], S_EM_source[0], 0.75, S_EM2[0], 0.25, 0, 6);
-#if (AMREX_SPACEDIM >= 2)  
   linearCombination(S_EM1[1], S_EM_source[1], 0.75, S_EM2[1], 0.25, 0, 6);
-#endif
   
   // boundary conditions
   S1.FillBoundary(geom.periodicity());
   FillDomainBoundary(S1, geom, bc);  
   MultiFab::Copy(S_EM_X_int, S_EM1[0], 0, 0, 6, 0);
   FillPatch(*this, S_EM1[0], NUM_GROW, time+dt, EM_X_Type, 0, 6);
-#if (AMREX_SPACEDIM >= 2)
   MultiFab::Copy(S_EM_Y_int, S_EM1[1], 0, 0, 6, 0);  
   FillPatch(*this, S_EM1[1], NUM_GROW, time+dt, EM_Y_Type, 0, 6);
-#endif
   
   (this->*fluidSolverWithChosenOrder)(S2,S1,fluxes,dx,dt);
   (this->*MaxwellSolverWithChosenOrder)(S_EM2,S_EM1,fluxesEM,S2,S1,fluxes,dx,dt);
 
   linearCombination(S_dest, S_source, 1.0/3.0, S2, 2.0/3.0, 0, NUM_STATE+2);
   linearCombination(S_EM_dest[0], S_EM_source[0], 1.0/3.0, S_EM2[0], 2.0/3.0, 0, 6);
-#if (AMREX_SPACEDIM >= 2)  
   linearCombination(S_EM_dest[1], S_EM_source[1], 1.0/3.0, S_EM2[1], 2.0/3.0, 0, 6);
-#endif
   
   S_dest.FillBoundary(geom.periodicity());
   FillDomainBoundary(S_dest, geom, bc);  
   S_EM_dest[0].FillBoundary(geom.periodicity());
   FillDomainBoundary(S_EM_dest[0], geom, bc_EM);
-#if (AMREX_SPACEDIM >= 2)
   S_EM_dest[1].FillBoundary(geom.periodicity());
   FillDomainBoundary(S_EM_dest[1], geom, bc_EM);  
-#endif    
 }
 void CAMReXmp::linearCombination(MultiFab& S_new, MultiFab& S1, Real a1, MultiFab& S2, Real a2, int idxStart, int num_var)
 {
@@ -424,6 +397,7 @@ void CAMReXmp::linearCombination(MultiFab& S_new, MultiFab& S1, Real a1, MultiFa
   //FillDomainBoundary(S_new, geom, bc);
 
 }
+#if (AMREX_SPACEDIM >= 2)
 void CAMReXmp::RK2fluidRK3Maxwell(const Real* dx, Real dt, Real time)
 {
 
@@ -436,9 +410,7 @@ void CAMReXmp::RK2fluidRK3Maxwell(const Real* dx, Real dt, Real time)
   MultiFab S_input(grids, dmap, NUM_STATE, NUM_GROW);  
   Array<MultiFab,AMREX_SPACEDIM> S_EM_input;
   S_EM_input[0].define(convert(grids,IntVect{AMREX_D_DECL(1,0,0)}), dmap, 6, NUM_GROW);
-#if (AMREX_SPACEDIM >= 2) 
   S_EM_input[1].define(convert(grids,IntVect{AMREX_D_DECL(0,1,0)}), dmap, 6, NUM_GROW);
-#endif
   
   // intermediate states in RK2
   MultiFab S1(grids, dmap, NUM_STATE, NUM_GROW);
@@ -446,10 +418,8 @@ void CAMReXmp::RK2fluidRK3Maxwell(const Real* dx, Real dt, Real time)
   Array<MultiFab,AMREX_SPACEDIM> S_EM1, S_EM2;
   S_EM1[0].define(convert(grids,IntVect{AMREX_D_DECL(1,0,0)}), dmap, 6, NUM_GROW);  
   S_EM2[0].define(convert(grids,IntVect{AMREX_D_DECL(1,0,0)}), dmap, 6, NUM_GROW);  
-#if (AMREX_SPACEDIM >= 2)
   S_EM1[1].define(convert(grids,IntVect{AMREX_D_DECL(0,1,0)}), dmap, 6, NUM_GROW);
   S_EM2[1].define(convert(grids,IntVect{AMREX_D_DECL(0,1,0)}), dmap, 6, NUM_GROW);
-#endif  
 
   //////////////////////////////////////////////////////////////////////////////////////////
   // fluid or plasma solver
@@ -478,9 +448,7 @@ void CAMReXmp::RK2fluidRK3Maxwell(const Real* dx, Real dt, Real time)
       // fill intermediate states
       FillPatch(*this, S1, NUM_GROW, time, Phi_Type, 0, NUM_STATE);
       FillPatch(*this, S_EM1[0], NUM_GROW, time, EM_X_Type, 0, 6);
-#if (AMREX_SPACEDIM >= 2)
       FillPatch(*this, S_EM1[1], NUM_GROW, time, EM_Y_Type, 0, 6);
-#endif      
     }
 
   //////////////////////////////////////////////////////////////////////////////////////////
@@ -509,9 +477,7 @@ void CAMReXmp::RK2fluidRK3Maxwell(const Real* dx, Real dt, Real time)
       (this->*MaxwellSolverWithChosenSpaceOrder)(S_EM1,S1,dx,dt);
       linearCombination(S_new, S_new, 1.0/2.0, S_input, 1.0/2.0, BX, 6);
       linearCombination(S_EM_X_new, S_EM_X_new, 1.0/2.0, S_EM_input[0], 1.0/2.0, 0, 6);
-#if (AMREX_SPACEDIM >= 2)
       linearCombination(S_EM_Y_new, S_EM_Y_new, 1.0/2.0, S_EM_input[1], 1.0/2.0, 0, 6);
-#endif
     }
 
   //////////////////////////////////////////////////////////////////////////////////////////
@@ -537,37 +503,28 @@ void CAMReXmp::RK2fluidRK3Maxwell(const Real* dx, Real dt, Real time)
 	// fill intermediate states 
 	FillPatch(*this, S1, NUM_GROW, time, Phi_Type, 0, NUM_STATE);
 	FillPatch(*this, S_EM1[0], NUM_GROW, time, EM_X_Type, 0, 6);
-#if (AMREX_SPACEDIM >= 2)
 	FillPatch(*this, S_EM1[1], NUM_GROW, time, EM_Y_Type, 0, 6);
-#endif          
 
 	(this->*MaxwellSolverWithChosenSpaceOrder)(S_EM1,S1,dx,dtEM);
 	// fill intermediate states 
 	FillPatch(*this, S2, NUM_GROW, time, Phi_Type, 0, NUM_STATE);
 	FillPatch(*this, S_EM2[0], NUM_GROW, time, EM_X_Type, 0, 6);
-#if (AMREX_SPACEDIM >= 2)
 	FillPatch(*this, S_EM2[1], NUM_GROW, time, EM_Y_Type, 0, 6);
-#endif
 	
 	linearCombination(S_new, S_input, 0.75, S2, 0.25, BX, 6);
 	linearCombination(S_EM_X_new, S_EM_input[0], 0.75, S_EM2[0], 0.25, 0, 6);
-#if (AMREX_SPACEDIM >= 2)
 	linearCombination(S_EM_Y_new, S_EM_input[1], 0.75, S_EM2[1], 0.25, 0, 6);
-#endif
+	
 	// fill intermediate states 
 	FillPatch(*this, S1, NUM_GROW, time, Phi_Type, 0, NUM_STATE);
 	FillPatch(*this, S_EM1[0], NUM_GROW, time, EM_X_Type, 0, 6);
-#if (AMREX_SPACEDIM >= 2)
 	FillPatch(*this, S_EM1[1], NUM_GROW, time, EM_Y_Type, 0, 6);
-#endif          
 
 	(this->*MaxwellSolverWithChosenSpaceOrder)(S_EM1,S1,dx,dtEM);
 
 	linearCombination(S_new, S_new, 2.0/3.0, S_input, 1.0/3.0, BX, 6);
 	linearCombination(S_EM_X_new, S_EM_X_new, 2.0/3.0, S_EM_input[0], 1.0/3.0, 0, 6);
-#if (AMREX_SPACEDIM >= 2)
 	linearCombination(S_EM_Y_new, S_EM_Y_new, 2.0/3.0, S_EM_input[1], 1.0/3.0, 0, 6);
-#endif
     
 	if (dt_current+dtEM > dt)
 	  {
@@ -583,6 +540,7 @@ void CAMReXmp::RK2fluidRK3Maxwell(const Real* dx, Real dt, Real time)
       } while (dt_current <= dt);
     }
 }
+#endif
 void CAMReXmp::RK3(const Real* dx, Real dt, Real time)
 {
 
@@ -592,20 +550,20 @@ void CAMReXmp::RK3(const Real* dx, Real dt, Real time)
   MultiFab& S_EM_Y_new = get_new_data(EM_Y_Type);  
   
   // input states
-  MultiFab S_input(grids, dmap, NUM_STATE, NUM_GROW);  
+  MultiFab S_input(grids, dmap, NUM_STATE, NUM_GROW);
+#if (AMREX_SPACEDIM >= 2)   
   Array<MultiFab,AMREX_SPACEDIM> S_EM_input;
   S_EM_input[0].define(convert(grids,IntVect{AMREX_D_DECL(1,0,0)}), dmap, 6, NUM_GROW);
-#if (AMREX_SPACEDIM >= 2) 
   S_EM_input[1].define(convert(grids,IntVect{AMREX_D_DECL(0,1,0)}), dmap, 6, NUM_GROW);
 #endif
   
   // intermediate states in RK2
   MultiFab S1(grids, dmap, NUM_STATE, NUM_GROW);
   MultiFab S2(grids, dmap, NUM_STATE, NUM_GROW);
+#if (AMREX_SPACEDIM >= 2)  
   Array<MultiFab,AMREX_SPACEDIM> S_EM1, S_EM2;
   S_EM1[0].define(convert(grids,IntVect{AMREX_D_DECL(1,0,0)}), dmap, 6, NUM_GROW);  
   S_EM2[0].define(convert(grids,IntVect{AMREX_D_DECL(1,0,0)}), dmap, 6, NUM_GROW);  
-#if (AMREX_SPACEDIM >= 2)
   S_EM1[1].define(convert(grids,IntVect{AMREX_D_DECL(0,1,0)}), dmap, 6, NUM_GROW);
   S_EM2[1].define(convert(grids,IntVect{AMREX_D_DECL(0,1,0)}), dmap, 6, NUM_GROW);
 #endif  
@@ -628,6 +586,7 @@ void CAMReXmp::RK3(const Real* dx, Real dt, Real time)
   //////////////////////////////////////////////////////////////////////////////////////////
   // Maxwell solver for FVTD with explicit time stepping
   //////////////////////////////////////////////////////////////////////////////////////////
+#if (AMREX_SPACEDIM >= 2)  
   if (MaxwellOrder!=0 && MaxwellDivMethod=="FVTD" && MaxwellTimeMethod=="EX")
     {
       // fill initial input data
@@ -637,11 +596,10 @@ void CAMReXmp::RK3(const Real* dx, Real dt, Real time)
       // fill intermediate states
       FillPatch(*this, S1, NUM_GROW, time, Phi_Type, 0, NUM_STATE);
       FillPatch(*this, S_EM1[0], NUM_GROW, time, EM_X_Type, 0, 6);
-#if (AMREX_SPACEDIM >= 2)
       FillPatch(*this, S_EM1[1], NUM_GROW, time, EM_Y_Type, 0, 6);
-#endif      
     }
-
+#endif
+  
   //////////////////////////////////////////////////////////////////////////////////////////
   // fluid or plasma solver
   //////////////////////////////////////////////////////////////////////////////////////////
@@ -663,6 +621,7 @@ void CAMReXmp::RK3(const Real* dx, Real dt, Real time)
   //////////////////////////////////////////////////////////////////////////////////////////
   // Maxwell solver for FVTD with explicit time stepping
   //////////////////////////////////////////////////////////////////////////////////////////
+#if (AMREX_SPACEDIM >= 2)  
   if (MaxwellOrder!=0 && MaxwellDivMethod=="FVTD" && MaxwellTimeMethod=="EX")
     {
       (this->*MaxwellSolverWithChosenSpaceOrder)(S_EM1,S1,dx,dt);
@@ -670,24 +629,18 @@ void CAMReXmp::RK3(const Real* dx, Real dt, Real time)
       // fill intermediate states 
       FillPatch(*this, S2, NUM_GROW, time, Phi_Type, 0, NUM_STATE);
       FillPatch(*this, S_EM2[0], NUM_GROW, time, EM_X_Type, 0, 6);
-#if (AMREX_SPACEDIM >= 2)
       FillPatch(*this, S_EM2[1], NUM_GROW, time, EM_Y_Type, 0, 6);
-#endif
 	
       linearCombination(S_new, S_input, 0.75, S2, 0.25, BX, 6);
       linearCombination(S_EM_X_new, S_EM_input[0], 0.75, S_EM2[0], 0.25, 0, 6);
-#if (AMREX_SPACEDIM >= 2)
       linearCombination(S_EM_Y_new, S_EM_input[1], 0.75, S_EM2[1], 0.25, 0, 6);
-#endif
 
       // fill intermediate states 
       FillPatch(*this, S1, NUM_GROW, time, Phi_Type, 0, NUM_STATE);
       FillPatch(*this, S_EM1[0], NUM_GROW, time, EM_X_Type, 0, 6);
-#if (AMREX_SPACEDIM >= 2)
       FillPatch(*this, S_EM1[1], NUM_GROW, time, EM_Y_Type, 0, 6);
-#endif          
-      
     }
+#endif                  
 
   //////////////////////////////////////////////////////////////////////////////////////////
   // fluid or plasma solver
@@ -708,20 +661,21 @@ void CAMReXmp::RK3(const Real* dx, Real dt, Real time)
   //////////////////////////////////////////////////////////////////////////////////////////
   // Maxwell solver for FVTD with explicit time stepping
   //////////////////////////////////////////////////////////////////////////////////////////
+#if (AMREX_SPACEDIM >= 2)        
   if (MaxwellOrder!=0 && MaxwellDivMethod=="FVTD" && MaxwellTimeMethod=="EX")
     {
       (this->*MaxwellSolverWithChosenSpaceOrder)(S_EM1,S1,dx,dt);
 
       linearCombination(S_new, S_new, 2.0/3.0, S_input, 1.0/3.0, BX, 6);
       linearCombination(S_EM_X_new, S_EM_X_new, 2.0/3.0, S_EM_input[0], 1.0/3.0, 0, 6);
-#if (AMREX_SPACEDIM >= 2)
       linearCombination(S_EM_Y_new, S_EM_Y_new, 2.0/3.0, S_EM_input[1], 1.0/3.0, 0, 6);
-#endif
     }
+#endif  
   
   //////////////////////////////////////////////////////////////////////////////////////////
   // Maxwell solver for FVTD with explicit time stepping with sub-cycling
-  //////////////////////////////////////////////////////////////////////////////////////////  
+  //////////////////////////////////////////////////////////////////////////////////////////
+#if (AMREX_SPACEDIM >= 2)  
   if (MaxwellOrder!=0 && MaxwellDivMethod=="FVTD" && MaxwellTimeMethod=="EXsubcycling")
     {
 
@@ -734,45 +688,35 @@ void CAMReXmp::RK3(const Real* dx, Real dt, Real time)
 
 	// fill initial input data
 	// note that it is using the updated fluid states for the entire loop
-	FillPatch(*this, S_input, NUM_GROW, time, Phi_Type, 0, NUM_STATE);
+	FillPatch(*this, S_input, NUM_GROW, time, Phi_Type, 0, NUM_STATE);	
 	FillPatch(*this, S_EM_input[0], NUM_GROW, time, EM_X_Type, 0, 6);
 	FillPatch(*this, S_EM_input[1], NUM_GROW, time, EM_Y_Type, 0, 6);
-
+	
 	(this->*MaxwellSolverWithChosenSpaceOrder)(S_EM_input,S_input,dx,dtEM);
 	// fill intermediate states 
 	FillPatch(*this, S1, NUM_GROW, time, Phi_Type, 0, NUM_STATE);
 	FillPatch(*this, S_EM1[0], NUM_GROW, time, EM_X_Type, 0, 6);
-#if (AMREX_SPACEDIM >= 2)
 	FillPatch(*this, S_EM1[1], NUM_GROW, time, EM_Y_Type, 0, 6);
-#endif          
 
 	(this->*MaxwellSolverWithChosenSpaceOrder)(S_EM1,S1,dx,dtEM);
 	// fill intermediate states 
 	FillPatch(*this, S2, NUM_GROW, time, Phi_Type, 0, NUM_STATE);
 	FillPatch(*this, S_EM2[0], NUM_GROW, time, EM_X_Type, 0, 6);
-#if (AMREX_SPACEDIM >= 2)
 	FillPatch(*this, S_EM2[1], NUM_GROW, time, EM_Y_Type, 0, 6);
-#endif
 	
 	linearCombination(S_new, S_input, 0.75, S2, 0.25, BX, 6);
 	linearCombination(S_EM_X_new, S_EM_input[0], 0.75, S_EM2[0], 0.25, 0, 6);
-#if (AMREX_SPACEDIM >= 2)
 	linearCombination(S_EM_Y_new, S_EM_input[1], 0.75, S_EM2[1], 0.25, 0, 6);
-#endif
 	// fill intermediate states 
 	FillPatch(*this, S1, NUM_GROW, time, Phi_Type, 0, NUM_STATE);
 	FillPatch(*this, S_EM1[0], NUM_GROW, time, EM_X_Type, 0, 6);
-#if (AMREX_SPACEDIM >= 2)
 	FillPatch(*this, S_EM1[1], NUM_GROW, time, EM_Y_Type, 0, 6);
-#endif          
 
 	(this->*MaxwellSolverWithChosenSpaceOrder)(S_EM1,S1,dx,dtEM);
 
 	linearCombination(S_new, S_new, 2.0/3.0, S_input, 1.0/3.0, BX, 6);
 	linearCombination(S_EM_X_new, S_EM_X_new, 2.0/3.0, S_EM_input[0], 1.0/3.0, 0, 6);
-#if (AMREX_SPACEDIM >= 2)
 	linearCombination(S_EM_Y_new, S_EM_Y_new, 2.0/3.0, S_EM_input[1], 1.0/3.0, 0, 6);
-#endif
     
 	if (dt_current+dtEM > dt)
 	  {
@@ -787,4 +731,5 @@ void CAMReXmp::RK3(const Real* dx, Real dt, Real time)
 	dt_current += dtEM;
       } while (dt_current <= dt);
     }
+#endif  
 }

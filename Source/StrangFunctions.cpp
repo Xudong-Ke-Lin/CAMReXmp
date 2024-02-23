@@ -66,7 +66,9 @@ void CAMReXmp::StrangSecond(MultiFab& S_dest, MultiFab& S_source, MultiFab (&flu
   //FillPatch(*this, S_source, NUM_GROW, time+dt, Phi_Type, 0, NUM_STATE);  
   //RK2(S_input,dx,dt,time+dt);
   FillPatch(*this, S_dest, NUM_GROW, time+dt, Phi_Type, 0, NUM_STATE);
+#if (AMREX_SPACEDIM >= 2)  
   implicitYeeMaxwellSolver(S_EM_dest,S_EM_source,S_dest,S_source,dx,dt,time);
+#endif  
   //MaxwellSolverFDTDCN(S_EM_dest,S_EM_source,S_dest,S_input,dx,dt,time);
   
   sourceUpdate(S_dest, fluxes, dx, 0.5*dt);  
@@ -149,24 +151,22 @@ void CAMReXmp::StrangSecond(const Real* dx, Real dt, Real time)
     MultiFab S_input(grids, dmap, NUM_STATE, NUM_GROW);
     FillPatch(*this, S_input, NUM_GROW, time, Phi_Type, 0, NUM_STATE);
     MultiFab::Copy(S_new, S_input, 0, 0, NUM_STATE, 0);
-    
+
+#if (AMREX_SPACEDIM >= 2)     
     if (MaxwellOrder!=0)
-      {
+      {		
 	MultiFab& S_EM_X_new = get_new_data(EM_X_Type);
 	MultiFab& S_EM_Y_new = get_new_data(EM_Y_Type);
 
 	Array<MultiFab,AMREX_SPACEDIM> S_EM_input;
 	S_EM_input[0].define(convert(grids,IntVect{AMREX_D_DECL(1,0,0)}), dmap, 6, NUM_GROW);
 	FillPatch(*this, S_EM_input[0], NUM_GROW, time, EM_X_Type, 0, 6);
-#if (AMREX_SPACEDIM >= 2) 
 	S_EM_input[1].define(convert(grids,IntVect{AMREX_D_DECL(0,1,0)}), dmap, 6, NUM_GROW);
 	FillPatch(*this, S_EM_input[1], NUM_GROW, time, EM_Y_Type, 0, 6);
-#endif
 
 	MultiFab::Copy(S_EM_X_new, S_EM_input[0], 0, 0, 6, 0);
-#if (AMREX_SPACEDIM >= 2)
 	MultiFab::Copy(S_EM_Y_new, S_EM_input[1], 0, 0, 6, 0);
-#endif
+
 	if (MaxwellTimeMethod=="IM" && MaxwellDivMethod=="FDTD")
 	  {
 	    MultiFab& S_EM_XY_new = get_new_data(EM_XY_Type);
@@ -176,6 +176,7 @@ void CAMReXmp::StrangSecond(const Real* dx, Real dt, Real time)
 	    MultiFab::Copy(S_EM_XY_new, S_EM_edge_input, 0, 0, 6, 0);
 	  }
       }
+#endif	        
   }
 
   if (sourceMethod!="no")
@@ -183,26 +184,34 @@ void CAMReXmp::StrangSecond(const Real* dx, Real dt, Real time)
 
   if (geom.Coord()==1)
     sourceUpdateCyl(dx, 0.5*dt, time+dt);
-  
+
+#if (AMREX_SPACEDIM >= 2)  
   if (((sourceMethod=="IM" || sourceMethod=="STIFF" || sourceMethod=="EXACT")
        || (geom.Coord()==1 && MaxwellOrder!=0)) && MaxwellDivMethod!="HDC")
     {
       elecFieldCellAve(time+dt);
     }
-
+#endif
+  
   RK2(dx,dt,time+dt);
+  if (MaxwellTimeMethod=="IM" && MaxwellDivMethod=="NONE")
+    MaxwellSolverCN(dx,dt,time+dt);
+  //MaxwellSolverFDTDCN(dx,dt,time+dt);
   //RK2fluidRK3Maxwell(dx,dt,time+dt);
   //RK3(dx,dt,time+dt);
+#if (AMREX_SPACEDIM >= 2)  
   if (MaxwellTimeMethod=="IM" && MaxwellDivMethod=="FDTD")
     MaxwellSolverFDTDCN(dx,dt,time+dt);
     //MaxwellSolverFDTDCNAMReX(dx,dt,time+dt);
-
+#endif
+  
   if (sourceMethod!="no") 
     sourceUpdate(0.5*dt, time+dt);
 
   if (geom.Coord()==1)
     sourceUpdateCyl(dx, 0.5*dt, time+dt);
 
+#if (AMREX_SPACEDIM >= 2)  
   //if (sourceMethod=="IM" && MaxwellDivMethod!="HDC")
   if (((sourceMethod=="IM" || sourceMethod=="STIFF" || sourceMethod=="EXACT")
        || (geom.Coord()==1 && MaxwellOrder!=0)) && MaxwellDivMethod!="HDC")
@@ -215,4 +224,5 @@ void CAMReXmp::StrangSecond(const Real* dx, Real dt, Real time)
 	  Projection(dx,time+dt);      
 	}
     }
+#endif
 }

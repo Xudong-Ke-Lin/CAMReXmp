@@ -11,11 +11,13 @@
 #include <AMReX_MultiFabUtil.H>
 #include <AMReX_MLMG.H>
 
+#if (AMREX_SPACEDIM >= 2)
 //#include <AMReX_Hypre.H>
 #include <AMReX_HypreSolver.H>
 
 // AMReX linear solvers in nodal variables
 #include <AMReX_MLNodeABecLaplacian.H>
+#endif
 
 using namespace amrex;
 
@@ -5666,6 +5668,10 @@ void CAMReXmp::setBC_FCEM(Array<MultiFab,AMREX_SPACEDIM>& S_EM_dest)
 
 }
 */
+////////////////////////////////////////////////////////////////////////////////////////////////////
+// start of a big #if for methods that work for 2D (some of them are staggered grid based methods)
+////////////////////////////////////////////////////////////////////////////////////////////////////
+#if (AMREX_SPACEDIM >= 2)
 void CAMReXmp::Projection(const Real* dx, Real time)
 {
   MultiFab S_input(grids, dmap, NUM_STATE, NUM_GROW);
@@ -9390,4 +9396,335 @@ void CAMReXmp::MaxwellSolverFVTDWENO(Array<MultiFab,AMREX_SPACEDIM>& S_EM_source
   // Fill non-periodic physical boundaries                      
   FillDomainBoundary(S_dest, geom, bc);  */
 
+}
+#endif
+////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////
+void CAMReXmp::MaxwellSolverCN(const Real* dx, Real dt, Real time) 
+{
+
+  // get multifabs references
+  MultiFab& S_new = get_new_data(Phi_Type);
+
+  // input states and fill the data
+  MultiFab S_input(grids, dmap, NUM_STATE, NUM_GROW);
+  MultiFab S_output(grids, dmap, NUM_STATE, NUM_GROW);
+  FillPatch(*this, S_input, NUM_GROW, time, Phi_Type, 0, NUM_STATE);
+  FillPatch(*this, S_output, NUM_GROW, time, Phi_Type, 0, NUM_STATE);
+      
+  MultiFab S_X(S_output, amrex::make_alias, BX, NUM_GROW);
+  MultiFab S_Y(S_output, amrex::make_alias, BY, NUM_GROW);
+  MultiFab S_Z(S_output, amrex::make_alias, BZ, NUM_GROW);
+  
+  std::array<MultiFab,3> Rhs;
+  Rhs[0].define(grids, dmap, 1, NUM_GROW);
+  Rhs[1].define(grids, dmap, 1, NUM_GROW);
+  Rhs[2].define(grids, dmap, 1, NUM_GROW);
+
+  // Rhs contains B
+  MultiFab::Copy(Rhs[0], S_input, BX, 0, 1, 0);
+  MultiFab::Copy(Rhs[1], S_input, BY, 0, 1, 0);
+  MultiFab::Copy(Rhs[2], S_input, BZ, 0, 1, 0);
+  /*
+  for(MFIter mfi(Rhs[0], true); mfi.isValid(); ++mfi)
+    {
+      const Box& bx = mfi.tilebox();
+      
+      const Dim3 lo = lbound(bx);
+      const Dim3 hi = ubound(bx);
+
+      // Indexable arrays for the data, and the directional flux
+      // Based on the vertex-centred definition of the flux array, the
+      // data array runs from e.g. [0,N] and the flux array from [0,N+1]
+      const auto& rhs = Rhs[0].array(mfi);
+      const auto& arr = S_input.array(mfi);
+
+      for(int k = lo.z; k <= hi.z; k++)
+	{
+	  for(int j = lo.y; j <= hi.y; j++)
+	    {
+	      for(int i = lo.x; i <= hi.x; i++)
+		{
+#if (AMREX_SPACEDIM >= 2)		  
+		  Real dyEz = (arr(i,j+1,k,EZ)-arr(i,j-1,k,EZ))/(2.0*dx[1]);
+#endif
+		  Real dxdxBx = computeSecondDerivative(arr(i-1,j,k,BX), arr(i,j,k,BX), arr(i+1,j,k,BX), dx[0]);
+#if (AMREX_SPACEDIM >= 2)		  
+		  Real dydyBx = computeSecondDerivative(arr(i,j-1,k,BX), arr(i,j,k,BX), arr(i,j+1,k,BX), dx[1]);		  
+#endif		  
+		  rhs(i,j,k) = arr(i,j,k,BX) + 0.25*c*c*dt*dt*dxdxBx;
+#if (AMREX_SPACEDIM >= 2)
+		  rhs(i,j,k) += 0.25*c*c*dt*dt*dydyBx - dt*dyEz;
+#endif
+		}
+	    }
+	}
+    }
+  for(MFIter mfi(Rhs[1], true); mfi.isValid(); ++mfi)
+    {
+      const Box& bx = mfi.tilebox();
+
+      const Dim3 lo = lbound(bx);
+      const Dim3 hi = ubound(bx);
+	  
+      // Indexable arrays for the data, and the directional flux
+      // Based on the vertex-centred definition of the flux array, the
+      // data array runs from e.g. [0,N] and the flux array from [0,N+1]
+      const auto& rhs = Rhs[1].array(mfi);
+      const auto& arr = S_input.array(mfi);
+      
+      for(int k = lo.z; k <= hi.z; k++)
+	{
+	  for(int j = lo.y; j <= hi.y; j++)
+	    {
+	      for(int i = lo.x; i <= hi.x; i++)
+		{
+		  Real dxEz = (arr(i+1,j,k,EZ)-arr(i-1,j,k,EZ))/(2.0*dx[0]);
+		  Real dxdxBy = computeSecondDerivative(arr(i-1,j,k,BY), arr(i,j,k,BY), arr(i+1,j,k,BY), dx[0]);
+#if (AMREX_SPACEDIM >= 2)		  
+		  Real dydyBy = computeSecondDerivative(arr(i,j-1,k,BY), arr(i,j,k,BY), arr(i,j+1,k,BY), dx[1]);
+#endif		  
+		  rhs(i,j,k) = arr(i,j,k,BY) + 0.25*c*c*dt*dt*dxdxBy + dt*dxEz;
+#if (AMREX_SPACEDIM >= 2)
+		  rhs(i,j,k) += 0.25*c*c*dt*dt*dydyBy;
+#endif
+		}
+	    }
+	}
+    }
+  for(MFIter mfi(Rhs[2], true); mfi.isValid(); ++mfi)
+    {
+      const Box& bx = mfi.tilebox();
+      
+      const Dim3 lo = lbound(bx);
+      const Dim3 hi = ubound(bx);
+	  
+      // Indexable arrays for the data, and the directional flux
+      // Based on the vertex-centred definition of the flux array, the
+      // data array runs from e.g. [0,N] and the flux array from [0,N+1]
+      const auto& rhs = Rhs[2].array(mfi);
+      const auto& arr = S_input.array(mfi);
+      
+      for(int k = lo.z; k <= hi.z; k++)
+	{
+	  for(int j = lo.y; j <= hi.y; j++)
+	    {
+	      for(int i = lo.x; i <= hi.x; i++)
+		{
+#if (AMREX_SPACEDIM >= 2)		  
+		  Real dyEx = (arr(i,j+1,k,EX)-arr(i,j-1,k,EX))/(2.0*dx[1]);
+#endif 
+		  Real dxEy = (arr(i+1,j,k,EY)-arr(i-1,j,k,EY))/(2.0*dx[0]);
+		  Real dxdxBz = computeSecondDerivative(arr(i-1,j,k,BZ), arr(i,j,k,BZ), arr(i+1,j,k,BZ), dx[0]);
+#if (AMREX_SPACEDIM >= 2) 		  
+		  Real dydyBz = computeSecondDerivative(arr(i,j-1,k,BZ), arr(i,j,k,BZ), arr(i,j+1,k,BZ), dx[1]);
+#endif       
+		  rhs(i,j,k) = arr(i,j,k,BZ) + 0.25*c*c*dt*dt*dxdxBz - dt*dxEy;
+#if (AMREX_SPACEDIM >= 2)		  
+		  rhs(i,j,k) += 0.25*c*c*dt*dt*dydyBz + dt*dyEx;
+#endif
+		}
+	    }
+	}
+    }
+  */
+  for (int d = 0; d < amrex::SpaceDim ; d++)   
+  {
+
+    const int iOffset = ( d == 0 ? 1 : 0);
+    const int jOffset = ( d == 1 ? 1 : 0);
+    const int kOffset = ( d == 2 ? 1 : 0);
+
+    for(MFIter mfi(S_input, true); mfi.isValid(); ++mfi)
+      {
+	const Box& bx = mfi.tilebox();
+      
+	const Dim3 lo = lbound(bx);
+	const Dim3 hi = ubound(bx);
+	  
+	// Indexable arrays for the data, and the directional flux
+	// Based on the vertex-centred definition of the flux array, the
+	// data array runs from e.g. [0,N] and the flux array from [0,N+1]      
+	const auto& arr = S_input.array(mfi);
+	const auto& rhsX = Rhs[(0+d)%3].array(mfi);
+	const auto& rhsY = Rhs[(1+d)%3].array(mfi);
+	const auto& rhsZ = Rhs[(2+d)%3].array(mfi);
+      
+	for(int k = lo.z; k <= hi.z; k++)
+	  {
+	    for(int j = lo.y; j <= hi.y; j++)
+	      {
+		for(int i = lo.x; i <= hi.x; i++)
+		  {
+		    // Curl of E
+		    Real dxEy = (arr(i+iOffset,j+jOffset,k+kOffset,EX+(1+d)%3)-arr(i-iOffset,j-jOffset,k-kOffset,EX+(1+d)%3))/(2.0*dx[d]);
+		    Real dxEz = (arr(i+iOffset,j+jOffset,k+kOffset,EX+(2+d)%3)-arr(i-iOffset,j-jOffset,k-kOffset,EX+(2+d)%3))/(2.0*dx[d]);
+
+		    // Div of B
+		    Real dxdxBx = computeSecondDerivative(arr(i-iOffset,j-jOffset,k-kOffset,BX+(0+d)%3), arr(i,j,k,BX+(0+d)%3), arr(i+iOffset,j+jOffset,k+kOffset,BX+(0+d)%3), dx[d]);
+		    Real dxdxBy = computeSecondDerivative(arr(i-iOffset,j-jOffset,k-kOffset,BX+(1+d)%3), arr(i,j,k,BX+(1+d)%3), arr(i+iOffset,j+jOffset,k+kOffset,BX+(1+d)%3), dx[d]);
+		    Real dxdxBz = computeSecondDerivative(arr(i-iOffset,j-jOffset,k-kOffset,BX+(2+d)%3), arr(i,j,k,BX+(2+d)%3), arr(i+iOffset,j+jOffset,k+kOffset,BX+(2+d)%3), dx[d]);
+
+		    rhsX(i,j,k) += 0.25*c*c*dt*dt*dxdxBx;
+		    rhsY(i,j,k) += 0.25*c*c*dt*dt*dxdxBy + dt*dxEz;
+		    rhsZ(i,j,k) += 0.25*c*c*dt*dt*dxdxBz - dt*dxEy;
+		  }
+	      }
+	  }
+      }
+  }
+  // We need to compute boundary conditions again after each update
+  /*Rhs[0].FillBoundary(geom.periodicity());
+  Rhs[1].FillBoundary(geom.periodicity());
+  Rhs[2].FillBoundary(geom.periodicity());
+  // added by 2020D 
+  // Fill non-periodic physical boundaries                          
+  FillDomainBoundary(Rhs[0], geom, {bc[BX]});    
+  FillDomainBoundary(Rhs[1], geom, {bc[BY]});
+  FillDomainBoundary(Rhs[2], geom, {bc[BZ]});
+  */
+  /*
+    Based on https://github.com/AMReX-Codes/amrex/blob/development/Tests/LinearSolvers/ABecLaplacian_C
+    Look for more details when having multiple levels (AMR)
+   */
+  
+  // For MLMG solver
+  int verbose = 2;
+  int bottom_verbose = 0;
+  int max_iter = 100;
+  //int max_fmg_iter = 0;
+  int linop_maxorder = 2;
+  bool agglomeration = true;
+  bool consolidation = true;
+  bool semicoarsening = false;
+  int max_coarsening_level = 30;
+  int max_semicoarsening_level = 0;
+
+  LPInfo info;
+  info.setAgglomeration(agglomeration);
+  info.setConsolidation(consolidation);
+  info.setSemicoarsening(semicoarsening);
+  info.setMaxCoarseningLevel(max_coarsening_level);
+  info.setMaxSemicoarseningLevel(max_semicoarsening_level);
+  
+  const auto tol_rel = Real(1.e-10);
+  const auto tol_abs = Real(0.0);
+
+  MLABecLaplacian mlabecX({geom}, {grids}, {dmap}, info);
+  mlabecX.setMaxOrder(linop_maxorder);
+  MLABecLaplacian mlabecY({geom}, {grids}, {dmap}, info);
+  mlabecY.setMaxOrder(linop_maxorder);
+  MLABecLaplacian mlabecZ({geom}, {grids}, {dmap}, info);
+  mlabecZ.setMaxOrder(linop_maxorder);
+  
+  // Set boundary conditions for MLABecLaplacian  
+  mlabecX.setDomainBC(mlmg_lobc_X, mlmg_hibc_X);
+  mlabecY.setDomainBC(mlmg_lobc_Y, mlmg_hibc_Y);
+  mlabecZ.setDomainBC(mlmg_lobc_Z, mlmg_hibc_Z);
+  
+  // Set boundary conditions for the current patch 
+  mlabecX.setLevelBC(0,&S_X);
+  mlabecY.setLevelBC(0,&S_Y);
+  mlabecZ.setLevelBC(0,&S_Z);  
+
+  Real ascalar = 1.0;
+  Real bscalar = 0.5*0.5*c*c*dt*dt;
+  mlabecX.setScalars(ascalar, bscalar);
+  mlabecY.setScalars(ascalar, bscalar);
+  mlabecZ.setScalars(ascalar, bscalar);
+
+  mlabecX.setACoeffs(0, 1.0);
+  mlabecX.setBCoeffs(0, 1.0);
+  mlabecY.setACoeffs(0, 1.0);
+  mlabecY.setBCoeffs(0, 1.0);
+  mlabecZ.setACoeffs(0, 1.0);
+  mlabecZ.setBCoeffs(0, 1.0);
+  MLMG mlmgX(mlabecX);
+  MLMG mlmgY(mlabecY);
+  MLMG mlmgZ(mlabecZ);
+  
+  mlmgX.setMaxIter(max_iter);
+  mlmgX.setMaxFmgIter(max_fmg_iter);
+  mlmgX.setVerbose(verbose);
+  mlmgX.setBottomVerbose(bottom_verbose);  
+  mlmgY.setMaxIter(max_iter);
+  mlmgY.setMaxFmgIter(max_fmg_iter);
+  mlmgY.setVerbose(verbose);
+  mlmgY.setBottomVerbose(bottom_verbose);  
+  mlmgZ.setMaxIter(max_iter);
+  mlmgZ.setMaxFmgIter(max_fmg_iter);
+  mlmgZ.setVerbose(verbose);
+  mlmgZ.setBottomVerbose(bottom_verbose);  
+
+  const Real S_X_abs = soln_tol*Rhs[0].norm0();
+  const Real S_Y_abs = soln_tol*Rhs[1].norm0();
+  const Real S_Z_abs = soln_tol*Rhs[2].norm0();  
+
+  mlmgX.solve({&S_X}, {&Rhs[0]}, tol_rel, tol_abs);
+  mlmgY.solve({&S_Y}, {&Rhs[1]}, tol_rel, tol_abs);
+  mlmgZ.solve({&S_Z}, {&Rhs[2]}, tol_rel, tol_abs);
+  
+  MultiFab::Copy(S_new, S_output, BX, BX, 6, 0);
+  FillPatch(*this, S_output, NUM_GROW, time, Phi_Type, 0, NUM_STATE);
+
+  // Update electric field
+  for (MFIter mfi(S_output, true); mfi.isValid(); ++mfi)
+    {
+      const Box& bx = mfi.tilebox();
+      
+      const Dim3 lo = lbound(bx);
+      const Dim3 hi = ubound(bx);
+
+      const auto& arr = S_output.array(mfi);
+      const auto& arr_old = S_input.array(mfi);
+
+      for(int k = lo.z; k <= hi.z; k++)
+	{
+	  for(int j = lo.y; j <= hi.y; j++)
+	    {
+	      for(int i = lo.x; i <= hi.x; i++)
+		{
+		  /*
+#if (AMREX_SPACEDIM >= 2)
+		  Real dyBz = (arr(i,j+1,k,BZ)-arr(i,j-1,k,BZ))/(2.0*dx[1]);		  
+		  Real dyBzOld = (arr_old(i,j+1,k,BZ)-arr_old(i,j-1,k,BZ))/(2.0*dx[1]);
+		  Real dyBx = (arr(i,j+1,k,BX)-arr(i,j-1,k,BX))/(2.0*dx[1]);
+		  Real dyBxOld = (arr_old(i,j+1,k,BX)-arr_old(i,j-1,k,BX))/(2.0*dx[1]);
+#endif
+		  
+		  Real dxBz = (arr(i+1,j,k,BZ)-arr(i-1,j,k,BZ))/(2.0*dx[0]);
+		  Real dxBzOld = (arr_old(i+1,j,k,BZ)-arr_old(i-1,j,k,BZ))/(2.0*dx[0]);
+		  Real dxBy = (arr(i+1,j,k,BY)-arr(i-1,j,k,BY))/(2.0*dx[0]);
+		  Real dxByOld = (arr_old(i+1,j,k,BY)-arr_old(i-1,j,k,BY))/(2.0*dx[0]);		  
+		  
+		  arr(i,j,k,EX) = arr_old(i,j,k,EX);
+		  arr(i,j,k,EY) = arr_old(i,j,k,EY) - 0.5*dt*c*c*dxBz - 0.5*dt*c*c*dxBzOld;
+		  arr(i,j,k,EZ) = arr_old(i,j,k,EZ) + 0.5*dt*c*c*dxBy + 0.5*dt*c*c*dxByOld;
+#if (AMREX_SPACEDIM >= 2)
+		  arr(i,j,k,EX) += 0.5*dt*c*c*dyBz + 0.5*dt*c*c*dyBzOld;
+		  arr(i,j,k,EZ) += - 0.5*dt*c*c*dyBx - 0.5*dt*c*c*dyBxOld;
+#endif
+		  */
+		  for (int d = 0; d < amrex::SpaceDim ; d++)
+		    {
+
+		      const int iOffset = ( d == 0 ? 1 : 0);
+		      const int jOffset = ( d == 1 ? 1 : 0);
+		      const int kOffset = ( d == 2 ? 1 : 0);
+
+		      Real dxBz = (arr(i+iOffset,j+jOffset,k+kOffset,BX+(2+d)%3)-arr(i-iOffset,j-jOffset,k-kOffset,BX+(2+d)%3))/(2.0*dx[d]);
+		      Real dxBzOld = (arr_old(i+iOffset,j+jOffset,k+kOffset,BX+(2+d)%3)-arr_old(i-iOffset,j-jOffset,k-kOffset,BX+(2+d)%3))/(2.0*dx[d]);
+		      Real dxBy = (arr(i+iOffset,j+jOffset,k+kOffset,BX+(1+d)%3)-arr(i-iOffset,j-jOffset,k-kOffset,BX+(1+d)%3))/(2.0*dx[d]);
+		      Real dxByOld = (arr_old(i+iOffset,j+jOffset,k+kOffset,BX+(1+d)%3)-arr_old(i-iOffset,j-jOffset,k-kOffset,BX+(1+d)%3))/(2.0*dx[d]);
+
+		      arr(i,j,k,EX+(1+d)%3) += - 0.5*dt*c*c*dxBz - 0.5*dt*c*c*dxBzOld;
+		      arr(i,j,k,EX+(2+d)%3) += + 0.5*dt*c*c*dxBy + 0.5*dt*c*c*dxByOld;
+		      
+		    }
+		}
+	    }
+	}
+    }
+  //amrex::Abort();
+  MultiFab::Copy(S_new, S_output, BX, BX, 6, 0);
 }

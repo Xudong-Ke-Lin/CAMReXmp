@@ -23,8 +23,15 @@
 #include <AMReX_Utility.H>
 #include <AMReX_MLLinOp.H>
 
-enum StateType { Phi_Type = 0, EM_X_Type = 1, EM_Y_Type = 2, EM_XY_Type = 3,
+enum StateType { Phi_Type = 0,
+		 EM_X_Type = 1, EM_Y_Type = 2, EM_XY_Type = 3,
+		 //#endif
+#if (AMREX_SPACEDIM >= 2)
 		 NUM_STATE_TYPE };
+#else
+NUM_STATE_TYPE = 1};
+#endif
+
 enum StateVariable {
 		    RHO_I = 0, MOMX_I = 1, MOMY_I = 2, MOMZ_I = 3, ENER_I = 4,
 		    RHO_E = 5, MOMX_E = 6, MOMY_E = 7, MOMZ_E = 8, ENER_E = 9,
@@ -279,12 +286,15 @@ private:
   ////////////////////////////////////////////////////////////
   void StrangSecond(const Real*, Real, Real);
   void RK2(const Real*, Real, Real);
+#if (AMREX_SPACEDIM >= 2)  
   void RK2fluidRK3Maxwell(const Real*, Real, Real);
+#endif  
   void RK3(const Real*, Real, Real);
   void fluidSolverVoid(MultiFab&, const Real*, Real);
   void fluidSolverTVD(MultiFab&, const Real*, Real);
   void fluidSolverWENO(MultiFab&, const Real*, Real);
   void plasmaSolverTVD(MultiFab&, const Real*, Real);
+#if (AMREX_SPACEDIM >= 2)
   void MaxwellSolverFVTDVoid(Array<MultiFab,AMREX_SPACEDIM>&, MultiFab&, const Real*, Real);
   void MaxwellSolverFVTDTVD(Array<MultiFab,AMREX_SPACEDIM>&, MultiFab&, const Real*, Real);
   void MaxwellSolverFVTDWENO(Array<MultiFab,AMREX_SPACEDIM>&, MultiFab&, const Real*, Real);
@@ -292,6 +302,8 @@ private:
   void MaxwellSolverFDTDCNAMReX(const Real*, Real, Real);
   void elecFieldCellAve(Real);
   void Projection(const Real*, Real);
+#endif
+  void MaxwellSolverCN(const Real*, Real, Real);  
   void sourceUpdate(Real, Real);
   void sourceUpdateVoid(Array4<Real>&, int, int, int, Real);
   void sourceUpdateCyl(const Real*, Real, Real);
