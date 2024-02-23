@@ -446,4 +446,12 @@ void CAMReXmp::sourceUpdateExact(Array4<Real>& arr, int i, int j, int k, Real dt
   arr(i,j,k,ENER_I) += kin_i_new-kin_i;
   arr(i,j,k,ENER_E) += kin_e_new-kin_e;
   
+#if (AMREX_SPACEDIM >= 2)
+  if (MaxwellDivMethod=="HDC")
+    {
+      Real psi_e = arr(i,j,k,DIVE);
+      arr(i,j,k,DIVE) = psi_e + ce*dt*1.0/(lambda_d*lambda_d*l_r)*(r_i*rho_i + r_e*rho_e);
+    }
+#endif  
+
 }

@@ -176,15 +176,6 @@ public:
     static int  NUM_STATE;
     static int  NUM_GROW;
   
-  void sourceUpdate(MultiFab& Sborder, MultiFab (&fluxes)[AMREX_SPACEDIM], const Real* dx, Real dt);
-  void sourceUpdateEX(Array4<Real>& arr, int i, int j, int k, Real dt);
-  void sourceUpdateIM(Array4<Real>& arr, int i, int j, int k, Real dt);
-  void sourceUpdateIMMidpoint(Array4<Real>& arr, int i, int j, int k, Real dt);
-  void sourceUpdateANEX(Array4<Real>& arr, int i, int j, int k, Real dt);
-  void sourceUpdateStiff(Array4<Real>& arr, int i, int j, int k, Real dt);
-  void sourceUpdateExact(Array4<Real>& arr, int i, int j, int k, Real dt);
-  void cylSourceUpdate(Array4<Real>& arr, int i, int j, int k, Real dt, Real x);
-
   static int NUM_STATE_FLUID;
   static int NUM_STATE_MAXWELL;
 
@@ -287,8 +278,14 @@ private:
 #endif
   void MaxwellSolverCN(const Real*, Real, Real);  
   void sourceUpdate(Real, Real);
-  void sourceUpdateVoid(Array4<Real>&, int, int, int, Real);
   void sourceUpdateCyl(const Real*, Real, Real);
+  void sourceUpdateVoid(Array4<Real>&, int, int, int, Real);
+  void sourceUpdateEX(Array4<Real>& arr, int i, int j, int k, Real dt);
+  void sourceUpdateIM(Array4<Real>& arr, int i, int j, int k, Real dt);
+  void sourceUpdateIMMidpoint(Array4<Real>& arr, int i, int j, int k, Real dt);
+  void sourceUpdateANEX(Array4<Real>& arr, int i, int j, int k, Real dt);
+  void sourceUpdateStiff(Array4<Real>& arr, int i, int j, int k, Real dt);
+  void sourceUpdateExact(Array4<Real>& arr, int i, int j, int k, Real dt);
   
   void linearCombination(MultiFab&, MultiFab&, Real, MultiFab&, Real, int, int);
   

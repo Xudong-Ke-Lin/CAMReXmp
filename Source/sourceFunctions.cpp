@@ -17,51 +17,6 @@ MatrixXd identity = MatrixXd::Identity(9, 9);
 
 #include "sourceFunctionsStiff.H"
 
-void CAMReXmp::sourceUpdate(MultiFab& Sborder, MultiFab (&fluxes)[AMREX_SPACEDIM], const Real* dx, Real dt)
-{
-  MFIter::allowMultipleMFIters(true);
-  
-  for (MFIter mfi(Sborder, true); mfi.isValid(); ++mfi)
-    {
-      const Box& bx = mfi.tilebox();
-      
-      const Dim3 lo = lbound(bx);
-      const Dim3 hi = ubound(bx);
-      
-      Array4<Real> arr = Sborder.array(mfi);
-      
-      for(int k = lo.z; k <= hi.z; k++)
-	{
-	  for(int j = lo.y; j <= hi.y; j++)
-	    {
-	      for(int i = lo.x; i <= hi.x; i++)
-		{
-		  //(this->*sourceUpdateWithChosenMethod)(arr,i,j,k,dt);
-		  /*
-		  if (geom.Coord()==1)		  
-		    {
-		      //Real x = geom.ProbLo()[0]+(double(i)+0.5)*dx[0];
-		      //const Real x = (double(i)+0.5)*dx[0];
-		      // y <- x in cylindrical
-		      const Real y = geom.ProbLo()[1]+(double(j)+0.5)*dx[1];
-		      //amrex::Print() << x << " ";
-		      cylSourceUpdate(arr,i,j,k,dt,y);
-		    }
-		  */
-		  (this->*sourceUpdateWithChosenMethod)(arr, i, j, k, dt);
-		  //sourceUpdateANEX(arr, i, j, k, dt);
-		  //sourceUpdateStiff(arr, i, j, k, dt);
-		}
-	    }
-	}      
-    }
-  // We need to compute boundary conditions again after each update
-  Sborder.FillBoundary(geom.periodicity());
-  
-  // Fill non-periodic physical boundaries  
-  FillDomainBoundary(Sborder, geom, bc);
-  
-}
 void CAMReXmp::sourceUpdate(Real dt, Real time)
 {
 
@@ -688,81 +643,12 @@ void CAMReXmp::sourceUpdateStiff(Array4<Real>& arr, int i, int j, int k, Real dt
 
   arr(i,j,k,ENER_I) += kin_i_new-kin_i;
   arr(i,j,k,ENER_E) += kin_e_new-kin_e;
-  
-}
 
-void CAMReXmp::cylSourceUpdate(Array4<Real>& arr, int i, int j, int k, Real dt, Real y)
-{
-  
-  // define conserved variables                     
-  Real rho_i = arr(i,j,k,0);
-  Real momX_i = arr(i,j,k,1);
-  Real momY_i = arr(i,j,k,2);
-  Real momZ_i = arr(i,j,k,MOMZ_I);
-  Real E_i = arr(i,j,k,ENER_I);
-  Real rho_e = arr(i,j,k,RHO_E);
-  Real momX_e = arr(i,j,k,MOMX_E);
-  Real momY_e = arr(i,j,k,MOMY_E);
-  Real momZ_e = arr(i,j,k,MOMZ_E);
-  Real E_e = arr(i,j,k,ENER_E);
-  Real B_x = arr(i,j,k,BX);
-  Real B_y = arr(i,j,k,BY);
-  Real B_z = arr(i,j,k,BZ);
-  Real E_x = arr(i,j,k,EX);
-  Real E_y = arr(i,j,k,EY);
-  Real E_z = arr(i,j,k,EZ);
-		  
-  // define primitive variables
-  Real v_x_i = momX_i/rho_i;
-  Real v_y_i = momY_i/rho_i;
-  Real v_z_i = momZ_i/rho_i;
-  Real p_i = get_pressure({rho_i,momX_i,momY_i,momZ_i,E_i});
-  Real v_x_e = momX_e/rho_e;
-  Real v_y_e = momY_e/rho_e;
-  Real v_z_e = momZ_e/rho_e;
-  Real p_e = get_pressure({rho_e,momX_e,momY_e,momZ_e,E_e});
-  /*
-  arr(i,j,k,0) -= dt*(rho_i*v_x_i/x);
-  arr(i,j,k,1) -= dt*(rho_i*v_x_i*v_x_i/x);
-  arr(i,j,k,2) -= dt*(rho_i*v_x_i*v_y_i/x);
-  arr(i,j,k,3) -= dt*(rho_i*v_x_i*v_z_i/x);
-  arr(i,j,k,ENER_I) -= dt*((E_i+p_i)*v_x_i/x);
-    
-  arr(i,j,k,RHO_E) -= dt*(rho_e*v_x_e/x);
-  arr(i,j,k,MOMX_E) -= dt*(rho_e*v_x_e*v_x_e/x);
-  arr(i,j,k,MOMY_E) -= dt*(rho_e*v_x_e*v_y_e/x);
-  arr(i,j,k,MOMZ_E) -= dt*(rho_e*v_x_e*v_z_e/x);
-  arr(i,j,k,ENER_E) -= dt*((E_e+p_e)*v_x_e/x);
-  
-  if (MaxwellMethod=="HYP")
+#if (AMREX_SPACEDIM >= 2)
+  if (MaxwellDivMethod=="HDC")
     {
-      arr(i,j,k,BZ) -= dt*(E_y/x);      
-      arr(i,j,k,EZ) += dt*(c*c*B_y/x);
+      Real psi_e = arr(i,j,k,DIVE);
+      arr(i,j,k,DIVE) = psi_e + ce*dt*1.0/(lambda_d*lambda_d*l_r)*(r_i*rho_i + r_e*rho_e);
     }
-  */
-  // y <- x in cylindrical
-  // v_y <- v_x in cylindrical  
-  arr(i,j,k,0) -= dt*(rho_i*v_y_i/y);
-  arr(i,j,k,1) -= dt*(rho_i*v_y_i*v_x_i/y);
-  arr(i,j,k,2) -= dt*(rho_i*v_y_i*v_y_i/y);
-  arr(i,j,k,3) -= dt*(rho_i*v_y_i*v_z_i/y);
-  arr(i,j,k,ENER_I) -= dt*((E_i+p_i)*v_y_i/y);
-  
-  arr(i,j,k,RHO_E) -= dt*(rho_e*v_y_e/y);
-  arr(i,j,k,MOMX_E) -= dt*(rho_e*v_y_e*v_x_e/y);
-  arr(i,j,k,MOMY_E) -= dt*(rho_e*v_y_e*v_y_e/y);
-  arr(i,j,k,MOMZ_E) -= dt*(rho_e*v_y_e*v_z_e/y);
-  arr(i,j,k,ENER_E) -= dt*((E_e+p_e)*v_y_e/y);
-  /*
-  if (MaxwellMethod=="IM")
-    {
-      arr(i,j,k,BX) -= tau*dt*(E_z/y);      
-      arr(i,j,k,EX) += tau*dt*(c*c*B_z/y);
-    }
-  else
-    {
-      arr(i,j,k,BX) -= dt*(E_z/y);      
-      arr(i,j,k,EX) += dt*(c*c*B_z/y);    
-    }
-  */
+#endif    
 }
