@@ -302,8 +302,6 @@ private:
   void MUSCLHancokPlasmaSolverTVD(MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], const Real*, Real);
 
   void implicitMaxwellSolverSetUp();  
-  void hyperbolicMaxwellSolverDivFreeBalsara(Array<MultiFab,AMREX_SPACEDIM>&, MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], MultiFab&, const Real*, Real);
-  void MaxwellSolverDivFree(Array<MultiFab,AMREX_SPACEDIM>&, MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], MultiFab&, const Real*, Real);
   void MaxwellSolverDivFreeNothing(Array<MultiFab,AMREX_SPACEDIM>&, Array<MultiFab,AMREX_SPACEDIM>&,MultiFab&, MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], const Real*, Real);
   void MaxwellSolverDivFreeTVD(Array<MultiFab,AMREX_SPACEDIM>&, Array<MultiFab,AMREX_SPACEDIM>&,MultiFab&, MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], const Real*, Real);
   void MaxwellSolverDivFreeWENO(Array<MultiFab,AMREX_SPACEDIM>&, Array<MultiFab,AMREX_SPACEDIM>&,MultiFab&, MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], const Real*, Real);
