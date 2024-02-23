@@ -250,41 +250,6 @@ void CAMReXmp::sourceUpdateVoid(Array4<Real>& arr, int i, int j, int k, Real dt)
 {
   amrex::Abort("No source terms!!");
 }
-void CAMReXmp::cylSourceUpdateImplicitRK2(MultiFab& Sborder, MultiFab& Sold, const Real* dx, Real dt)
-{
-MFIter::allowMultipleMFIters(true);
-  
-  for (MFIter mfi(Sborder, true); mfi.isValid(); ++mfi)
-    {
-      const Box& bx = mfi.tilebox();
-      
-      const Dim3 lo = lbound(bx);
-      const Dim3 hi = ubound(bx);
-      
-      Array4<Real> arr = Sborder.array(mfi);
-      Array4<Real> arr_old = Sold.array(mfi);
-      
-      for(int k = lo.z; k <= hi.z; k++)
-	{
-	  for(int j = lo.y; j <= hi.y; j++)
-	    {
-	      for(int i = lo.x; i <= hi.x; i++)
-		{
-		  const Real y = geom.ProbLo()[1]+(double(j)+0.5)*dx[1];
-		  //arr(i,j,k,BX) -= (1.0-tau)*dt*(arr_old(i,j,k,EZ)/y);      
-		  arr(i,j,k,EX) += (1.0-tau)*dt*(c*c*arr_old(i,j,k,BZ)/y); 
-				  	    
-		}
-	    }
-	}      
-    }
-  // We need to compute boundary conditions again after each update
-  Sborder.FillBoundary(geom.periodicity());
-  
-  // Fill non-periodic physical boundaries  
-  FillDomainBoundary(Sborder, geom, bc);
-  
-}
 
 void CAMReXmp::sourceUpdateEX(Array4<Real>& arr, int i, int j, int k, Real dt)
 {

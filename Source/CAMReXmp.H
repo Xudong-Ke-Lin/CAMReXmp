@@ -189,7 +189,6 @@ public:
   void sourceUpdateStiff(Array4<Real>& arr, int i, int j, int k, Real dt);
   void sourceUpdateExact(Array4<Real>& arr, int i, int j, int k, Real dt);
   void cylSourceUpdate(Array4<Real>& arr, int i, int j, int k, Real dt, Real x);
-  void cylSourceUpdateImplicitRK2(MultiFab& Sborder, MultiFab& Sold, const Real* dx, Real dt);
 
   static int NUM_STATE_FLUID;
   static int NUM_STATE_MAXWELL;
@@ -267,9 +266,6 @@ protected:
   static int  max_order;
   static int max_fmg_iter;
   static Real soln_tol;
-  static Real tau;
-  static amrex::MultiFab acoef;
-  static std::array<amrex::MultiFab, BL_SPACEDIM> bcoeffs;
   
   // Boundary conditions for MLABecLaplacian
   static std::array<LinOpBCType, AMREX_SPACEDIM> mlmg_lobc_X;
@@ -327,8 +323,6 @@ private:
   void MUSCLHancokPlasmaSolverTVD(MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], const Real*, Real);
 
   void implicitMaxwellSolverSetUp();  
-  void implicitMaxwellSolver(amrex::MultiFab&, const amrex::Real*, amrex::Real);
-  void implicitMaxwellSolverElecFieldUpdate(amrex::MultiFab&, const amrex::MultiFab&, const amrex::MultiFab&, const amrex::Real*, amrex::Real);
   void hyperbolicMaxwellSolverDivFreeBalsara(Array<MultiFab,AMREX_SPACEDIM>&, MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], MultiFab&, const Real*, Real);
   void MaxwellSolverDivFree(Array<MultiFab,AMREX_SPACEDIM>&, MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], MultiFab&, const Real*, Real);
   void MaxwellSolverDivFreeNothing(Array<MultiFab,AMREX_SPACEDIM>&, Array<MultiFab,AMREX_SPACEDIM>&,MultiFab&, MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], const Real*, Real);
@@ -336,18 +330,10 @@ private:
   void MaxwellSolverDivFreeWENO(Array<MultiFab,AMREX_SPACEDIM>&, Array<MultiFab,AMREX_SPACEDIM>&,MultiFab&, MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], const Real*, Real);
   void MaxwellSolverDivFreeWENOcharacteristic(Array<MultiFab,AMREX_SPACEDIM>&, Array<MultiFab,AMREX_SPACEDIM>&,MultiFab&, MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], const Real*, Real);  
   
-  void computeCurrentUpdate(amrex::MultiFab&, const amrex::MultiFab&, const amrex::Real*, amrex::Real);
   void computeAlpha(amrex::MultiFab&);
   void computeBeta(std::array<amrex::MultiFab,AMREX_SPACEDIM>&);
-  void computeRhs(std::array<MultiFab, 3>&, amrex::MultiFab&, amrex::MultiFab&, const amrex::Real*, amrex::Real);
   void printComponents(amrex::MultiFab&);
 
-  void computeRhsX(amrex::MultiFab&, amrex::MultiFab&, amrex::MultiFab&, amrex::Real, amrex::Real,
-		   amrex::Real, amrex::Real);
-  void computeRhsY(amrex::MultiFab&, amrex::MultiFab&, amrex::MultiFab&, amrex::Real, amrex::Real,
-                   amrex::Real, amrex::Real);
-  void computeRhsZ(amrex::MultiFab&, amrex::MultiFab&, amrex::MultiFab&, amrex::Real, amrex::Real,
-		   amrex::Real, amrex::Real);  
   void implicitYeeMaxwellSolver(Array<MultiFab,AMREX_SPACEDIM>&, Array<MultiFab,AMREX_SPACEDIM>&, MultiFab&, MultiFab&, const Real*, Real, Real);
 
 };    

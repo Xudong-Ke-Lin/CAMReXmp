@@ -26,10 +26,7 @@ Vector<BCRec> CAMReXmp::bc_EM;
 
 int  CAMReXmp::max_order = 2;
 int CAMReXmp::max_fmg_iter = 0;
-Real CAMReXmp::soln_tol = 1e-12;
-Real CAMReXmp::tau = 1.0;
-MultiFab CAMReXmp::acoef;
-std::array<MultiFab, BL_SPACEDIM> CAMReXmp::bcoeffs;
+Real CAMReXmp::soln_tol = 1e-10;
 
 std::array<LinOpBCType, AMREX_SPACEDIM> CAMReXmp::mlmg_lobc_X;
 std::array<LinOpBCType, AMREX_SPACEDIM> CAMReXmp::mlmg_hibc_X;
@@ -1754,12 +1751,10 @@ CAMReXmp::read_params ()
   /*if (RKOrder==1){
     amrex::Print() << "1st order RK" << std::endl;
     RKWithChosenUpdateOrder = &CAMReXmp::RK1;
-    //tau = 1.0;
   }
   else */if (RKOrder==2){
     amrex::Print() << "2nd order RK" << std::endl;
     RKWithChosenUpdateOrder = &CAMReXmp::RK2;
-    //tau = 0.5;
   }
   /*else if (RKOrder==3){
     amrex::Print() << "3rd order RK" << std::endl;
