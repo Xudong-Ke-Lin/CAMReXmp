@@ -68,13 +68,6 @@ Real get_r(const Real& q_iMinus1, const Real& q_i, const Real& q_iPlus1);
 Vector<Real> get_delta_i(Vector<Real> u_iMinus1, Vector<Real> u_i, Vector<Real> u_iPlus1);
 // half time step evolution for left state in a linear reconstruction
 // define this function for left and right state
-//Vector<Real> half_step_evolution_L(Vector<Real> u_iMinus1, Vector<Real> u_i, Vector<Real> u_iPlus1,
-//				   Vector<int> limiting_idx, Real dx, Real dt, int d);
-// half time step evolution for right state in a linear reconstruction
-//Vector<Real> half_step_evolution_R(Vector<int> u_iMinus1, Vector<Real> u_i, Vector<Real> u_iPlus1,
-//				   Vector<Real> limiting_idx, Real dx, Real dt, int d);
-// half time step evolution for left state in a linear reconstruction
-// define this function for left and right state
 Vector<Real> half_step_evolution_L(Vector<Real> u_iMinus1, Vector<Real> u_i, Vector<Real> u_iPlus1,
 				   Vector<int> limiting_idx, Real dx, Real dt, int d,
 				   std::function<Vector<Real> (const Vector<Real>&, int)> flux_function);
@@ -160,8 +153,6 @@ Vector<Real> WENO_flux_flat(const Array4<Real>& arr, const Array4<Real>& slopes,
 			    int start, int len,
 			    Real dx, Real dt, int d,
 			    std::function<Vector<Real> (Vector<Real>,Vector<Real>,int)> solver);
-// Vector<Real> MUSCL_Hancock_exact_flux(const Array4<Real>& arr, int i, int j, int k, int iOffset, int jOffset, int kOffset,
-// 				     Real dx, Real dt, int d);
 Vector<Real> exact_flux(const Array4<Real>& arr, int i, int j, int k, int iOffset, int jOffset, int kOffset,
  			int start, int length, Real dx, Real dt, int d);
 Vector<Real> EM_linearFunc(const Array4<Real>& Bc, const Array4<Real>& Ec,  int i, int j, int k, Real x, Real y, Real z,
