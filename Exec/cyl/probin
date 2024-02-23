@@ -1,0 +1,7 @@
+&tagging
+  
+   phigrad = 0.03d0, 0.03d0
+
+   max_phigrad_lev = 10
+
+/
