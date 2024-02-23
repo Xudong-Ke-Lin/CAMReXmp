@@ -316,7 +316,7 @@ private:
   void RK2(MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], Array<MultiFab,AMREX_SPACEDIM>&, Array<MultiFab,AMREX_SPACEDIM>&, MultiFab&, const Real*, Real, Real);
   void RK3(MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], Array<MultiFab,AMREX_SPACEDIM>&, Array<MultiFab,AMREX_SPACEDIM>&, MultiFab&, const Real*, Real, Real);  
   void linearCombination(MultiFab&, MultiFab&, Real, MultiFab&, Real, int, int);
-  void fluidSolver(amrex::MultiFab&, amrex::MultiFab (&)[AMREX_SPACEDIM], const amrex::Real*, amrex::Real);
+  
   void fluidSolverNothing(MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], const Real*, Real);
   void fluidSolverTVD(MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], const Real*, Real);
   void fluidSolverExact(MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], const Real*, Real);
@@ -326,11 +326,9 @@ private:
   void plasmaSolverTVD(MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], const Real*, Real);
   void MUSCLHancokPlasmaSolverTVD(MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], const Real*, Real);
 
-  void hyperbolicMaxwellSolver(amrex::MultiFab&, amrex::MultiFab (&)[AMREX_SPACEDIM], const amrex::Real*, amrex::Real);
   void implicitMaxwellSolverSetUp();  
   void implicitMaxwellSolver(amrex::MultiFab&, const amrex::Real*, amrex::Real);
   void implicitMaxwellSolverElecFieldUpdate(amrex::MultiFab&, const amrex::MultiFab&, const amrex::MultiFab&, const amrex::Real*, amrex::Real);
-  void hyperbolicMaxwellSolverDivFree(Array<MultiFab,AMREX_SPACEDIM>&, MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], const Real*, Real);
   void hyperbolicMaxwellSolverDivFreeBalsara(Array<MultiFab,AMREX_SPACEDIM>&, MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], MultiFab&, const Real*, Real);
   void MaxwellSolverDivFree(Array<MultiFab,AMREX_SPACEDIM>&, MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], MultiFab&, const Real*, Real);
   void MaxwellSolverDivFreeNothing(Array<MultiFab,AMREX_SPACEDIM>&, Array<MultiFab,AMREX_SPACEDIM>&,MultiFab&, MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], const Real*, Real);

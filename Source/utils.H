@@ -97,12 +97,6 @@ Real get_S_star(const Vector<Real>& u_L, const Vector<Real>& u_R,
 Vector<Real> get_u_HLLC(const Vector<Real>& u_K, Real S_K, Real S_star, int d);
 // S_R (and S_L) definition
 Real get_S_K(const Vector<Real>& u_L, const Vector<Real>& u_R, int d);
-Vector<Real> fluid_flux_HLLC(const Array4<Real>& arr, int i, int j, int k, int iOffset, int jOffset, int kOffset, 
-                        Real dx, Real dt, int d);
-Vector<Real> Maxwell_flux_Godunov(const Array4<Real>& arr, int i, int j, int k, int iOffset, int jOffset, int kOffset, 
-                        Real dx, Real dt, int d);
-Vector<Real> Maxwell_flux_HLLE(const Array4<Real>& arr, int i, int j, int k, int iOffset, int jOffset, int kOffset, 
-                        Real dx, Real dt, int d);
 Real computeDerivative(Real u_iMinus1, Real u_iPlus1, Real dx);
 Real computeSecondDerivative(Real u_iMinus1, Real u_i, Real u_iPlus1, Real dx);
 Vector<Real> currentUpdate(const Array4<const Real>& arr, int i, int j, int k,
@@ -119,8 +113,6 @@ Vector<Real> half_step_evolution_L(Vector<Real> u_iMinus1, Vector<Real> u_i,
 // half time step evolution for right state in a linear reconstruction
 Vector<Real> half_step_evolution_R(Vector<Real> u_iMinus1, Vector<Real> u_i,
                             Vector<Real> u_iPlus1, Real dx, Real dt, int d);
-Vector<Real> flux_HLLC(const Array4<Real>& arr, int i, int j, int k, int iOffset, int jOffset, int kOffset, 
-                        Real dx, Real dt, int d);
 
 Vector<Real> flux_LF(const Vector<Real>& u_i, const Vector<Real>& u_iPlus1, 
 		     double dx, Vector<Real> dt, int d);
@@ -139,8 +131,6 @@ Real calc_mutime_Maxwell(const Vector<Real>& u_i, const Vector<Real>& u_iPlus1, 
 
 Real get_delta_i(Real u_iMinus1, Real u_i, Real u_iPlus1);
 Real TVD_slope(Real u_iMinus1, Real u_i, Real u_iPlus1);
-Vector<Real> TVD_slopes(Vector<Real> u_iMinus1, Vector<Real> u_i, Vector<Real> u_iPlus1,
-			Vector<int> limiting_idx);
 Vector<Real> TVD2_reconstruction_L(Vector<Real> u_iMinus1, Vector<Real> u_i, Vector<Real> u_iPlus1,
 				   Vector<int> limiting_idx);
 Vector<Real> TVD2_reconstruction_R(Vector<Real> u_iMinus1, Vector<Real> u_i, Vector<Real> u_iPlus1,
@@ -149,8 +139,6 @@ Vector<Real> half_update_L(Vector<Real> u_iL, Vector<Real> u_iR, Real dx, Real d
 			   std::function<Vector<Real> (const Vector<Real>&, int)> flux_function);
 Vector<Real> half_update_R(Vector<Real> u_iL, Vector<Real> u_iR, Real dx, Real dt, int d,
 			   std::function<Vector<Real> (const Vector<Real>&, int)> flux_function);
-Vector<Real> MUSCL_Hancock_HLLC_flux(const Array4<Real>& arr, int i, int j, int k, int iOffset, int jOffset, int kOffset,
-				     Real dx, Real dt, int d);
 
 Vector<Real> HLLC(Vector<Real> uL, Vector<Real> uR, int d);
 Vector<Real> RankineHugoniot(Vector<Real> uL, Vector<Real> uR, int d);
@@ -181,10 +169,6 @@ Vector<Real> WENO_flux_flat(const Array4<Real>& arr, const Array4<Real>& slopes,
 			    int start, int len,
 			    Real dx, Real dt, int d,
 			    std::function<Vector<Real> (Vector<Real>,Vector<Real>,int)> solver);
-Vector<Real> Maxwell_transverse_comp(const Array4<Real>& arr, int i, int j, int k, int iOffset, int jOffset, int kOffset);
-Vector<Real> Maxwell_corner(const Array4<Real>& arr, int i, int j, int k, int iOffset, int jOffset, int kOffset, Real dx, Real dt, int d);
-std::array<Vector<Real>, 2> MUSCL_Hancock_Godunov_Maxwell_and_transverse(const Array4<Real>& arr, int i, int j, int k, int iOffset, int jOffset, int kOffset, 
-									 Real dx, Real dt, int d);
 // Vector<Real> MUSCL_Hancock_exact_flux(const Array4<Real>& arr, int i, int j, int k, int iOffset, int jOffset, int kOffset,
 // 				     Real dx, Real dt, int d);
 Vector<Real> exact_flux(const Array4<Real>& arr, int i, int j, int k, int iOffset, int jOffset, int kOffset,
