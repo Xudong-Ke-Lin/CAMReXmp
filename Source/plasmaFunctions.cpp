@@ -12,9 +12,9 @@ void CAMReXmp::MUSCLHancokPlasmaSolverTVD(MultiFab& S_dest, MultiFab& S_source, 
   
   MultiFab Slopes(grids, dmap, NUM_STATE*2, NUM_GROW);
 
-  const int iOffset = 1;
-  const int jOffset = ( amrex::SpaceDim > 1 ? 1 : 0);
-  const int kOffset = ( amrex::SpaceDim == 3 ? 1 : 0);
+  const int iDomainOffset = 1;
+  const int jDomainOffset = ( amrex::SpaceDim > 1 ? 1 : 0);
+  const int kDomainOffset = ( amrex::SpaceDim == 3 ? 1 : 0);
 
   // Compute slopes for TVD reconstruction
   for (MFIter mfi(Slopes, true); mfi.isValid(); ++mfi)
@@ -30,11 +30,11 @@ void CAMReXmp::MUSCLHancokPlasmaSolverTVD(MultiFab& S_dest, MultiFab& S_source, 
       const auto& arr = S_source.array(mfi);
       const auto& slopes = Slopes.array(mfi);
 
-      for(int k = lo.z-kOffset; k <= hi.z+kOffset; k++)
+      for(int k = lo.z-kDomainOffset; k <= hi.z+kDomainOffset; k++)
 	{
-	  for(int j = lo.y-jOffset; j <= hi.y+jOffset; j++)
+	  for(int j = lo.y-jDomainOffset; j <= hi.y+jDomainOffset; j++)
 	    {
-	      for(int i = lo.x-iOffset; i <= hi.x+iOffset; i++)
+	      for(int i = lo.x-iDomainOffset; i <= hi.x+iDomainOffset; i++)
 		{
 		  Vector<Real> limiterX = get_data_stencil(arr, i, j, k, 1, 0, 0, ENER_I);
 		  for (int n = 0; n<NUM_STATE_FLUID/2; n++)
@@ -106,7 +106,6 @@ void CAMReXmp::MUSCLHancokPlasmaSolverTVD(MultiFab& S_dest, MultiFab& S_source, 
       // Based on the vertex-centred definition of the flux array, the
       // data array runs from e.g. [0,N] and the flux array from [0,N+1]
       const auto& arr = S_source.array(mfi);
-      const auto& arrDest = S_dest.array(mfi);
       const auto& fluxArr = fluxes[d].array(mfi);      
 
       const auto& slopes = Slopes.array(mfi);
@@ -209,9 +208,9 @@ void CAMReXmp::MUSCLHancokPlasmaSolverTVD(MultiFab& S_dest, MultiFab& S_source, 
       // data array runs from e.g. [0,N] and the flux array from [0,N+1]
       const auto& arr = S_dest.array(mfi);
       const auto& arrOld = S_source.array(mfi);
-      const auto& fluxArrX = fluxes[0].array(mfi);
+      //const auto& fluxArrX = fluxes[0].array(mfi);
 #if (AMREX_SPACEDIM >= 2)
-      const auto& fluxArrY = fluxes[1].array(mfi);      
+      //const auto& fluxArrY = fluxes[1].array(mfi);      
 #endif
 
       for(int k = lo.z; k <= hi.z; k++)
@@ -250,9 +249,9 @@ void CAMReXmp::plasmaSolverTVD(MultiFab& S_dest, MultiFab& S_source, MultiFab (&
   
   MultiFab Slopes(grids, dmap, NUM_STATE*2, NUM_GROW);
 
-  const int iOffset = 1;
-  const int jOffset = ( amrex::SpaceDim > 1 ? 1 : 0);
-  const int kOffset = ( amrex::SpaceDim == 3 ? 1 : 0);
+  const int iDomainOffset = 1;
+  const int jDomainOffset = ( amrex::SpaceDim > 1 ? 1 : 0);
+  const int kDomainOffset = ( amrex::SpaceDim == 3 ? 1 : 0);
 
   // Compute slopes for TVD reconstruction
   for (MFIter mfi(Slopes, true); mfi.isValid(); ++mfi)
@@ -268,11 +267,11 @@ void CAMReXmp::plasmaSolverTVD(MultiFab& S_dest, MultiFab& S_source, MultiFab (&
       const auto& arr = S_source.array(mfi);
       const auto& slopes = Slopes.array(mfi);
 
-      for(int k = lo.z-kOffset; k <= hi.z+kOffset; k++)
+      for(int k = lo.z-kDomainOffset; k <= hi.z+kDomainOffset; k++)
 	{
-	  for(int j = lo.y-jOffset; j <= hi.y+jOffset; j++)
+	  for(int j = lo.y-jDomainOffset; j <= hi.y+jDomainOffset; j++)
 	    {
-	      for(int i = lo.x-iOffset; i <= hi.x+iOffset; i++)
+	      for(int i = lo.x-iDomainOffset; i <= hi.x+iDomainOffset; i++)
 		{
 		  Vector<Real> limiterX = get_data_stencil(arr, i, j, k, 1, 0, 0, ENER_I);
 		  for (int n = 0; n<NUM_STATE_FLUID/2; n++)
@@ -344,7 +343,7 @@ void CAMReXmp::plasmaSolverTVD(MultiFab& S_dest, MultiFab& S_source, MultiFab (&
       // Based on the vertex-centred definition of the flux array, the
       // data array runs from e.g. [0,N] and the flux array from [0,N+1]
       const auto& arr = S_source.array(mfi);
-      const auto& arrDest = S_dest.array(mfi);
+      //const auto& arrDest = S_dest.array(mfi);
       const auto& fluxArr = fluxes[d].array(mfi);      
 
       const auto& slopes = Slopes.array(mfi);
@@ -508,9 +507,9 @@ void CAMReXmp::plasmaSolverTVD(MultiFab& S_source, const Real* dx, Real dt)
   
   MultiFab Slopes(grids, dmap, NUM_STATE*2, NUM_GROW);
 
-  const int iOffset = 1;
-  const int jOffset = ( amrex::SpaceDim > 1 ? 1 : 0);
-  const int kOffset = ( amrex::SpaceDim == 3 ? 1 : 0);
+  const int iDomainOffset = 1;
+  const int jDomainOffset = ( amrex::SpaceDim > 1 ? 1 : 0);
+  const int kDomainOffset = ( amrex::SpaceDim == 3 ? 1 : 0);
 
   // Compute slopes for TVD reconstruction
   for (MFIter mfi(Slopes, true); mfi.isValid(); ++mfi)
@@ -526,11 +525,11 @@ void CAMReXmp::plasmaSolverTVD(MultiFab& S_source, const Real* dx, Real dt)
       const auto& arr = S_source.array(mfi);
       const auto& slopes = Slopes.array(mfi);
 
-      for(int k = lo.z-kOffset; k <= hi.z+kOffset; k++)
+      for(int k = lo.z-kDomainOffset; k <= hi.z+kDomainOffset; k++)
 	{
-	  for(int j = lo.y-jOffset; j <= hi.y+jOffset; j++)
+	  for(int j = lo.y-jDomainOffset; j <= hi.y+jDomainOffset; j++)
 	    {
-	      for(int i = lo.x-iOffset; i <= hi.x+iOffset; i++)
+	      for(int i = lo.x-iDomainOffset; i <= hi.x+iDomainOffset; i++)
 		{
 		  Vector<Real> limiterX = get_data_stencil(arr, i, j, k, 1, 0, 0, ENER_I);
 		  for (int n = 0; n<NUM_STATE_FLUID/2; n++)
@@ -602,7 +601,7 @@ void CAMReXmp::plasmaSolverTVD(MultiFab& S_source, const Real* dx, Real dt)
       // Based on the vertex-centred definition of the flux array, the
       // data array runs from e.g. [0,N] and the flux array from [0,N+1]
       const auto& arr = S_source.array(mfi);
-      const auto& arrDest = S_dest.array(mfi);
+      //const auto& arrDest = S_dest.array(mfi);
       const auto& fluxArr = fluxes[d].array(mfi);      
 
       const auto& slopes = Slopes.array(mfi);

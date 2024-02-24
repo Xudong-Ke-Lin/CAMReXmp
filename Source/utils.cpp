@@ -114,13 +114,10 @@ Real get_speed_a(Real rho, Real B_i){
 }
 Real get_speed_f(const Vector<Real>& u_i, int bi){
     Real rho = u_i[0];
-    Real E = u_i[ENER_I];
     Real B_i = u_i[bi];
     Real B_squared = get_magnitude_squared(u_i[BX], u_i[BY], u_i[BZ]);
     // speed of sound
-    Real c_s = get_speed(u_i);
-    // Alfvén speed
-    Real c_a = get_speed_a(rho, B_i);
+    Real c_s = get_speed(u_i);    
     Real c_squared = c_s*c_s + B_squared/rho;
     // fast magneto-acoustic speed for MHD
     return std::sqrt(
@@ -564,7 +561,7 @@ Real calc_mutime_Maxwell(const Vector<Real>& u_i, const Vector<Real>& u_iPlus1, 
 Real get_S_star(const Vector<Real>& u_L, const Vector<Real>& u_R,
                 Real S_L, Real S_R, int d){
   // define variables for left and right states
-  Real rho_L = u_L[0], E_L = u_L[ENER_I], rho_R = u_R[0], E_R = u_R[ENER_I];
+  Real rho_L = u_L[0], rho_R = u_R[0];
   
   Real v_x_L = u_L[1+d]/rho_L;
   Real v_x_R = u_R[1+d]/rho_R;
@@ -622,11 +619,11 @@ Vector<Real> half_step_evolution_L(Vector<Real> u_iMinus1, Vector<Real> u_i,
     Vector<Real> delta_i = get_delta_i(u_iMinus1, u_i, u_iPlus1);
     // slope ratio 
     // index ENER corresponds to energy (limiting on the energy)
-    Real r_i = get_r(u_iMinus1[ENER_I], u_i[ENER_I], u_iPlus1[ENER_I]);
-    Real r_e = get_r(u_iMinus1[ENER_E], u_i[ENER_E], u_iPlus1[ENER_E]);
+    Real ri = get_r(u_iMinus1[ENER_I], u_i[ENER_I], u_iPlus1[ENER_I]);
+    Real re = get_r(u_iMinus1[ENER_E], u_i[ENER_E], u_iPlus1[ENER_E]);
     // slope limiter
-    Real epsilon_i = get_epsilon(r_i);
-    Real epsilon_e = get_epsilon(r_e);
+    Real epsilon_i = get_epsilon(ri);
+    Real epsilon_e = get_epsilon(re);
     // cell boundary extrapolated values in a linear reconstruction
     Vector<Real> u_iL;
     Vector<Real> u_iR;
@@ -665,11 +662,11 @@ Vector<Real> half_step_evolution_R(Vector<Real> u_iMinus1, Vector<Real> u_i,
     Vector<Real> delta_i = get_delta_i(u_iMinus1, u_i, u_iPlus1);
     // slope ratio 
     // index ENER corresponds to energy (limiting on the energy)
-    Real r_i = get_r(u_iMinus1[ENER_I], u_i[ENER_I], u_iPlus1[ENER_I]);
-    Real r_e = get_r(u_iMinus1[ENER_E], u_i[ENER_E], u_iPlus1[ENER_E]);
+    Real ri = get_r(u_iMinus1[ENER_I], u_i[ENER_I], u_iPlus1[ENER_I]);
+    Real re = get_r(u_iMinus1[ENER_E], u_i[ENER_E], u_iPlus1[ENER_E]);
     // slope limiter                                                                      
-    Real epsilon_i = get_epsilon(r_i);
-    Real epsilon_e = get_epsilon(r_e);
+    Real epsilon_i = get_epsilon(ri);
+    Real epsilon_e = get_epsilon(re);
     // cell boundary extrapolated values in a linear reconstruction                         
     Vector<Real> u_iL;
     Vector<Real> u_iR;
@@ -1125,7 +1122,7 @@ Vector<Real> MUSCL_Hancock_WENO_flux(const Array4<Real>& arr, const Array4<Real>
   Vector<Real> u_iMinus1L,u_iMinus1R,u_iL,u_iR;
 
 #if (AMREX_SPACEDIM >= 2)
-  Real y = 0.0, Ly, Lyy, Lxy;
+  Real y = 0.0, Ly, Lyy;
   Vector<Real> u_iMinus1L2,u_iMinus1R2,u_iL2,u_iR2;
 #endif
   
@@ -1264,7 +1261,7 @@ Vector<Real> WENO_flux(const Array4<Real>& arr, const Array4<Real>& slopes,
   // Cell boundary extrapolated values at the left and the right
   Vector<Real> u_iMinus1R,u_iL;
 #if (AMREX_SPACEDIM >= 2)
-  Real y = 0.0, Ly, Lyy, Lxy;
+  Real y = 0.0, Ly, Lyy;
   Vector<Real> u_iMinus1R2,u_iL2;
   //Vector<Real> u_iMinus1R3,u_iL3;
 #endif
@@ -1418,7 +1415,7 @@ Vector<Real> WENO_flux_flat(const Array4<Real>& arr, const Array4<Real>& slopes,
   Vector<Real> u_iMinus1R,u_iL;
 
 #if (AMREX_SPACEDIM >= 2)
-  Real y = 0.0, Ly, Lyy, Lxy;
+  Real y = 0.0, Ly, Lyy;
   Vector<Real> u_iMinus1R2,u_iL2;
 #endif
   

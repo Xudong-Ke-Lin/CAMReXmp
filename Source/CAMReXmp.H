@@ -25,7 +25,6 @@
 
 enum StateType { Phi_Type = 0,
 		 EM_X_Type = 1, EM_Y_Type = 2, EM_XY_Type = 3,
-		 //#endif
 #if (AMREX_SPACEDIM >= 2)
 		 NUM_STATE_TYPE };
 #else
@@ -258,7 +257,7 @@ protected:
 private:
 
   ////////////////////////////////////////////////////////////
-  // New functions
+  // My functions
   ////////////////////////////////////////////////////////////
   void StrangSecond(const Real*, Real, Real);
   void RK2(const Real*, Real, Real);
@@ -298,8 +297,7 @@ private:
   void plasmaSolverTVD(MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], const Real*, Real);
   void MUSCLHancokPlasmaSolverTVD(MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], const Real*, Real);
 
-  void implicitMaxwellSolverSetUp();  
-  void MaxwellSolverDivFreeNothing(Array<MultiFab,AMREX_SPACEDIM>&, Array<MultiFab,AMREX_SPACEDIM>&,MultiFab&, MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], const Real*, Real);
+  void implicitMaxwellSolverSetUp();
   void MaxwellSolverDivFreeTVD(Array<MultiFab,AMREX_SPACEDIM>&, Array<MultiFab,AMREX_SPACEDIM>&,MultiFab&, MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], const Real*, Real);
   void MaxwellSolverDivFreeWENO(Array<MultiFab,AMREX_SPACEDIM>&, Array<MultiFab,AMREX_SPACEDIM>&,MultiFab&, MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], const Real*, Real);
   void MaxwellSolverDivFreeWENOcharacteristic(Array<MultiFab,AMREX_SPACEDIM>&, Array<MultiFab,AMREX_SPACEDIM>&,MultiFab&, MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], const Real*, Real);  

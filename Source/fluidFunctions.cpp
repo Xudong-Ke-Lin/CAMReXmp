@@ -163,9 +163,9 @@ void CAMReXmp::MUSCLHancokFluidSolverTVD(MultiFab& S_dest, MultiFab& S_source, M
   
   MultiFab Slopes(grids, dmap, NUM_STATE_FLUID*2, NUM_GROW);
 
-  const int iOffset = 1;
-  const int jOffset = ( amrex::SpaceDim > 1 ? 1 : 0);
-  const int kOffset = ( amrex::SpaceDim == 3 ? 1 : 0);
+  const int iDomainOffset = 1;
+  const int jDomainOffset = ( amrex::SpaceDim > 1 ? 1 : 0);
+  const int kDomainOffset = ( amrex::SpaceDim == 3 ? 1 : 0);
 
   // Compute slopes for TVD reconstruction
   for (MFIter mfi(Slopes, true); mfi.isValid(); ++mfi)
@@ -181,11 +181,11 @@ void CAMReXmp::MUSCLHancokFluidSolverTVD(MultiFab& S_dest, MultiFab& S_source, M
       const auto& arr = S_source.array(mfi);
       const auto& slopes = Slopes.array(mfi);
 
-      for(int k = lo.z-kOffset; k <= hi.z+kOffset; k++)
+      for(int k = lo.z-kDomainOffset; k <= hi.z+kDomainOffset; k++)
 	{
-	  for(int j = lo.y-jOffset; j <= hi.y+jOffset; j++)
+	  for(int j = lo.y-jDomainOffset; j <= hi.y+jDomainOffset; j++)
 	    {
-	      for(int i = lo.x-iOffset; i <= hi.x+iOffset; i++)
+	      for(int i = lo.x-iDomainOffset; i <= hi.x+iDomainOffset; i++)
 		{
 		  Vector<Real> limiterX = get_data_stencil(arr, i, j, k, 1, 0, 0, ENER_I);
 		  for (int n = 0; n<NUM_STATE_FLUID/2; n++)
@@ -391,9 +391,9 @@ void CAMReXmp::fluidSolverTVD(MultiFab& S_dest, MultiFab& S_source, MultiFab (&f
   
   MultiFab Slopes(grids, dmap, NUM_STATE_FLUID*2, NUM_GROW);
 
-  const int iOffset = 1;
-  const int jOffset = ( amrex::SpaceDim > 1 ? 1 : 0);
-  const int kOffset = ( amrex::SpaceDim == 3 ? 1 : 0);
+  const int iDomainOffset = 1;
+  const int jDomainOffset = ( amrex::SpaceDim > 1 ? 1 : 0);
+  const int kDomainOffset = ( amrex::SpaceDim == 3 ? 1 : 0);
 
   // Compute slopes for TVD reconstruction
   for (MFIter mfi(Slopes, true); mfi.isValid(); ++mfi)
@@ -409,11 +409,11 @@ void CAMReXmp::fluidSolverTVD(MultiFab& S_dest, MultiFab& S_source, MultiFab (&f
       const auto& arr = S_source.array(mfi);
       const auto& slopes = Slopes.array(mfi);
 
-      for(int k = lo.z-kOffset; k <= hi.z+kOffset; k++)
+      for(int k = lo.z-kDomainOffset; k <= hi.z+kDomainOffset; k++)
 	{
-	  for(int j = lo.y-jOffset; j <= hi.y+jOffset; j++)
+	  for(int j = lo.y-jDomainOffset; j <= hi.y+jDomainOffset; j++)
 	    {
-	      for(int i = lo.x-iOffset; i <= hi.x+iOffset; i++)
+	      for(int i = lo.x-iDomainOffset; i <= hi.x+iDomainOffset; i++)
 		{
 		  Vector<Real> limiterX = get_data_stencil(arr, i, j, k, 1, 0, 0, ENER_I);
 		  for (int n = 0; n<NUM_STATE_FLUID/2; n++)
@@ -703,43 +703,43 @@ void CAMReXmp::fluidSolverWENO(MultiFab& S_dest, MultiFab& S_source, MultiFab (&
 		      if (!geom.isPeriodic(0) && (i<=1 || i>=hiDomain.x-1))
 			{
 			  Vector<Real> limiterX = get_data_stencil(arr, i, j, k, 1, 0, 0, ENER_I);
-			  for (int n = 0; n<NUM_STATE_FLUID/2; n++)
+			  for (int nLocal = 0; nLocal<NUM_STATE_FLUID/2; nLocal++)
 			    {
-			      Vector<Real> dataX = get_data_stencil(arr, i, j, k, 1, 0, 0, n);
+			      Vector<Real> dataX = get_data_stencil(arr, i, j, k, 1, 0, 0, nLocal);
 			      Real slopesX = TVD_slope(dataX,limiterX);
-			      slopes(i,j,k,n) = slopesX;
-			      slopes(i,j,k,n+NUM_STATE_FLUID) = 0.0;
-			      slopes(i,j,k,n+4*NUM_STATE_FLUID) = 0.0;
+			      slopes(i,j,k,nLocal) = slopesX;
+			      slopes(i,j,k,nLocal+NUM_STATE_FLUID) = 0.0;
+			      slopes(i,j,k,nLocal+4*NUM_STATE_FLUID) = 0.0;
 			    }
 			  limiterX = get_data_stencil(arr, i, j, k, 1, 0, 0, ENER_E);
-			  for (int n = NUM_STATE_FLUID/2; n<NUM_STATE_FLUID; n++)
+			  for (int nLocal = NUM_STATE_FLUID/2; nLocal<NUM_STATE_FLUID; nLocal++)
 			    {
-			      Vector<Real> dataX = get_data_stencil(arr, i, j, k, 1, 0, 0, n);
+			      Vector<Real> dataX = get_data_stencil(arr, i, j, k, 1, 0, 0, nLocal);
 			      Real slopesX = TVD_slope(dataX,limiterX);
-			      slopes(i,j,k,n) = slopesX;
-			      slopes(i,j,k,n+NUM_STATE_FLUID) = 0.0;
-			      slopes(i,j,k,n+4*NUM_STATE_FLUID) = 0.0;
+			      slopes(i,j,k,nLocal) = slopesX;
+			      slopes(i,j,k,nLocal+NUM_STATE_FLUID) = 0.0;
+			      slopes(i,j,k,nLocal+4*NUM_STATE_FLUID) = 0.0;
 			    }
 			}
 		      if (!geom.isPeriodic(1) && (j<=1 || j>=hiDomain.y-1))
 			{
 			  Vector<Real> limiterY = get_data_stencil(arr, i, j, k, 0, 1, 0, ENER_I);
-			  for (int n = 0; n<NUM_STATE_FLUID/2; n++)
+			  for (int nLocal = 0; nLocal<NUM_STATE_FLUID/2; nLocal++)
 			    {
-			      Vector<Real> dataY = get_data_stencil(arr, i, j, k, 0, 1, 0, n);
+			      Vector<Real> dataY = get_data_stencil(arr, i, j, k, 0, 1, 0, nLocal);
 			      Real slopesY = TVD_slope(dataY,limiterY);
-			      slopes(i,j,k,n+2*NUM_STATE_FLUID) = slopesY;
-			      slopes(i,j,k,n+3*NUM_STATE_FLUID) = 0.0;
-			      slopes(i,j,k,n+4*NUM_STATE_FLUID) = 0.0;
+			      slopes(i,j,k,nLocal+2*NUM_STATE_FLUID) = slopesY;
+			      slopes(i,j,k,nLocal+3*NUM_STATE_FLUID) = 0.0;
+			      slopes(i,j,k,nLocal+4*NUM_STATE_FLUID) = 0.0;
 			    }
 			  limiterY = get_data_stencil(arr, i, j, k, 0, 1, 0, ENER_E);
-			  for (int n = NUM_STATE_FLUID/2; n<NUM_STATE_FLUID; n++)
+			  for (int nLocal = NUM_STATE_FLUID/2; nLocal<NUM_STATE_FLUID; nLocal++)
 			    {
-			      Vector<Real> dataY = get_data_stencil(arr, i, j, k, 0, 1, 0, n);
+			      Vector<Real> dataY = get_data_stencil(arr, i, j, k, 0, 1, 0, nLocal);
 			      Real slopesY = TVD_slope(dataY,limiterY);
-			      slopes(i,j,k,n+2*NUM_STATE_FLUID) = slopesY;
-			      slopes(i,j,k,n+3*NUM_STATE_FLUID) = 0.0;
-			      slopes(i,j,k,n+4*NUM_STATE_FLUID) = 0.0;
+			      slopes(i,j,k,nLocal+2*NUM_STATE_FLUID) = slopesY;
+			      slopes(i,j,k,nLocal+3*NUM_STATE_FLUID) = 0.0;
+			      slopes(i,j,k,nLocal+4*NUM_STATE_FLUID) = 0.0;
 			    }
 			}
 		      //////////////////////////////////////////////////////////////////////
@@ -779,8 +779,8 @@ void CAMReXmp::fluidSolverWENO(MultiFab& S_dest, MultiFab& S_source, MultiFab (&
 
       const auto& slopes = Slopes.array(mfi);
 
-      const auto& tau = positivity.array(mfi);
-      const auto& tau_e = positivity_e.array(mfi);
+      //const auto& tau = positivity.array(mfi);
+      //const auto& tau_e = positivity_e.array(mfi);
       
       for(int k = lo.z; k <= hi.z+kOffset; k++)
       {
@@ -1566,9 +1566,9 @@ void CAMReXmp::fluidSolverTVD(MultiFab& S_source, const Real* dx, Real dt)
   
   MultiFab Slopes(grids, dmap, NUM_STATE_FLUID*2, NUM_GROW);
 
-  const int iOffset = 1;
-  const int jOffset = ( amrex::SpaceDim > 1 ? 1 : 0);
-  const int kOffset = ( amrex::SpaceDim == 3 ? 1 : 0);
+  const int iDomainOffset = 1;
+  const int jDomainOffset = ( amrex::SpaceDim > 1 ? 1 : 0);
+  const int kDomainOffset = ( amrex::SpaceDim == 3 ? 1 : 0);
 
   // Compute slopes for TVD reconstruction
   for (MFIter mfi(Slopes, true); mfi.isValid(); ++mfi)
@@ -1584,11 +1584,11 @@ void CAMReXmp::fluidSolverTVD(MultiFab& S_source, const Real* dx, Real dt)
       const auto& arr = S_source.array(mfi);
       const auto& slopes = Slopes.array(mfi);
 
-      for(int k = lo.z-kOffset; k <= hi.z+kOffset; k++)
+      for(int k = lo.z-kDomainOffset; k <= hi.z+kDomainOffset; k++)
 	{
-	  for(int j = lo.y-jOffset; j <= hi.y+jOffset; j++)
+	  for(int j = lo.y-jDomainOffset; j <= hi.y+jDomainOffset; j++)
 	    {
-	      for(int i = lo.x-iOffset; i <= hi.x+iOffset; i++)
+	      for(int i = lo.x-iDomainOffset; i <= hi.x+iDomainOffset; i++)
 		{
 		  Vector<Real> limiterX = get_data_stencil(arr, i, j, k, 1, 0, 0, ENER_I);
 		  for (int n = 0; n<NUM_STATE_FLUID/2; n++)
@@ -1867,43 +1867,43 @@ void CAMReXmp::fluidSolverWENO(MultiFab& S_source, const Real* dx, Real dt)
 		      if (!geom.isPeriodic(0) && (i<=1 || i>=hiDomain.x-1))
 			{
 			  Vector<Real> limiterX = get_data_stencil(arr, i, j, k, 1, 0, 0, ENER_I);
-			  for (int n = 0; n<NUM_STATE_FLUID/2; n++)
+			  for (int nSlope = 0; nSlope<NUM_STATE_FLUID/2; nSlope++)
 			    {
-			      Vector<Real> dataX = get_data_stencil(arr, i, j, k, 1, 0, 0, n);
+			      Vector<Real> dataX = get_data_stencil(arr, i, j, k, 1, 0, 0, nSlope);
 			      Real slopesX = TVD_slope(dataX,limiterX);
-			      slopes(i,j,k,n) = slopesX;
-			      slopes(i,j,k,n+NUM_STATE_FLUID) = 0.0;
-			      slopes(i,j,k,n+4*NUM_STATE_FLUID) = 0.0;
+			      slopes(i,j,k,nSlope) = slopesX;
+			      slopes(i,j,k,nSlope+NUM_STATE_FLUID) = 0.0;
+			      slopes(i,j,k,nSlope+4*NUM_STATE_FLUID) = 0.0;
 			    }
 			  limiterX = get_data_stencil(arr, i, j, k, 1, 0, 0, ENER_E);
-			  for (int n = NUM_STATE_FLUID/2; n<NUM_STATE_FLUID; n++)
+			  for (int nSlope = NUM_STATE_FLUID/2; nSlope<NUM_STATE_FLUID; nSlope++)
 			    {
-			      Vector<Real> dataX = get_data_stencil(arr, i, j, k, 1, 0, 0, n);
+			      Vector<Real> dataX = get_data_stencil(arr, i, j, k, 1, 0, 0, nSlope);
 			      Real slopesX = TVD_slope(dataX,limiterX);
-			      slopes(i,j,k,n) = slopesX;
-			      slopes(i,j,k,n+NUM_STATE_FLUID) = 0.0;
-			      slopes(i,j,k,n+4*NUM_STATE_FLUID) = 0.0;
+			      slopes(i,j,k,nSlope) = slopesX;
+			      slopes(i,j,k,nSlope+NUM_STATE_FLUID) = 0.0;
+			      slopes(i,j,k,nSlope+4*NUM_STATE_FLUID) = 0.0;
 			    }
 			}
 		      if (!geom.isPeriodic(1) && (j<=1 || j>=hiDomain.y-1))
 			{
 			  Vector<Real> limiterY = get_data_stencil(arr, i, j, k, 0, 1, 0, ENER_I);
-			  for (int n = 0; n<NUM_STATE_FLUID/2; n++)
+			  for (int nSlope = 0; nSlope<NUM_STATE_FLUID/2; nSlope++)
 			    {
-			      Vector<Real> dataY = get_data_stencil(arr, i, j, k, 0, 1, 0, n);
+			      Vector<Real> dataY = get_data_stencil(arr, i, j, k, 0, 1, 0, nSlope);
 			      Real slopesY = TVD_slope(dataY,limiterY);
-			      slopes(i,j,k,n+2*NUM_STATE_FLUID) = slopesY;
-			      slopes(i,j,k,n+3*NUM_STATE_FLUID) = 0.0;
-			      slopes(i,j,k,n+4*NUM_STATE_FLUID) = 0.0;
+			      slopes(i,j,k,nSlope+2*NUM_STATE_FLUID) = slopesY;
+			      slopes(i,j,k,nSlope+3*NUM_STATE_FLUID) = 0.0;
+			      slopes(i,j,k,nSlope+4*NUM_STATE_FLUID) = 0.0;
 			    }
 			  limiterY = get_data_stencil(arr, i, j, k, 0, 1, 0, ENER_E);
-			  for (int n = NUM_STATE_FLUID/2; n<NUM_STATE_FLUID; n++)
+			  for (int nSlope = NUM_STATE_FLUID/2; nSlope<NUM_STATE_FLUID; nSlope++)
 			    {
-			      Vector<Real> dataY = get_data_stencil(arr, i, j, k, 0, 1, 0, n);
+			      Vector<Real> dataY = get_data_stencil(arr, i, j, k, 0, 1, 0, nSlope);
 			      Real slopesY = TVD_slope(dataY,limiterY);
-			      slopes(i,j,k,n+2*NUM_STATE_FLUID) = slopesY;
-			      slopes(i,j,k,n+3*NUM_STATE_FLUID) = 0.0;
-			      slopes(i,j,k,n+4*NUM_STATE_FLUID) = 0.0;
+			      slopes(i,j,k,nSlope+2*NUM_STATE_FLUID) = slopesY;
+			      slopes(i,j,k,nSlope+3*NUM_STATE_FLUID) = 0.0;
+			      slopes(i,j,k,nSlope+4*NUM_STATE_FLUID) = 0.0;
 			    }
 			}
 		      //////////////////////////////////////////////////////////////////////
@@ -1943,8 +1943,8 @@ void CAMReXmp::fluidSolverWENO(MultiFab& S_source, const Real* dx, Real dt)
 
       const auto& slopes = Slopes.array(mfi);
 
-      const auto& tau = positivity.array(mfi);
-      const auto& tau_e = positivity_e.array(mfi);
+      //const auto& tau = positivity.array(mfi);
+      //const auto& tau_e = positivity_e.array(mfi);
       
       for(int k = lo.z; k <= hi.z+kOffset; k++)
       {

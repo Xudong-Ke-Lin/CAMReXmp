@@ -76,11 +76,11 @@ void CAMReXmp::sourceUpdateCyl(const Real* dx, Real dt, Real time)
 		    {
 		      const Real x = geom.ProbLo()[0]+(double(i)+0.5)*dx[0];
 
-		      Real B_x = arr(i,j,k,BX);
-		      Real B_y = arr(i,j,k,BY);
+		      //Real B_x = arr(i,j,k,BX);
+		      //Real B_y = arr(i,j,k,BY);
 		      Real B_z = arr(i,j,k,BZ);
-		      Real E_x = arr(i,j,k,EX);
-		      Real E_y = arr(i,j,k,EY);
+		      //Real E_x = arr(i,j,k,EX);
+		      //Real E_y = arr(i,j,k,EY);
 		      Real E_z = arr(i,j,k,EZ);
 		      
 		      // z-component (y-) needs a theta-component (z-) update
@@ -117,8 +117,6 @@ void CAMReXmp::sourceUpdateCyl(const Real* dx, Real dt, Real time)
 	  const auto& arrEM = S_EM_input[1].array(mfi);
 	  const auto& arr = S_input.array(mfi);
 
-	  const Dim3 hiDomain = ubound(geom.Domain());
-      
 	  for(int k = lo.z; k <= hi.z; k++)
 	    {
 	      for(int j = lo.y; j <= hi.y; j++)
@@ -176,11 +174,11 @@ void CAMReXmp::sourceUpdateCyl(const Real* dx, Real dt, Real time)
 		      // define primitive variables
 		      Real v_x_i = momX_i/rho_i;
 		      Real v_y_i = momY_i/rho_i;
-		      Real v_z_i = momZ_i/rho_i;
+		      //Real v_z_i = momZ_i/rho_i;
 		      Real p_i = get_pressure({rho_i,momX_i,momY_i,momZ_i,E_i});
 		      Real v_x_e = momX_e/rho_e;
 		      Real v_y_e = momY_e/rho_e;
-		      Real v_z_e = momZ_e/rho_e;
+		      //Real v_z_e = momZ_e/rho_e;
 		      Real p_e = get_pressure({rho_e,momX_e,momY_e,momZ_e,E_e});
 		      
 		      arr(i,j,k,0) -= dt*(rho_i*v_x_i/x);
@@ -231,11 +229,9 @@ void CAMReXmp::sourceUpdateEX(Array4<Real>& arr, int i, int j, int k, Real dt)
   Real v_x_i = momX_i/rho_i;
   Real v_y_i = momY_i/rho_i;
   Real v_z_i = momZ_i/rho_i;
-  Real p_i = get_pressure({rho_i,momX_i,momY_i,momZ_i,E_i});
   Real v_x_e = momX_e/rho_e;
   Real v_y_e = momY_e/rho_e;
   Real v_z_e = momZ_e/rho_e;
-  Real p_e = get_pressure({rho_e,momX_e,momY_e,momZ_e,E_e});
 
   //arr(i,j,k,EZ) = E_z - dt*1.0/(lambda_d*lambda_d*l_r)*(r_i*rho_i*v_z_i + r_e*rho_e*v_z_e);
   //E_z = arr(i,j,k,EZ);
@@ -279,16 +275,6 @@ void CAMReXmp::sourceUpdateIM(Array4<Real>& arr, int i, int j, int k, Real dt)
   Real E_y = arr(i,j,k,EY);
   Real E_z = arr(i,j,k,EZ);
 		  
-  // define primitive variables
-  Real v_x_i = momX_i/rho_i;
-  Real v_y_i = momY_i/rho_i;
-  Real v_z_i = momZ_i/rho_i;
-  Real p_i = get_pressure({rho_i,momX_i,momY_i,momZ_i,E_i});
-  Real v_x_e = momX_e/rho_e;
-  Real v_y_e = momY_e/rho_e;
-  Real v_z_e = momZ_e/rho_e;
-  Real p_e = get_pressure({rho_e,momX_e,momY_e,momZ_e,E_e});
-
   // matrix for momentum and electric field source terms update
   MatrixXd matrix = MatrixXd::Constant(9,9,0.0);
   matrix(0,1) = r_i*B_z/l_r, matrix(0,2) = -r_i*B_y/l_r, matrix(0,6) = r_i*rho_i/l_r;
@@ -387,11 +373,9 @@ void CAMReXmp::sourceUpdateIMMidpoint(Array4<Real>& arr, int i, int j, int k, Re
   Real v_x_i = momX_i/rho_i;
   Real v_y_i = momY_i/rho_i;
   Real v_z_i = momZ_i/rho_i;
-  Real p_i = get_pressure({rho_i,momX_i,momY_i,momZ_i,E_i});
   Real v_x_e = momX_e/rho_e;
   Real v_y_e = momY_e/rho_e;
   Real v_z_e = momZ_e/rho_e;
-  Real p_e = get_pressure({rho_e,momX_e,momY_e,momZ_e,E_e});
 
   // get kinetic energies
   Real v_i = get_magnitude(v_x_i, v_y_i, v_z_i);
@@ -490,11 +474,9 @@ void CAMReXmp::sourceUpdateANEX(Array4<Real>& arr, int i, int j, int k, Real dt)
   Real v_x_i = momX_i/rho_i;
   Real v_y_i = momY_i/rho_i;
   Real v_z_i = momZ_i/rho_i;
-  Real p_i = get_pressure({rho_i,momX_i,momY_i,momZ_i,E_i});
   Real v_x_e = momX_e/rho_e;
   Real v_y_e = momY_e/rho_e;
   Real v_z_e = momZ_e/rho_e;
-  Real p_e = get_pressure({rho_e,momX_e,momY_e,momZ_e,E_e});
   
   // useful constants
   Real B_squared = get_magnitude_squared(B_x, B_y, B_z);
@@ -537,18 +519,18 @@ void CAMReXmp::sourceUpdateANEX(Array4<Real>& arr, int i, int j, int k, Real dt)
   arr(i,j,k,ENER_E) = E_e + dt*r_e*rho_e/l_r*(E_x*v_e_new[0] + E_y*v_e_new[1] + E_z*v_e_new[2]);
 
   // Resistivity
-  Real currentX = r_i*rho_i*v_i_new[0] + r_e*rho_e*v_e_new[0];
+  /*Real currentX = r_i*rho_i*v_i_new[0] + r_e*rho_e*v_e_new[0];
   Real currentY = r_i*rho_i*v_i_new[1] + r_e*rho_e*v_e_new[1];
   Real currentZ = r_i*rho_i*v_i_new[2] + r_e*rho_e*v_e_new[2];
-
+  
   arr(i,j,k,1) -= dt/l_r*eta*r_i*rho_i*currentX;
-  arr(i,j,k,2) -= dt/l_r*eta*r_i*rho_i*currentX;
-  arr(i,j,k,3) -= dt/l_r*eta*r_i*rho_i*currentX;
+  arr(i,j,k,2) -= dt/l_r*eta*r_i*rho_i*currentY;
+  arr(i,j,k,3) -= dt/l_r*eta*r_i*rho_i*currentZ;
   
   arr(i,j,k,MOMX_E) -= dt/l_r*eta*r_e*rho_e*currentX;
-  arr(i,j,k,MOMY_E) -= dt/l_r*eta*r_e*rho_e*currentX;
-  arr(i,j,k,MOMZ_E) -= dt/l_r*eta*r_e*rho_e*currentX;
-  
+  arr(i,j,k,MOMY_E) -= dt/l_r*eta*r_e*rho_e*currentY;
+  arr(i,j,k,MOMZ_E) -= dt/l_r*eta*r_e*rho_e*currentZ;
+  */
   //if (MaxwellMethod=="HYP")
     {
       //arr(i,j,k,EX) = E_x - dt*1.0/(lambda_d*lambda_d*l_r)*(r_i*rho_i*v_i_new[0] + r_e*rho_e*v_e_new[0]);
@@ -580,19 +562,19 @@ void CAMReXmp::sourceUpdateStiff(Array4<Real>& arr, int i, int j, int k, Real dt
   Real momX_i = arr(i,j,k,1);
   Real momY_i = arr(i,j,k,2);
   Real momZ_i = arr(i,j,k,MOMZ_I);
-  Real E_i = arr(i,j,k,ENER_I);
+  //Real E_i = arr(i,j,k,ENER_I);
   Real rho_e = arr(i,j,k,RHO_E);
   Real momX_e = arr(i,j,k,MOMX_E);
   Real momY_e = arr(i,j,k,MOMY_E);
   Real momZ_e = arr(i,j,k,MOMZ_E);
-  Real E_e = arr(i,j,k,ENER_E);
-  Real B_x = arr(i,j,k,BX);
+  //Real E_e = arr(i,j,k,ENER_E);
+  /*Real B_x = arr(i,j,k,BX);
   Real B_y = arr(i,j,k,BY);
   Real B_z = arr(i,j,k,BZ);
   Real E_x = arr(i,j,k,EX);
   Real E_y = arr(i,j,k,EY);
   Real E_z = arr(i,j,k,EZ);
-  
+  */
   // define velocities
   Real v_x_i = momX_i/rho_i;
   Real v_y_i = momY_i/rho_i;

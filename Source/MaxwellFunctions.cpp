@@ -33,7 +33,7 @@ void CAMReXmp::implicitMaxwellSolverSetUp()
 void CAMReXmp::setDomainBC (std::array<LinOpBCType,AMREX_SPACEDIM>& mlmg_lobc,
 			       std::array<LinOpBCType,AMREX_SPACEDIM>& mlmg_hibc, int index)
 {
-  const BCRec& bc = get_desc_lst()[Phi_Type].getBC(index);
+  const BCRec& bcLocal = get_desc_lst()[Phi_Type].getBC(index);
   Geometry const* gg = AMReX::top()->getDefaultGeometry();
 
   for (int idim = 0; idim < AMREX_SPACEDIM; ++idim)
@@ -44,7 +44,7 @@ void CAMReXmp::setDomainBC (std::array<LinOpBCType,AMREX_SPACEDIM>& mlmg_lobc,
 	}
       else
 	{
-	  int pbc = bc.lo(idim);
+	  int pbc = bcLocal.lo(idim);
 
 	  if (pbc == EXT_DIR)
 	    {
@@ -65,7 +65,7 @@ void CAMReXmp::setDomainBC (std::array<LinOpBCType,AMREX_SPACEDIM>& mlmg_lobc,
 	      mlmg_lobc[idim] = LinOpBCType::bogus;
 	    }
 	  
-	  pbc = bc.hi(idim);
+	  pbc = bcLocal.hi(idim);
 	  if (pbc == EXT_DIR)
 	    {
 	      mlmg_hibc[idim] = LinOpBCType::Dirichlet;
@@ -135,10 +135,6 @@ void CAMReXmp::printComponents(MultiFab& mfIn)
 }
 
 
-void CAMReXmp::MaxwellSolverDivFreeNothing(Array<MultiFab,AMREX_SPACEDIM>& S_EM_dest, Array<MultiFab,AMREX_SPACEDIM>& S_EM_source, MultiFab& fluxesEM, MultiFab& S_dest, MultiFab& S_source, MultiFab (&fluxes)[AMREX_SPACEDIM], const Real* dx, Real dt)
-{
-  return;
-}
 void CAMReXmp::MaxwellSolverDivFreeTVD(Array<MultiFab,AMREX_SPACEDIM>& S_EM_dest, Array<MultiFab,AMREX_SPACEDIM>& S_EM_source, MultiFab& fluxesEM, MultiFab& S_dest, MultiFab& S_source, MultiFab (&fluxes)[AMREX_SPACEDIM], const Real* dx, Real dt)
 {
 
@@ -201,7 +197,7 @@ void CAMReXmp::MaxwellSolverDivFreeTVD(Array<MultiFab,AMREX_SPACEDIM>& S_EM_dest
 
 	  // uses old charge
 	  const Array4<Real> arr = S_source.array(mfi);
-	  Array4<Real> slopes = slopesCharge.array(mfi);
+	  Array4<Real> slopesQ = slopesCharge.array(mfi);
       
 	  for(int k = lo.z; k <= hi.z; k++)
 	    {
@@ -216,7 +212,7 @@ void CAMReXmp::MaxwellSolverDivFreeTVD(Array<MultiFab,AMREX_SPACEDIM>& S_EM_dest
 				       + r_e*arr(i+iOffset,j+jOffset,k+kOffset,RHO_E))/(lambda_d*lambda_d*l_r);
 
 		      // slopes for the current
-		      slopes(i,j,k,d) = TVD_slope(u_iMinus1,u_i,u_iPlus1);
+		      slopesQ(i,j,k,d) = TVD_slope(u_iMinus1,u_i,u_iPlus1);
 
 		    }
 		}
@@ -238,8 +234,6 @@ void CAMReXmp::MaxwellSolverDivFreeTVD(Array<MultiFab,AMREX_SPACEDIM>& S_EM_dest
       
 	  const Dim3 lo = lbound(bx);
 	  const Dim3 hi = ubound(bx);
-
-	  const Dim3 hiDomain = ubound(geom.Domain());
 
 	  const Array4<Real> arr = S_source.array(mfi);
 	  Array4<Real> slopesBZ = slopes[BZ_LOCAL].array(mfi);
@@ -274,8 +268,6 @@ void CAMReXmp::MaxwellSolverDivFreeTVD(Array<MultiFab,AMREX_SPACEDIM>& S_EM_dest
       
       const Dim3 lo = lbound(bx);
       const Dim3 hi = ubound(bx);
-
-      const Dim3 hiDomain = ubound(geom.Domain());
       
       const Array4<Real> arr = S_EM_source[1].array(mfi);
       Array4<Real> slopesBY = slopes[BY_LOCAL].array(mfi);
@@ -309,8 +301,6 @@ void CAMReXmp::MaxwellSolverDivFreeTVD(Array<MultiFab,AMREX_SPACEDIM>& S_EM_dest
       
       const Dim3 lo = lbound(bx);
       const Dim3 hi = ubound(bx);
-
-      const Dim3 hiDomain = ubound(geom.Domain());
 
       const Array4<Real> arr = S_EM_source[0].array(mfi);
       Array4<Real> slopesBX = slopes[BX_LOCAL].array(mfi);
@@ -440,16 +430,11 @@ void CAMReXmp::MaxwellSolverDivFreeTVD(Array<MultiFab,AMREX_SPACEDIM>& S_EM_dest
       
       const Dim3 lo = lbound(box);
       const Dim3 hi = ubound(box);
-      // use old array, S_dest should also work
-      //const auto& arr = S_dest.array(mfi);
-      const auto& arr = S_source.array(mfi);
-      const auto& arrEM_X = S_EM_source[0].array(mfi);
-      const auto& arrEM_Y = S_EM_source[1].array(mfi); 
+
       const auto& fluxArrEM = fluxesEM.array(mfi);
 
       const auto& Bc = Bcoeff.array(mfi);
       const auto& Ec = Ecoeff.array(mfi);
-
 
       for(int k = lo.z; k <= hi.z; k++)
 	{
@@ -530,8 +515,6 @@ void CAMReXmp::MaxwellSolverDivFreeTVD(Array<MultiFab,AMREX_SPACEDIM>& S_EM_dest
 	  const auto& arrEMOld = S_EM_source[d_EM].array(mfi);
 	  const auto& fluxArrEM = fluxesEM.array(mfi);
 	  const auto& fluxArr = fluxes[d_EM].array(mfi);
-
-	  const Dim3 hiDomain = ubound(geom.Domain());
       
 	  for(int k = lo.z; k <= hi.z; k++)
 	    {
@@ -587,8 +570,8 @@ void CAMReXmp::MaxwellSolverDivFreeTVD(Array<MultiFab,AMREX_SPACEDIM>& S_EM_dest
       const auto& arrEM_X = S_EM_dest[0].array(mfi);
       const auto& arrEM_Y = S_EM_dest[1].array(mfi); 
 
-      const auto& Bc = Bcoeff.array(mfi);
-      const auto& Ec = Ecoeff.array(mfi);
+      //const auto& Bc = Bcoeff.array(mfi);
+      //const auto& Ec = Ecoeff.array(mfi);
       
       for(int k = lo.z; k <= hi.z; k++)
   	{
@@ -808,7 +791,7 @@ void CAMReXmp::MaxwellSolverDivFreeWENO(Array<MultiFab,AMREX_SPACEDIM>& S_EM_des
       
       // uses old charge
       const Array4<Real> arr = S_source.array(mfi);
-      Array4<Real> slopes = slopesCharge.array(mfi);
+      Array4<Real> slopesQ = slopesCharge.array(mfi);
       
       for(int k = lo.z; k <= hi.z; k++)
 	{
@@ -820,22 +803,22 @@ void CAMReXmp::MaxwellSolverDivFreeWENO(Array<MultiFab,AMREX_SPACEDIM>& S_EM_des
 		  Vector<Real> data_e = get_data_stencil(arr, i, j, k, 2, 0, 0, RHO_E);
 		  Vector<Real> data_charge = get_charge_scaled(data_i,data_e);
 		  std::array<Real, 2> slopesX = WENO3_slope(data_charge);
-		  slopes(i,j,k,X) = slopesX[0];
-		  slopes(i,j,k,XX) = slopesX[1];
+		  slopesQ(i,j,k,X) = slopesX[0];
+		  slopesQ(i,j,k,XX) = slopesX[1];
 
 		  data_i = get_data_stencil(arr, i, j, k, 0, 2, 0, RHO_I);
 		  data_e = get_data_stencil(arr, i, j, k, 0, 2, 0, RHO_E);
 		  data_charge = get_charge_scaled(data_i,data_e);
 		  std::array<Real, 2> slopesY = WENO3_slope(data_charge);
-		  slopes(i,j,k,Y) = slopesY[0];
-		  slopes(i,j,k,YY) = slopesY[1];
+		  slopesQ(i,j,k,Y) = slopesY[0];
+		  slopesQ(i,j,k,YY) = slopesY[1];
 		  
 		  data_i = get_data_stencil(arr, i, j, k, 1, 1, 0, RHO_I);
 		  data_e = get_data_stencil(arr, i, j, k, 1, 1, 0, RHO_E);
 		  data_charge = get_charge_scaled(data_i,data_e);
 		  Real slopesCross = WENO3_slopeCross(data_charge,
-						      {slopes(i,j,k,X),slopes(i,j,k,XX),slopes(i,j,k,Y),slopes(i,j,k,YY)});
-		  slopes(i,j,k,XY) = slopesCross;
+						      {slopesQ(i,j,k,X),slopesQ(i,j,k,XX),slopesQ(i,j,k,Y),slopesQ(i,j,k,YY)});
+		  slopesQ(i,j,k,XY) = slopesCross;
 		  
 		  if (!geom.isPeriodic(0) && (i<=1 || i>=hiDomain.x-1))
 		    {
@@ -845,8 +828,8 @@ void CAMReXmp::MaxwellSolverDivFreeWENO(Array<MultiFab,AMREX_SPACEDIM>& S_EM_des
 		      Real u_i = (r_i*arr(i,j,k,RHO_I) + r_e*arr(i,j,k,RHO_E))/(lambda_d*lambda_d*l_r);
 		      Real u_iPlus1 = (r_i*arr(i+iOffset,j+jOffset,k+kOffset,RHO_I)
 				       + r_e*arr(i+iOffset,j+jOffset,k+kOffset,RHO_E))/(lambda_d*lambda_d*l_r);
-		      slopes(i,j,k,X) = TVD_slope(u_iMinus1,u_i,u_iPlus1);
-		      slopes(i,j,k,XX) = 0.0, slopes(i,j,k,XY) = 0.0; 
+		      slopesQ(i,j,k,X) = TVD_slope(u_iMinus1,u_i,u_iPlus1);
+		      slopesQ(i,j,k,XX) = 0.0, slopesQ(i,j,k,XY) = 0.0; 
 		    }
 		  if (!geom.isPeriodic(1) && (j<=1 || j>=hiDomain.y-1))
 		    {
@@ -856,8 +839,8 @@ void CAMReXmp::MaxwellSolverDivFreeWENO(Array<MultiFab,AMREX_SPACEDIM>& S_EM_des
 		      Real u_i = (r_i*arr(i,j,k,RHO_I) + r_e*arr(i,j,k,RHO_E))/(lambda_d*lambda_d*l_r);
 		      Real u_iPlus1 = (r_i*arr(i+iOffset,j+jOffset,k+kOffset,RHO_I)
 				       + r_e*arr(i+iOffset,j+jOffset,k+kOffset,RHO_E))/(lambda_d*lambda_d*l_r);
-		      slopes(i,j,k,Y) = TVD_slope(u_iMinus1,u_i,u_iPlus1);
-		      slopes(i,j,k,YY) = 0.0, slopes(i,j,k,XY) = 0.0; 			  
+		      slopesQ(i,j,k,Y) = TVD_slope(u_iMinus1,u_i,u_iPlus1);
+		      slopesQ(i,j,k,YY) = 0.0, slopesQ(i,j,k,XY) = 0.0; 			  
 		    }
 		}
 	    }
@@ -1226,14 +1209,7 @@ void CAMReXmp::MaxwellSolverDivFreeWENO(Array<MultiFab,AMREX_SPACEDIM>& S_EM_des
       
       const Dim3 lo = lbound(box);
       const Dim3 hi = ubound(box);
-
-      const Dim3 hiDomain = ubound(geom.Domain());
       
-      // use old array, S_source should also work
-      //const auto& arr = S_source.array(mfi);
-      const auto& arr = S_source.array(mfi);
-      const auto& arrEM_X = S_EM_source[0].array(mfi);
-      const auto& arrEM_Y = S_EM_source[1].array(mfi); 
       const auto& fluxArrEM = fluxesEM.array(mfi);
 
       const auto& Bc = Bcoeff.array(mfi);
@@ -1315,14 +1291,10 @@ void CAMReXmp::MaxwellSolverDivFreeWENO(Array<MultiFab,AMREX_SPACEDIM>& S_EM_des
 	  // Indexable arrays for the data, and the directional flux
 	  // Based on the corner-centred definition of the flux array, the
 	  // data array runs from e.g. [0,N+1] and the flux array from [-1,N+1]
-	  //const auto& arr = S_source.array(mfi);
 	  const auto& arrEM = S_EM_dest[d_EM].array(mfi);
 	  const auto& arrEMOld = S_EM_source[d_EM].array(mfi);	  
-	  const auto& arr = S_source.array(mfi);
 	  const auto& fluxArrEM = fluxesEM.array(mfi);
 	  const auto& fluxArr = fluxes[d_EM].array(mfi);
-
-	  const Dim3 hiDomain = ubound(geom.Domain());
       
 	  for(int k = lo.z; k <= hi.z; k++)
 	    {
@@ -1480,8 +1452,8 @@ void CAMReXmp::MaxwellSolverDivFreeWENO(Array<MultiFab,AMREX_SPACEDIM>& S_EM_des
       const auto& arrEM_X = S_EM_dest[0].array(mfi);
       const auto& arrEM_Y = S_EM_dest[1].array(mfi); 
 
-      const auto& Bc = Bcoeff.array(mfi);
-      const auto& Ec = Ecoeff.array(mfi);
+      //const auto& Bc = Bcoeff.array(mfi);
+      //const auto& Ec = Ecoeff.array(mfi);
       
       for(int k = lo.z; k <= hi.z; k++)
   	{
@@ -1778,7 +1750,7 @@ void CAMReXmp::MaxwellSolverDivFreeWENOcharacteristic(Array<MultiFab,AMREX_SPACE
       
       // uses old charge
       const Array4<Real> arr = S_source.array(mfi);
-      Array4<Real> slopes = slopesCharge.array(mfi);
+      Array4<Real> slopesQ = slopesCharge.array(mfi);
       
       for(int k = lo.z; k <= hi.z; k++)
 	{
@@ -1790,22 +1762,22 @@ void CAMReXmp::MaxwellSolverDivFreeWENOcharacteristic(Array<MultiFab,AMREX_SPACE
 		  Vector<Real> data_e = get_data_stencil(arr, i, j, k, 2, 0, 0, RHO_E);
 		  Vector<Real> data_charge = get_charge_scaled(data_i,data_e);
 		  std::array<Real, 2> slopesX = WENO3_slope(data_charge);
-		  slopes(i,j,k,X) = slopesX[0];
-		  slopes(i,j,k,XX) = slopesX[1];
+		  slopesQ(i,j,k,X) = slopesX[0];
+		  slopesQ(i,j,k,XX) = slopesX[1];
 
 		  data_i = get_data_stencil(arr, i, j, k, 0, 2, 0, RHO_I);
 		  data_e = get_data_stencil(arr, i, j, k, 0, 2, 0, RHO_E);
 		  data_charge = get_charge_scaled(data_i,data_e);
 		  std::array<Real, 2> slopesY = WENO3_slope(data_charge);
-		  slopes(i,j,k,Y) = slopesY[0];
-		  slopes(i,j,k,YY) = slopesY[1];
+		  slopesQ(i,j,k,Y) = slopesY[0];
+		  slopesQ(i,j,k,YY) = slopesY[1];
 		  
 		  data_i = get_data_stencil(arr, i, j, k, 1, 1, 0, RHO_I);
 		  data_e = get_data_stencil(arr, i, j, k, 1, 1, 0, RHO_E);
 		  data_charge = get_charge_scaled(data_i,data_e);
 		  Real slopesCross = WENO3_slopeCross(data_charge,
-						      {slopes(i,j,k,X),slopes(i,j,k,XX),slopes(i,j,k,Y),slopes(i,j,k,YY)});
-		  slopes(i,j,k,XY) = slopesCross;
+						      {slopesQ(i,j,k,X),slopesQ(i,j,k,XX),slopesQ(i,j,k,Y),slopesQ(i,j,k,YY)});
+		  slopesQ(i,j,k,XY) = slopesCross;
 		  if (!geom.isPeriodic(0) && (i<=1 || i>=hiDomain.x-1))
 		    {
 		      int iOffset = 1, jOffset = 0, kOffset = 0;
@@ -1814,8 +1786,8 @@ void CAMReXmp::MaxwellSolverDivFreeWENOcharacteristic(Array<MultiFab,AMREX_SPACE
 		      Real u_i = (r_i*arr(i,j,k,RHO_I) + r_e*arr(i,j,k,RHO_E))/(lambda_d*lambda_d*l_r);
 		      Real u_iPlus1 = (r_i*arr(i+iOffset,j+jOffset,k+kOffset,RHO_I)
 				       + r_e*arr(i+iOffset,j+jOffset,k+kOffset,RHO_E))/(lambda_d*lambda_d*l_r);
-		      slopes(i,j,k,X) = TVD_slope(u_iMinus1,u_i,u_iPlus1);
-		      slopes(i,j,k,XX) = 0.0, slopes(i,j,k,XY) = 0.0; 
+		      slopesQ(i,j,k,X) = TVD_slope(u_iMinus1,u_i,u_iPlus1);
+		      slopesQ(i,j,k,XX) = 0.0, slopesQ(i,j,k,XY) = 0.0; 
 		    }
 		  if (!geom.isPeriodic(1) && (j<=1 || j>=hiDomain.y-1))
 		    {
@@ -1825,8 +1797,8 @@ void CAMReXmp::MaxwellSolverDivFreeWENOcharacteristic(Array<MultiFab,AMREX_SPACE
 		      Real u_i = (r_i*arr(i,j,k,RHO_I) + r_e*arr(i,j,k,RHO_E))/(lambda_d*lambda_d*l_r);
 		      Real u_iPlus1 = (r_i*arr(i+iOffset,j+jOffset,k+kOffset,RHO_I)
 				       + r_e*arr(i+iOffset,j+jOffset,k+kOffset,RHO_E))/(lambda_d*lambda_d*l_r);
-		      slopes(i,j,k,Y) = TVD_slope(u_iMinus1,u_i,u_iPlus1);
-		      slopes(i,j,k,YY) = 0.0, slopes(i,j,k,XY) = 0.0; 			  
+		      slopesQ(i,j,k,Y) = TVD_slope(u_iMinus1,u_i,u_iPlus1);
+		      slopesQ(i,j,k,YY) = 0.0, slopesQ(i,j,k,XY) = 0.0; 			  
 		    }
 		}
 	    }
@@ -2351,11 +2323,7 @@ void CAMReXmp::MaxwellSolverDivFreeWENOcharacteristic(Array<MultiFab,AMREX_SPACE
       
       const Dim3 lo = lbound(box);
       const Dim3 hi = ubound(box);
-      // use old array, S_source should also work
-      //const auto& arr = S_source.array(mfi);
-      const auto& arr = S_source.array(mfi);
-      const auto& arrEM_X = S_EM_source[0].array(mfi);
-      const auto& arrEM_Y = S_EM_source[1].array(mfi); 
+
       const auto& fluxArrEM = fluxesEM.array(mfi);
 
       const auto& Bc = Bcoeff.array(mfi);
@@ -2444,8 +2412,6 @@ void CAMReXmp::MaxwellSolverDivFreeWENOcharacteristic(Array<MultiFab,AMREX_SPACE
 	  const auto& fluxArrEM = fluxesEM.array(mfi);
 	  const auto& fluxArr = fluxes[d_EM].array(mfi);
 
-	  const Dim3 hiDomain = ubound(geom.Domain());
-      
 	  for(int k = lo.z; k <= hi.z; k++)
 	    {
 	      for(int j = lo.y; j <= hi.y; j++)
@@ -2681,7 +2647,7 @@ void CAMReXmp::MaxwellSolverDivFreeWENOcharacteristic(Array<MultiFab,AMREX_SPACE
       const auto& fluxArrX = fluxes[0].array(mfi);
       const auto& fluxArrY = fluxes[1].array(mfi);
 
-      Array4<Real> slopes = slopesCharge.array(mfi);
+      //Array4<Real> slopes = slopesCharge.array(mfi);
       
       for(int k = lo.z; k <= hi.z; k++)
   	{
@@ -3061,7 +3027,7 @@ void CAMReXmp::Projection(const Real* dx, Real time)
 
 	  Array4<Real> rhs = Rhs.array(mfi);
 	  Array4<Real> arr = S_input.array(mfi);
-	  Array4<Real> arrEM = S_EM_input[d].array(mfi);	
+	  //Array4<Real> arrEM = S_EM_input[d].array(mfi);	
 	
 	  for(int k = lo.z; k <= hi.z; k++)
 	    {
@@ -3166,8 +3132,8 @@ void CAMReXmp::Projection(const Real* dx, Real time)
       // Based on the corner-centred definition of the flux array, the
       // data array runs from e.g. [0,N+1] and the flux array from [-1,N+1]
       const auto& arr = S_input.array(mfi);
-      const auto& arrEM_X = S_EM_input[0].array(mfi);
-      const auto& arrEM_Y = S_EM_input[1].array(mfi); 
+      //const auto& arrEM_X = S_EM_input[0].array(mfi);
+      //const auto& arrEM_Y = S_EM_input[1].array(mfi); 
 
       for(int k = lo.z; k <= hi.z; k++)
   	{
@@ -3967,7 +3933,7 @@ void CAMReXmp::implicitYeeMaxwellSolver(Array<MultiFab,AMREX_SPACEDIM>& S_EM_des
       // Based on the vertex-centred definition of the flux array, the
       // data array runs from e.g. [0,N] and the flux array from [0,N+1]
       const auto& rhs = Rhs[2].array(mfi);
-      const auto& arr = S_source.array(mfi);
+      //const auto& arr = S_source.array(mfi);
       const auto& arrEMX = S_EM_source[0].array(mfi);
       const auto& arrEMY = S_EM_source[1].array(mfi);
       const auto& arrEMXY = S_EM_sourceEdge.array(mfi);
@@ -4399,8 +4365,6 @@ void CAMReXmp::elecFieldCellAve(Real time)
 	  //const auto& arr = S_dest.array(mfi);
 	  const auto& arrEM = S_EM_input[d].array(mfi);
 	  const auto& arr = S_input.array(mfi);
-
-	  const Dim3 hiDomain = ubound(geom.Domain());
       
 	  for(int k = lo.z; k <= hi.z; k++)
 	    {
@@ -4525,7 +4489,7 @@ void CAMReXmp::MaxwellSolverFVTDTVD(Array<MultiFab,AMREX_SPACEDIM>& S_EM_source,
 
 	  // uses old charge
 	  const Array4<Real> arr = S_source.array(mfi);
-	  Array4<Real> slopes = slopesCharge.array(mfi);
+	  Array4<Real> slopesQ = slopesCharge.array(mfi);
       
 	  for(int k = lo.z; k <= hi.z; k++)
 	    {
@@ -4540,7 +4504,7 @@ void CAMReXmp::MaxwellSolverFVTDTVD(Array<MultiFab,AMREX_SPACEDIM>& S_EM_source,
 				       + r_e*arr(i+iOffset,j+jOffset,k+kOffset,RHO_E))/(lambda_d*lambda_d*l_r);
 
 		      // slopes for the current
-		      slopes(i,j,k,d) = TVD_slope(u_iMinus1,u_i,u_iPlus1);
+		      slopesQ(i,j,k,d) = TVD_slope(u_iMinus1,u_i,u_iPlus1);
 
 		    }
 		}
@@ -4562,8 +4526,6 @@ void CAMReXmp::MaxwellSolverFVTDTVD(Array<MultiFab,AMREX_SPACEDIM>& S_EM_source,
       
 	  const Dim3 lo = lbound(bx);
 	  const Dim3 hi = ubound(bx);
-
-	  const Dim3 hiDomain = ubound(geom.Domain());
 
 	  const Array4<Real> arr = S_source.array(mfi);
 	  Array4<Real> slopesBZ = slopes[BZ_LOCAL].array(mfi);
@@ -4600,8 +4562,6 @@ void CAMReXmp::MaxwellSolverFVTDTVD(Array<MultiFab,AMREX_SPACEDIM>& S_EM_source,
       const Dim3 lo = lbound(bx);
       const Dim3 hi = ubound(bx);
 
-      const Dim3 hiDomain = ubound(geom.Domain());
-      
       const Array4<Real> arr = S_EM_source[1].array(mfi);
       Array4<Real> slopesBY = slopes[BY_LOCAL].array(mfi);
       Array4<Real> slopesEY = slopes[EY_LOCAL].array(mfi);
@@ -4634,8 +4594,6 @@ void CAMReXmp::MaxwellSolverFVTDTVD(Array<MultiFab,AMREX_SPACEDIM>& S_EM_source,
       
       const Dim3 lo = lbound(bx);
       const Dim3 hi = ubound(bx);
-
-      const Dim3 hiDomain = ubound(geom.Domain());
 
       const Array4<Real> arr = S_EM_source[0].array(mfi);
       Array4<Real> slopesBX = slopes[BX_LOCAL].array(mfi);
@@ -4764,11 +4722,7 @@ void CAMReXmp::MaxwellSolverFVTDTVD(Array<MultiFab,AMREX_SPACEDIM>& S_EM_source,
       
       const Dim3 lo = lbound(box);
       const Dim3 hi = ubound(box);
-      // use old array, S_dest should also work
-      //const auto& arr = S_dest.array(mfi);
-      const auto& arr = S_source.array(mfi);
-      const auto& arrEM_X = S_EM_source[0].array(mfi);
-      const auto& arrEM_Y = S_EM_source[1].array(mfi); 
+
       const auto& fluxArrEM = fluxesEM.array(mfi);
 
       const auto& Bc = Bcoeff.array(mfi);
@@ -4853,9 +4807,6 @@ void CAMReXmp::MaxwellSolverFVTDTVD(Array<MultiFab,AMREX_SPACEDIM>& S_EM_source,
 	  const auto& arrEM = S_EM_dest[d_EM].array(mfi);
 	  const auto& arrEMOld = S_EM_source[d_EM].array(mfi);
 	  const auto& fluxArrEM = fluxesEM.array(mfi);
-	  const auto& fluxArr = fluxes[d_EM].array(mfi);
-
-	  const Dim3 hiDomain = ubound(geom.Domain());
       
 	  for(int k = lo.z; k <= hi.z; k++)
 	    {
@@ -4908,8 +4859,8 @@ void CAMReXmp::MaxwellSolverFVTDTVD(Array<MultiFab,AMREX_SPACEDIM>& S_EM_source,
       const auto& arrEM_X = S_EM_dest[0].array(mfi);
       const auto& arrEM_Y = S_EM_dest[1].array(mfi); 
 
-      const auto& Bc = Bcoeff.array(mfi);
-      const auto& Ec = Ecoeff.array(mfi);
+      //const auto& Bc = Bcoeff.array(mfi);
+      //const auto& Ec = Ecoeff.array(mfi);
       
       for(int k = lo.z; k <= hi.z; k++)
   	{
@@ -5149,7 +5100,7 @@ void CAMReXmp::MaxwellSolverFVTDWENO(Array<MultiFab,AMREX_SPACEDIM>& S_EM_source
       
       // uses old charge
       const Array4<Real> arr = S_source.array(mfi);
-      Array4<Real> slopes = slopesCharge.array(mfi);
+      Array4<Real> slopesQ = slopesCharge.array(mfi);
       
       for(int k = lo.z; k <= hi.z; k++)
 	{
@@ -5161,22 +5112,22 @@ void CAMReXmp::MaxwellSolverFVTDWENO(Array<MultiFab,AMREX_SPACEDIM>& S_EM_source
 		  Vector<Real> data_e = get_data_stencil(arr, i, j, k, 2, 0, 0, RHO_E);
 		  Vector<Real> data_charge = get_charge_scaled(data_i,data_e);
 		  std::array<Real, 2> slopesX = WENO3_slope(data_charge);
-		  slopes(i,j,k,X) = slopesX[0];
-		  slopes(i,j,k,XX) = slopesX[1];
+		  slopesQ(i,j,k,X) = slopesX[0];
+		  slopesQ(i,j,k,XX) = slopesX[1];
 
 		  data_i = get_data_stencil(arr, i, j, k, 0, 2, 0, RHO_I);
 		  data_e = get_data_stencil(arr, i, j, k, 0, 2, 0, RHO_E);
 		  data_charge = get_charge_scaled(data_i,data_e);
 		  std::array<Real, 2> slopesY = WENO3_slope(data_charge);
-		  slopes(i,j,k,Y) = slopesY[0];
-		  slopes(i,j,k,YY) = slopesY[1];
+		  slopesQ(i,j,k,Y) = slopesY[0];
+		  slopesQ(i,j,k,YY) = slopesY[1];
 		  
 		  data_i = get_data_stencil(arr, i, j, k, 1, 1, 0, RHO_I);
 		  data_e = get_data_stencil(arr, i, j, k, 1, 1, 0, RHO_E);
 		  data_charge = get_charge_scaled(data_i,data_e);
 		  Real slopesCross = WENO3_slopeCross(data_charge,
-						      {slopes(i,j,k,X),slopes(i,j,k,XX),slopes(i,j,k,Y),slopes(i,j,k,YY)});
-		  slopes(i,j,k,XY) = slopesCross;
+						      {slopesQ(i,j,k,X),slopesQ(i,j,k,XX),slopesQ(i,j,k,Y),slopesQ(i,j,k,YY)});
+		  slopesQ(i,j,k,XY) = slopesCross;
 		  
 		  if (!geom.isPeriodic(0) && (i<=1 || i>=hiDomain.x-1))
 		    {
@@ -5186,8 +5137,8 @@ void CAMReXmp::MaxwellSolverFVTDWENO(Array<MultiFab,AMREX_SPACEDIM>& S_EM_source
 		      Real u_i = (r_i*arr(i,j,k,RHO_I) + r_e*arr(i,j,k,RHO_E))/(lambda_d*lambda_d*l_r);
 		      Real u_iPlus1 = (r_i*arr(i+iOffset,j+jOffset,k+kOffset,RHO_I)
 				       + r_e*arr(i+iOffset,j+jOffset,k+kOffset,RHO_E))/(lambda_d*lambda_d*l_r);
-		      slopes(i,j,k,X) = TVD_slope(u_iMinus1,u_i,u_iPlus1);
-		      slopes(i,j,k,XX) = 0.0, slopes(i,j,k,XY) = 0.0; 
+		      slopesQ(i,j,k,X) = TVD_slope(u_iMinus1,u_i,u_iPlus1);
+		      slopesQ(i,j,k,XX) = 0.0, slopesQ(i,j,k,XY) = 0.0; 
 		    }
 		  if (!geom.isPeriodic(1) && (j<=1 || j>=hiDomain.y-1))
 		    {
@@ -5197,8 +5148,8 @@ void CAMReXmp::MaxwellSolverFVTDWENO(Array<MultiFab,AMREX_SPACEDIM>& S_EM_source
 		      Real u_i = (r_i*arr(i,j,k,RHO_I) + r_e*arr(i,j,k,RHO_E))/(lambda_d*lambda_d*l_r);
 		      Real u_iPlus1 = (r_i*arr(i+iOffset,j+jOffset,k+kOffset,RHO_I)
 				       + r_e*arr(i+iOffset,j+jOffset,k+kOffset,RHO_E))/(lambda_d*lambda_d*l_r);
-		      slopes(i,j,k,Y) = TVD_slope(u_iMinus1,u_i,u_iPlus1);
-		      slopes(i,j,k,YY) = 0.0, slopes(i,j,k,XY) = 0.0; 			  
+		      slopesQ(i,j,k,Y) = TVD_slope(u_iMinus1,u_i,u_iPlus1);
+		      slopesQ(i,j,k,YY) = 0.0, slopesQ(i,j,k,XY) = 0.0; 			  
 		    }
 		}
 	    }
@@ -5568,13 +5519,6 @@ void CAMReXmp::MaxwellSolverFVTDWENO(Array<MultiFab,AMREX_SPACEDIM>& S_EM_source
       const Dim3 lo = lbound(box);
       const Dim3 hi = ubound(box);
 
-      const Dim3 hiDomain = ubound(geom.Domain());
-      
-      // use old array, S_source should also work
-      //const auto& arr = S_source.array(mfi);
-      const auto& arr = S_source.array(mfi);
-      const auto& arrEM_X = S_EM_source[0].array(mfi);
-      const auto& arrEM_Y = S_EM_source[1].array(mfi); 
       const auto& fluxArrEM = fluxesEM.array(mfi);
 
       const auto& Bc = Bcoeff.array(mfi);
@@ -5653,17 +5597,9 @@ void CAMReXmp::MaxwellSolverFVTDWENO(Array<MultiFab,AMREX_SPACEDIM>& S_EM_source
 	  const Dim3 lo = lbound(bx);
 	  const Dim3 hi = ubound(bx);
 
-	  // Indexable arrays for the data, and the directional flux
-	  // Based on the corner-centred definition of the flux array, the
-	  // data array runs from e.g. [0,N+1] and the flux array from [-1,N+1]
-	  //const auto& arr = S_source.array(mfi);
 	  const auto& arrEM = S_EM_dest[d_EM].array(mfi);
 	  const auto& arrEMOld = S_EM_source[d_EM].array(mfi);	  
-	  const auto& arr = S_source.array(mfi);
 	  const auto& fluxArrEM = fluxesEM.array(mfi);
-	  const auto& fluxArr = fluxes[d_EM].array(mfi);
-
-	  const Dim3 hiDomain = ubound(geom.Domain());
       
 	  for(int k = lo.z; k <= hi.z; k++)
 	    {
@@ -5708,8 +5644,8 @@ void CAMReXmp::MaxwellSolverFVTDWENO(Array<MultiFab,AMREX_SPACEDIM>& S_EM_source
       const auto& arrEM_X = S_EM_dest[0].array(mfi);
       const auto& arrEM_Y = S_EM_dest[1].array(mfi); 
 
-      const auto& Bc = Bcoeff.array(mfi);
-      const auto& Ec = Ecoeff.array(mfi);
+      //const auto& Bc = Bcoeff.array(mfi);
+      //const auto& Ec = Ecoeff.array(mfi);
       
       for(int k = lo.z; k <= hi.z; k++)
   	{
@@ -5862,8 +5798,6 @@ void CAMReXmp::MaxwellSolverFVTDWENO(Array<MultiFab,AMREX_SPACEDIM>& S_EM_source
       const auto& arrOld = S_source.array(mfi);
       const auto& fluxArrX = fluxes[0].array(mfi);
       const auto& fluxArrY = fluxes[1].array(mfi);
-
-      Array4<Real> slopes = slopesCharge.array(mfi);
       
       for(int k = lo.z; k <= hi.z; k++)
   	{
@@ -6039,7 +5973,6 @@ void CAMReXmp::MaxwellSolverFDTDCN(const Real* dx, Real dt, Real time)
       // Based on the vertex-centred definition of the flux array, the
       // data array runs from e.g. [0,N] and the flux array from [0,N+1]
       const auto& rhs = Rhs[2].array(mfi);
-      const auto& arr = S_input.array(mfi);
       const auto& arrEMX = S_EM_input[0].array(mfi);
       const auto& arrEMY = S_EM_input[1].array(mfi);
       const auto& arrEMXY = S_EM_edge_input.array(mfi);
@@ -6418,7 +6351,6 @@ void CAMReXmp::MaxwellSolverFDTDCNAMReX(const Real* dx, Real dt, Real time)
       // Based on the vertex-centred definition of the flux array, the
       // data array runs from e.g. [0,N] and the flux array from [0,N+1]
       const auto& rhs = Rhs[2].array(mfi);
-      const auto& arr = S_input.array(mfi);
       const auto& arrEMX = S_EM_input[0].array(mfi);
       const auto& arrEMY = S_EM_input[1].array(mfi);
       const auto& arrEMXY = S_EM_edge_input.array(mfi);
@@ -6939,10 +6871,6 @@ void CAMReXmp::MaxwellSolverCN(const Real* dx, Real dt, Real time)
   mlmgZ.setMaxFmgIter(max_fmg_iter);
   mlmgZ.setVerbose(verbose);
   mlmgZ.setBottomVerbose(bottom_verbose);  
-
-  const Real S_X_abs = soln_tol*Rhs[0].norm0();
-  const Real S_Y_abs = soln_tol*Rhs[1].norm0();
-  const Real S_Z_abs = soln_tol*Rhs[2].norm0();  
 
   mlmgX.solve({&S_X}, {&Rhs[0]}, tol_rel, tol_abs);
   mlmgY.solve({&S_Y}, {&Rhs[1]}, tol_rel, tol_abs);

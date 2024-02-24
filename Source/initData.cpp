@@ -74,7 +74,6 @@ CAMReXmp::initData ()
   }
   */
   Real rho, v_x, v_y, v_z, p, B_x, B_y, B_z;
-  Real c_a = 0.0;
 
 #if (AMREX_SPACEDIM >= 2)     
   // Set values for the x-components of the EM fields at the x-faces
@@ -187,7 +186,7 @@ CAMReXmp::initData ()
 
 	  } else if (test=="Harris_sheet"){
 	    Real Lx = geom.ProbHi()[0]-geom.ProbLo()[0], Ly = geom.ProbHi()[1]-geom.ProbLo()[1];
-	    Real lambda = 0.5, n0 = 1.0, nInf = 0.2, B0 = 1.0, B1 = 0.1;
+	    Real lambda = 0.5, B0 = 1.0, B1 = 0.1;
 	    B_x = B0*std::tanh(y/lambda) - B1*(M_PI/Ly)*std::cos(2*M_PI*x/Lx)*std::sin(M_PI*y/Ly);
 	    B_y = B1*(2*M_PI/Lx)*std::cos(M_PI*y/Ly)*std::sin(2*M_PI*x/Lx);
 
@@ -200,7 +199,7 @@ CAMReXmp::initData ()
 	    
 	  } else if (test=="Harris_sheet_full"){
 	    Real Lx = geom.ProbHi()[0]-geom.ProbLo()[0], Ly = geom.ProbHi()[1]-geom.ProbLo()[1];
-	    Real lambda = 0.5, n0 = 1.0, nInf = 0.2, B0 = 1.0, B1 = 0.1;
+	    Real lambda = 0.5, B0 = 1.0, B1 = 0.1;
 	    if (y>=0.0)
 	      B_x = B0*std::tanh((y-Ly/4)/lambda) - 2.0*B1*(M_PI/Ly)*std::cos(2*M_PI*x/Lx)*std::sin(M_PI*(y-0.25*Ly)/(Ly/2.0));
 	    else
@@ -229,7 +228,7 @@ CAMReXmp::initData ()
 	    // cylindrical coordinates
 	    Real rCyl = x;
 	    
-	    Real Rp = 1.0/8.0, alpha = 1.0/10.0, J0 = 1.0/10.0;
+	    Real Rp = 1.0/8.0, J0 = 1.0/10.0;
 	      
 	    Real B_theta_in = J0*(0.5*rCyl-16.0*rCyl*rCyl*rCyl), B_theta_out=J0*(0.5*Rp-16.0*Rp*Rp*Rp)*Rp/rCyl;
 	    if (rCyl<Rp){
@@ -252,7 +251,7 @@ CAMReXmp::initData ()
 	    Real rCyl = x;
 	    Real zCyl = y;
 	    
-	    Real Rp = 1.0/4.0, alpha = 1.0/10.0, J0 = 1.0, epsilon = 1.0/100.0, K = 1.0;
+	    Real Rp = 1.0/4.0, J0 = 1.0, epsilon = 1.0/100.0, K = 1.0;
 	    /*Real epsilon0 = lambda_d*lambda_d;
 	      Real mu0 = 1.0/(c*c*epsilon0);*/
 	    Real mu0 = 1.0;
@@ -281,14 +280,13 @@ CAMReXmp::initData ()
 
 	    // parameters
 	    Real epsilon0 = 1.0, mu0 = 1.0, n0 = 1.0, P0 = 1.5625*0.01, beta = 1.0/10.0, alpha = 100.0;
-	    Real m_i = 1.0, m_e = 1.0;
-	    Real q_i = r_i*m_i, q_e = r_e*m_e;
+	    Real m_i = 1.0;
+	    Real q_i = r_i*m_i;
 	    // perturbation
 	    Real epsilon = 1.0/100.0, K = 1.0;
 
 	    Real oneR2A = 1.0 + rCyl*rCyl*alpha;
 	    Real oneBR2AB = 1.0 + beta + rCyl*rCyl*alpha*beta;
-	    Real oneBR4A2B = 1.0 + beta - std::pow(rCyl,4)*alpha*alpha*beta;
 	    
 	    Real C1 = -2.0 + rCyl*rCyl*alpha*(-2.0+(P0*alpha*epsilon0)/(n0*n0*q_i*q_i*std::pow(oneBR2AB,2)));
 	    Real C2 = std::sqrt(P0*((rCyl*rCyl*alpha*C1)/std::pow(oneR2A,2)+2.0*std::log(oneR2A))/(rCyl*rCyl*alpha*mu0));
@@ -521,7 +519,7 @@ CAMReXmp::initData ()
 	    	    
   	  } else if (test=="Harris_sheet"){
   	    Real Lx = geom.ProbHi()[0]-geom.ProbLo()[0], Ly = geom.ProbHi()[1]-geom.ProbLo()[1];
-  	    Real lambda = 0.5, n0 = 1.0, nInf = 0.2, B0 = 1.0, B1 = 0.1;
+  	    Real lambda = 0.5, B0 = 1.0, B1 = 0.1;
   	    B_x = B0*std::tanh(y/lambda) - B1*(M_PI/Ly)*std::cos(2*M_PI*x/Lx)*std::sin(M_PI*y/Ly);
 	    B_y = B1*(2*M_PI/Lx)*std::cos(M_PI*y/Ly)*std::sin(2*M_PI*x/Lx);	    
 
@@ -534,7 +532,7 @@ CAMReXmp::initData ()
 	    
   	  } else if (test=="Harris_sheet_full"){
   	    Real Lx = geom.ProbHi()[0]-geom.ProbLo()[0], Ly = geom.ProbHi()[1]-geom.ProbLo()[1];
-  	    Real lambda = 0.5, n0 = 1.0, nInf = 0.2, B0 = 1.0, B1 = 0.1;
+  	    Real lambda = 0.5, B0 = 1.0, B1 = 0.1;
 	    if (y>=0.0)
 	      B_x = B0*std::tanh((y-Ly/4)/lambda) - 2.0*B1*(M_PI/Ly)*std::cos(2*M_PI*x/Lx)*std::sin(M_PI*(y-0.25*Ly)/(Ly/2.0));
 	    else
@@ -562,7 +560,7 @@ CAMReXmp::initData ()
 	    // cylindrical coordinates
 	    Real rCyl = x;
 	    
-	    Real Rp = 1.0/8.0, alpha = 1.0/10.0, J0 = 1.0/10.0;
+	    Real Rp = 1.0/8.0, J0 = 1.0/10.0;
 	      
 	    Real B_theta_in = J0*(0.5*rCyl-16.0*rCyl*rCyl*rCyl), B_theta_out=J0*(0.5*Rp-16.0*Rp*Rp*Rp)*Rp/rCyl;
 	    if (rCyl<Rp){
@@ -585,7 +583,7 @@ CAMReXmp::initData ()
 	    Real rCyl = x;
 	    Real zCyl = y;
 	    
-	    Real Rp = 1.0/4.0, alpha = 1.0/10.0, J0 = 1.0, epsilon = 1.0/100.0, K = 1.0;
+	    Real Rp = 1.0/4.0, J0 = 1.0, epsilon = 1.0/100.0, K = 1.0;
 	    /*Real epsilon0 = lambda_d*lambda_d;
 	      Real mu0 = 1.0/(c*c*epsilon0);*/
 	    Real mu0 = 1.0;
@@ -614,14 +612,13 @@ CAMReXmp::initData ()
 
 	    // parameters
 	    Real epsilon0 = 1.0, mu0 = 1.0, n0 = 1.0, P0 = 1.5625*0.01, beta = 1.0/10.0, alpha = 100.0;
-	    Real m_i = 1.0, m_e = 1.0;
-	    Real q_i = r_i*m_i, q_e = r_e*m_e;
+	    Real m_i = 1.0;
+	    Real q_i = r_i*m_i;
 	    // perturbation
 	    Real epsilon = 1.0/100.0, K = 1.0;
 
 	    Real oneR2A = 1.0 + rCyl*rCyl*alpha;
 	    Real oneBR2AB = 1.0 + beta + rCyl*rCyl*alpha*beta;
-	    Real oneBR4A2B = 1.0 + beta - std::pow(rCyl,4)*alpha*alpha*beta;
 	    
 	    Real C1 = -2.0 + rCyl*rCyl*alpha*(-2.0+(P0*alpha*epsilon0)/(n0*n0*q_i*q_i*std::pow(oneBR2AB,2)));
 	    Real C2 = std::sqrt(P0*((rCyl*rCyl*alpha*C1)/std::pow(oneR2A,2)+2.0*std::log(oneR2A))/(rCyl*rCyl*alpha*mu0));
@@ -854,7 +851,7 @@ CAMReXmp::initData ()
 
 	  } else if (test=="Harris_sheet"){
 	    Real Lx = geom.ProbHi()[0]-geom.ProbLo()[0], Ly = geom.ProbHi()[1]-geom.ProbLo()[1];
-	    Real lambda = 0.5, n0 = 1.0, nInf = 0.2, B0 = 1.0, B1 = 0.1;
+	    Real lambda = 0.5, B0 = 1.0, B1 = 0.1;
 	    B_x = B0*std::tanh(y/lambda) - B1*(M_PI/Ly)*std::cos(2*M_PI*x/Lx)*std::sin(M_PI*y/Ly);
 	    B_y = B1*(2*M_PI/Lx)*std::cos(M_PI*y/Ly)*std::sin(2*M_PI*x/Lx);
 	    B_z = 0.0;
@@ -868,7 +865,7 @@ CAMReXmp::initData ()
 	    
 	  } else if (test=="Harris_sheet_full"){
 	    Real Lx = geom.ProbHi()[0]-geom.ProbLo()[0], Ly = geom.ProbHi()[1]-geom.ProbLo()[1];
-	    Real lambda = 0.5, n0 = 1.0, nInf = 0.2, B0 = 1.0, B1 = 0.1;
+	    Real lambda = 0.5, B0 = 1.0, B1 = 0.1;
 	    if (y>=0.0)
 	      B_x = B0*std::tanh((y-Ly/4)/lambda) - 2.0*B1*(M_PI/Ly)*std::cos(2*M_PI*x/Lx)*std::sin(M_PI*(y-0.25*Ly)/(Ly/2.0));
 	    else
@@ -898,7 +895,7 @@ CAMReXmp::initData ()
 	    // cylindrical coordinates
 	    Real rCyl = x;
 	    
-	    Real Rp = 1.0/8.0, alpha = 1.0/10.0, J0 = 1.0/10.0;
+	    Real Rp = 1.0/8.0, J0 = 1.0/10.0;
 	      
 	    Real B_theta_in = J0*(0.5*rCyl-16.0*rCyl*rCyl*rCyl), B_theta_out=J0*(0.5*Rp-16.0*Rp*Rp*Rp)*Rp/rCyl;
 	    if (rCyl<Rp){
@@ -921,7 +918,7 @@ CAMReXmp::initData ()
 	    Real rCyl = x;
 	    Real zCyl = y;
 	    
-	    Real Rp = 1.0/4.0, alpha = 1.0/10.0, J0 = 1.0, epsilon = 1.0/100.0, K = 1.0;
+	    Real Rp = 1.0/4.0, J0 = 1.0, epsilon = 1.0/100.0, K = 1.0;
 	    /*Real epsilon0 = lambda_d*lambda_d;
 	      Real mu0 = 1.0/(c*c*epsilon0);*/
 	    Real mu0 = 1.0;
@@ -950,14 +947,13 @@ CAMReXmp::initData ()
 
 	    // parameters
 	    Real epsilon0 = 1.0, mu0 = 1.0, n0 = 1.0, P0 = 1.5625*0.01, beta = 1.0/10.0, alpha = 100.0;
-	    Real m_i = 1.0, m_e = 1.0;
-	    Real q_i = r_i*m_i, q_e = r_e*m_e;
+	    Real m_i = 1.0;
+	    Real q_i = r_i*m_i;
 	    // perturbation
 	    Real epsilon = 1.0/100.0, K = 1.0;
 
 	    Real oneR2A = 1.0 + rCyl*rCyl*alpha;
 	    Real oneBR2AB = 1.0 + beta + rCyl*rCyl*alpha*beta;
-	    Real oneBR4A2B = 1.0 + beta - std::pow(rCyl,4)*alpha*alpha*beta;
 	    
 	    Real C1 = -2.0 + rCyl*rCyl*alpha*(-2.0+(P0*alpha*epsilon0)/(n0*n0*q_i*q_i*std::pow(oneBR2AB,2)));
 	    Real C2 = std::sqrt(P0*((rCyl*rCyl*alpha*C1)/std::pow(oneR2A,2)+2.0*std::log(oneR2A))/(rCyl*rCyl*alpha*mu0));
@@ -1089,10 +1085,6 @@ CAMReXmp::initData ()
     const Dim3 hi = ubound(bx);
 
     const auto& arr = S_new.array(mfi);
-#if (AMREX_SPACEDIM >= 2)    
-    const auto& arrEMX = S_EM_X.array(mfi);
-    const auto& arrEMY = S_EM_Y.array(mfi);    
-#endif
     
     for(int k = lo.z; k <= hi.z; k++)
     {
@@ -1576,7 +1568,7 @@ CAMReXmp::initData ()
 	    // parameters
 	    Real epsilon0 = 1.0, mu0 = 1.0, n0 = 1.0, P0 = 1.5625*0.01, beta = 1.0/10.0, alpha = 100.0;
 	    Real m_i = 1.0, m_e = 1.0;
-	    Real q_i = r_i*m_i, q_e = r_e*m_e;
+	    Real q_i = r_i*m_i;
 
 	    // perturbation
 	    Real epsilon = 1.0/100.0, K = 1.0;

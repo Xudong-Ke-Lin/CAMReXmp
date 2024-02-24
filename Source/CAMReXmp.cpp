@@ -705,8 +705,6 @@ CAMReXmp::advance (Real time,
                       int  ncycle)
 {
   
-  MultiFab& S_mm = get_new_data(Phi_Type);
-  
   // This ensures that all data computed last time step is moved from
   // `new' data to `old data' - this should not need changing If more
   // than one type of data were declared in variableSetUp(), then the
@@ -718,12 +716,6 @@ CAMReXmp::advance (Real time,
 
   // S_new is the MultiFab that will be operated upon to update the data
   MultiFab& S_new = get_new_data(Phi_Type);
-
-#if (AMREX_SPACEDIM >= 2)  
-  // Set up a multifab that will contain the electromagnetic fields
-  MultiFab& S_EM_X_new = get_new_data(EM_X_Type);
-  MultiFab& S_EM_Y_new = get_new_data(EM_Y_Type);
-#endif
   
   const Real prev_time = state[Phi_Type].prevTime();
   const Real cur_time = state[Phi_Type].curTime();
@@ -755,49 +747,6 @@ CAMReXmp::advance (Real time,
   {
     current = &getFluxReg(level);
   }
-
-//   // Set up a dimensional multifab that will contain the fluxes
-//   MultiFab fluxes[amrex::SpaceDim];
-  
-//   // Define the appropriate size for the flux MultiFab.
-//   // Fluxes are defined at cell faces - this is taken care of by the
-//   // surroundingNodes(j) command, ensuring the size of the flux
-//   for (int j = 0; j < amrex::SpaceDim; j++)
-//   {
-//     BoxArray ba = S_new.boxArray();
-//     ba.surroundingNodes(j);
-//     fluxes[j].define(ba, dmap, NUM_STATE, 0);
-//   }
-
-//   // Set up a multifab that will contain the fluxes for the electromagnetic fields
-//   // It will be a nodal multifab (i.e. stored at the corner)
-//   MultiFab fluxesEM;
-//   BoxArray ba = S_EM_X_new.boxArray();
-//   ba.surroundingNodes(1);
-//   const DistributionMapping& dmX = S_EM_X_new.DistributionMap();
-//   fluxesEM.define(ba, dmX, 6, 0);
-//   //fluxesEM = 0.0;
-  
-//   // State with ghost cells - this is used to compute fluxes and perform the update.
-//   MultiFab S0(grids, dmap, NUM_STATE, NUM_GROW);
-//   // See init function for details about the FillPatch function
-//   FillPatch(*this, S0, NUM_GROW, time, Phi_Type, 0, NUM_STATE);
-  
-//   // Set up a multifab that will contain the electromagnetic fields
-//   //MultiFab S_EM[2];
-//   Array<MultiFab,AMREX_SPACEDIM> S_EM0;
-//   S_EM0[0].define(convert(grids,IntVect{AMREX_D_DECL(1,0,0)}), dmap, 6, NUM_GROW);
-//   // !!
-//   // Comment out fillpatch when HDC
-//   FillPatch(*this, S_EM0[0], NUM_GROW, time, EM_X_Type, 0, 6);
-// #if (AMREX_SPACEDIM >= 2) 
-//   S_EM0[1].define(convert(grids,IntVect{AMREX_D_DECL(0,1,0)}), dmap, 6, NUM_GROW);
-//   FillPatch(*this, S_EM0[1], NUM_GROW, time, EM_Y_Type, 0, 6);
-// #endif
-  
-  //std::cout << Sborder.ixType().cellCentered() << " " << S_EM[0].ixType().cellCentered() << " " << S_EM[1].ixType().cellCentered() << std::endl;
-    
-  //(this->*StrangWithChosenUpdateOrder)(SNew, S0, fluxes, S_EMNew, S_EM0, fluxesEM, dx, time, dt);
   StrangSecond(dx, dt, time);
 
   MultiFab SNew(grids, dmap, NUM_STATE, NUM_GROW);
@@ -859,7 +808,7 @@ CAMReXmp::advance (Real time,
 	
 	      Array4<Real> arr = SNew.array(mfi);
 #if (AMREX_SPACEDIM >= 2)	      
-	      Array4<Real> arrEM = S_EMNew[d].array(mfi);	
+	      //Array4<Real> arrEM = S_EMNew[d].array(mfi);	
 #endif
 	      
 	      //for(int k = lo.z; k <= hi.z+kOffset; k++)
@@ -882,7 +831,6 @@ CAMReXmp::advance (Real time,
 	    }
 	}
       // copy divergence errors
-      MultiFab& S_new = get_new_data(Phi_Type);
       MultiFab::Copy(S_new, SNew, DIVB, DIVB, 2, 0);
     }
   
@@ -1009,7 +957,6 @@ CAMReXmp::advance (Real time,
 	    }      
 	}  
       // copy errors
-      MultiFab& S_new = get_new_data(Phi_Type);
       MultiFab::Copy(S_new, SNew, DIVB, DIVB, 2, 0);
     }
   // We need to compute boundary conditions again after each update       
@@ -1069,7 +1016,6 @@ CAMReXmp::advance (Real time,
 	    }      
 	}  
       // copy errors
-      MultiFab& S_new = get_new_data(Phi_Type);
       MultiFab::Copy(S_new, SNew, DIVB, DIVB, 2, 0);
     }
   */
@@ -1120,7 +1066,6 @@ CAMReXmp::advance (Real time,
 	    }      
 	}  
       // copy errors
-      MultiFab& S_new = get_new_data(Phi_Type);
       MultiFab::Copy(S_new, SNew, DIVB, DIVB, 2, 0);
       //MultiFab::Copy(S_new, SNew, EX, EX, 1, 0);
     }  
@@ -1281,8 +1226,6 @@ CAMReXmp::estTimeStep (Real)
   for(unsigned int d = 0; d < amrex::SpaceDim; ++d)
   {
     Vector<Real> c_array {0.0};
-    Vector<Real> omega_pe_array {0.0};
-    Vector<Real> omega_ce_array {0.0};
     
     for (MFIter mfi(Sborder, true); mfi.isValid(); ++mfi)
     {
@@ -1306,49 +1249,14 @@ CAMReXmp::estTimeStep (Real)
 		  Vector<Real> u_i = get_data_zone(arr,i,j,k,fluid,NUM_STATE_FLUID/2);
 		  Real a = get_speed(u_i);
 		  c_array.push_back(std::abs(v)+a);
-		  /*if (MaxwellMethod=="IM")
-		    c_array.push_back(std::abs(v_x_e)+c_e);
-		  else
-		  c_array.push_back(v_x_e+c_e);		  		  */
-		  //c_array.push_back(std::abs(v_x_e)+c_e);		  
-		  
-		  // compute electron frequencies
-		  //omega_pe_array.push_back(std::sqrt(m*m*arr(i,j,k,RHO_E)));
-		  if (EMconstraint && fluidconstraint)
-		    {
-		      omega_pe_array.push_back(std::sqrt(m*m*arr(i,j,k,RHO_E)/(lambda_d*lambda_d*l_r*l_r)));
-		      Real B = get_magnitude(arr(i,j,k,BX),arr(i,j,k,BY),arr(i,j,k,BZ));
-		      omega_ce_array.push_back(m*B);
-		    }
 		}
 	    }
 	}
-      //c_h = *std::max_element(c_array.begin(), c_array.end());
     }
     c_h = *std::max_element(c_array.begin(), c_array.end());
 
-    if (EMconstraint && fluidconstraint)
-      {
-	Real omega_pe = *std::max_element(omega_pe_array.begin(), omega_pe_array.end());
-	Real omega_ce = *std::max_element(omega_ce_array.begin(), omega_ce_array.end());
-      }
-    //dt_est = std::min(dt_est, dx[d]/c_h);
-    //dt_est = std::min(dt_est, dx[d]/c);
-    // for implicit Maxwell solver use maximum fluid velocity
-    /*if (MaxwellMethod=="IM")
-      dt_est = std::min(dt_est, dx[d]/c_h);
-    // for hyperbolic Maxwell solver use speed of light
-    else
-      dt_est = std::min(dt_est, dx[d]/std::max(c_h, c));
-    */
-    //dt_est = std::min(dt_est, dx[d]/std::max(c_h, c));
-    //dt_est = std::min(dt_est, cfl*dx[d]/std::max(c_h, c));
-      //dt_est = std::min(dt_est, cfl*dx[d]/c);
-    //dt_est = std::min(dt_est, dx[d]/c_h);
-    //dt_est = std::min(dt_est, cfl*dx[d]/c_h);
-      //dt_est = std::min(dt_est, dx[d]/c_h);
-      // 0.5 means subcycling two times
-      //dt_est = std::min(dt_est, dx[d]/std::max(c_h, c/2.0));
+    // dt does not need to resolve plasma and cyclotron frequencies
+    // because usually an implicit souce term update is used
     if (EMconstraint && fluidconstraint && MaxwellTimeMethod=="EX")
       dt_est = std::min(dt_est, dx[d]/std::max(c_h, c));
     else if (EMconstraint && fluidconstraint && (MaxwellTimeMethod=="EXsubcycling" || MaxwellTimeMethod=="IM"))
@@ -1357,15 +1265,7 @@ CAMReXmp::estTimeStep (Real)
       dt_est = std::min(dt_est, dx[d]/c);
     else
       dt_est = std::min(dt_est, dx[d]/c_h);
-    
-    // dt does not need to resolve plasma and cyclotron frequencies
-    // because usually an implicit souce term update is used
-    //dt_est = std::min(dt_est, 0.5/std::max(omega_pe,omega_ce)*1.0/cfl);
-    //dt_est = std::min(dt_est, 1.0/std::max(omega_pe,omega_ce)*1.0/cfl);
-
-    //if (1.0/std::max(omega_pe,omega_ce)<cfl*dx[d]/std::max(c_h, c))
-    //std::cout << 1.0/std::max(omega_pe,omega_ce) << " " << cfl*dx[d]/std::max(c_h, c) << std::endl;
-    
+        
   }  
   
   // Ensure that we really do have the minimum across all processors
