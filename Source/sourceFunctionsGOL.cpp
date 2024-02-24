@@ -105,7 +105,7 @@ void CAMReXmp::sourceUpdateIMMidpointGOL(Array4<Real>& arr, int i, int j, int k,
   
   functionInt[ENER_I] = E_i;
   functionInt[ENER_E] = E_e;
-  
+
   for (int n=0; n<NUM_STATE; n++)
     arr(i,j,k,n) = 2.0*functionInt[n]-arr(i,j,k,n);
 
@@ -123,7 +123,7 @@ void CAMReXmp::sourceUpdateIMMidpointGOL(Array4<Real>& arr, int i, int j, int k,
   Real kin_i_new = 0.5*rho_i*v_i*v_i;
   Real kin_e_new = 0.5*rho_e*v_e*v_e;  
   
-  arr(i,j,k,ENER_I) += kin_i_new-kin_i;
+  arr(i,j,k,ENER_I) += kin_i_new-kin_i + kin_e_new-kin_e;
   arr(i,j,k,ENER_E) += kin_e_new-kin_e;
   
 }

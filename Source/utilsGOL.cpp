@@ -10,42 +10,45 @@ using namespace amrex;
 
 Vector<Real> fluidGOLFlux(const Vector<Real>& u_i, int d){
   // define conserved variables
-  Real rho_i = u_i[0];
-  Real momX_i = u_i[1+d];
-  Real momY_i = u_i[1+(1+d)%3];
-  Real momZ_i = u_i[1+(2+d)%3];
-  Real E_i = u_i[ENER_I];
+  Real rho = u_i[0];
+  Real momX = u_i[1+d];
+  Real momY = u_i[1+(1+d)%3];
+  Real momZ = u_i[1+(2+d)%3];
+  Real E = u_i[ENER_I];
   Real J_x = u_i[MOMX_E+d];
   Real J_y = u_i[MOMX_E+(1+d)%3];
   Real J_z = u_i[MOMX_E+(2+d)%3];
   Real E_e = u_i[ENER_E];
-
+  //Real E_i = E - E_e;
+  
   // quasineutrality n_i=n_e_rho_i/m_i, rho_e=rho_i*(m_e/m_i) and m_i=1
-  Real n_e = rho_i;
-  Real rho_e = rho_i/m;
+  Real n_e = rho;
+  Real rho_e = rho/m;
+  Real m_i = 1.0;
   Real m_e = 1.0/m;
   Real q_i = r_i;
   
   // define primitive variables
-  Real v_x_i = momX_i/rho_i;
-  Real v_y_i = momY_i/rho_i;
-  Real v_z_i = momZ_i/rho_i;
-  Real p_i = get_pressure({rho_i,momX_i,momY_i,momZ_i,E_i});  
-  Real v_x_e = v_x_i-J_x/(n_e*q_i);
-  Real v_y_e = v_y_i-J_y/(n_e*q_i);
-  Real v_z_e = v_z_i-J_z/(n_e*q_i);
+  Real v_x = momX/rho;
+  Real v_y = momY/rho;
+  Real v_z = momZ/rho;
+  Real p = get_pressure({rho,momX,momY,momZ,E});  
+  Real v_x_e = v_x-J_x/(n_e*q_i);
+  Real v_y_e = v_y-J_y/(n_e*q_i);
+  Real v_z_e = v_z-J_z/(n_e*q_i);
   Real p_e = get_pressure({rho_e,rho_e*v_x_e,rho_e*v_y_e,rho_e*v_z_e,E_e});
-
+  //Real p_i = p - p_e;
+  
   // flux function
   Vector<Real> function(u_i.size(),0.0);
-  function[0] = rho_i*v_x_i;
-  function[1+d] = rho_i*v_x_i*v_x_i + p_i+p_e;
-  function[1+(1+d)%3] = rho_i*v_x_i*v_y_i;
-  function[1+(2+d)%3] = rho_i*v_x_i*v_z_i;
-  function[ENER_I] = (E_i+p_i)*v_x_i;
-  function[MOMX_E+d] = 2.0*J_x*v_x_i - J_x*J_x/(n_e*q_i) -p_e*q_i/m_e;
-  function[MOMX_E+(1+d)%3] = v_x_i*J_y + v_y_i*J_x - J_x*J_y/(n_e*q_i);
-  function[MOMX_E+(2+d)%3] = v_x_i*J_z + v_z_i*J_x - J_x*J_z/(n_e*q_i);  
+  function[0] = rho*v_x;
+  function[1+d] = rho*v_x*v_x + p;
+  function[1+(1+d)%3] = rho*v_x*v_y;
+  function[1+(2+d)%3] = rho*v_x*v_z;
+  function[ENER_I] = (E+p)*v_x + (E_e+p_e)*(-J_x/(n_e*q_i));
+  function[MOMX_E+d] = 2.0*J_x*v_x - J_x*J_x/(n_e*q_i) -p_e*q_i/m_e;
+  function[MOMX_E+(1+d)%3] = v_x*J_y + v_y*J_x - J_x*J_y/(n_e*q_i);
+  function[MOMX_E+(2+d)%3] = v_x*J_z + v_z*J_x - J_x*J_z/(n_e*q_i);  
   function[ENER_E] = (E_e+p_e)*v_x_e;
   return function;
 }
