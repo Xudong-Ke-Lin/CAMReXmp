@@ -165,5 +165,25 @@ Vector<Real> get_charge_scaled(Vector<Real> u_i, Vector<Real> u_e);
 void WENOcharacteristic(const Array4<Real>& arr, const Array4<Real>& slopes,
 			int i, int j, int k, int iOffset, int jOffset, int kOffset,
 			int start, int len, int d);
+////////////////////////////////////////////////////////////
+// 2 fluid plasma with generalized Ohm's law functions
+////////////////////////////////////////////////////////////
+Vector<Real> fluidGOLFlux(const Vector<Real>& u_i, int d);
+Vector<Real> TVD_fluxGOL(const Array4<Real>& arr, const Array4<Real>& slopes,
+			 int i, int j, int k, int iOffset, int jOffset, int kOffset,
+			 int start, int len, int startSlope, Real dx, Real dt, int d);
+
+Vector<Real> flux_LF(const Vector<Real>& u_i, const Vector<Real>& u_iPlus1, 
+		     double dx, double dt, int d,
+		     std::function<Vector<Real> (const Vector<Real>&, int)> flux_function);
+Vector<Real> flux_RI(const Vector<Real>& u_i, const Vector<Real>& u_iPlus1, 
+		     double dx, double dt, int d,
+		     std::function<Vector<Real> (const Vector<Real>&, int)> flux_function);
+Vector<Real> flux_FORCE(const Vector<Real>& u_i, const Vector<Real>& u_iPlus1, 
+			double dx, double dt, int d,
+			std::function<Vector<Real> (const Vector<Real>&, int)> flux_function);
+Vector<Real> flux_MUSTA1(Vector<Real>& u_i, Vector<Real>& u_iPlus1, 
+			 double dx, double dt, int d, Real cfl,
+			 std::function<Vector<Real> (const Vector<Real>&, int)> flux_function);
 
 #endif /*_utils_H_*/

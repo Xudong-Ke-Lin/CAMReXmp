@@ -1245,10 +1245,37 @@ CAMReXmp::estTimeStep (Real)
 	      for(int i = lo.x; i <= hi.x; i++)
 		{
 		  // compute fastest speeds
-		  Real v = arr(i,j,k,MOMX_I+d+fluid)/arr(i,j,k,RHO_I+fluid);
+		  /*Real v = arr(i,j,k,MOMX_I+d+fluid)/arr(i,j,k,RHO_I+fluid);
 		  Vector<Real> u_i = get_data_zone(arr,i,j,k,fluid,NUM_STATE_FLUID/2);
 		  Real a = get_speed(u_i);
-		  c_array.push_back(std::abs(v)+a);
+		  c_array.push_back(std::abs(v)+a);*/
+		  // define conserved variables
+		  Real rho_i = arr(i,j,k,0);
+		  Real momX_i = arr(i,j,k,1+d);
+		  Real momY_i = arr(i,j,k,1+(1+d)%3);
+		  Real momZ_i = arr(i,j,k,1+(2+d)%3);
+		  Real J_x = arr(i,j,k,MOMX_E+d);
+		  Real J_y = arr(i,j,k,MOMX_E+(1+d)%3);
+		  Real J_z = arr(i,j,k,MOMX_E+(2+d)%3);
+		  Real E_e = arr(i,j,k,ENER_E);
+
+		  // quasineutrality n_i=n_e_rho_i/m_i, rho_e=rho_i*(m_e/m_i) and m_i=1
+		  Real n_e = rho_i;
+		  Real rho_e = rho_i/m;
+		  Real m_e = 1.0/m;
+		  Real q_i = r_i;
+  
+		  // define primitive variables
+		  Real v_x_i = momX_i/rho_i;
+		  Real v_y_i = momY_i/rho_i;
+		  Real v_z_i = momZ_i/rho_i;
+		  Real v_x_e = v_x_i-J_x/(n_e*q_i);
+		  Real v_y_e = v_y_i-J_y/(n_e*q_i);
+		  Real v_z_e = v_z_i-J_z/(n_e*q_i);
+		  Vector<Real> u_i = {rho_e,rho_e*v_x_e,rho_e*v_y_e,rho_e*v_z_e,E_e};
+		  Real a = get_speed(u_i);
+		  c_array.push_back(std::abs(v_x_e)+a);
+		  //amrex::Print() << rho_e << " " << rho_e*v_x_e << " " << rho_e*v_y_e << " " << rho_e*v_z_e << " " << E_e << " " << a << std::endl;
 		}
 	    }
 	}
@@ -1631,7 +1658,7 @@ CAMReXmp::read_params ()
   }
   else if (fluidOrder==2){
     amrex::Print() << "fluid 2nd order TVD" << std::endl;
-    fluidSolverWithChosenSpaceOrder = &CAMReXmp::fluidSolverTVD;
+    fluidSolverWithChosenSpaceOrder = &CAMReXmp::fluidSolverTVDGOL;
   }
   else if (fluidOrder==3){
     amrex::Print() << "fluid 3rd order WENO" << std::endl;
@@ -1714,7 +1741,7 @@ CAMReXmp::read_params ()
   */
   else if (sourceMethod=="IM"){
     amrex::Print() << "IM source treatment" << std::endl;
-    sourceUpdateWithChosenMethod = &CAMReXmp::sourceUpdateIMMidpoint;
+    sourceUpdateWithChosenMethod = &CAMReXmp::sourceUpdateIMMidpointGOL;
   }
   /*else if (sourceMethod=="ANEX"){
     amrex::Print() << "ANEX source treatment" << std::endl;

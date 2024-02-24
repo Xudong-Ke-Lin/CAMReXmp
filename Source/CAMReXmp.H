@@ -308,6 +308,11 @@ private:
 
   void implicitYeeMaxwellSolver(Array<MultiFab,AMREX_SPACEDIM>&, Array<MultiFab,AMREX_SPACEDIM>&, MultiFab&, MultiFab&, const Real*, Real, Real);
 
+  ////////////////////////////////////////////////////////////
+  // 2 fluid plasma with generalized Ohm's law functions
+  ////////////////////////////////////////////////////////////
+  void sourceUpdateIMMidpointGOL(Array4<Real>& arr, int i, int j, int k, Real dt);
+  void fluidSolverTVDGOL(MultiFab&, const Real*, Real);
 };    
 
 /**

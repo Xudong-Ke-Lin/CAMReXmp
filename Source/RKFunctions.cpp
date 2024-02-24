@@ -43,7 +43,7 @@ void CAMReXmp::RK2(const Real* dx, Real dt, Real time)
       if (MaxwellDivMethod=="HDC")
 	plasmaSolverTVD(S_input,dx,dt);
       else
-	fluidSolverTVD(S_input,dx,dt);
+	(this->*fluidSolverWithChosenSpaceOrder)(S_input,dx,dt);
       // fill intermediate state
       FillPatch(*this, S1, NUM_GROW, time, Phi_Type, 0, NUM_STATE);
     }
@@ -77,7 +77,7 @@ void CAMReXmp::RK2(const Real* dx, Real dt, Real time)
 	}
       else
 	{
-	  fluidSolverTVD(S1,dx,dt);
+	  (this->*fluidSolverWithChosenSpaceOrder)(S1,dx,dt);
 	  // only needs to update the fluid variables
 	  linearCombination(S_new, S_new, 1.0/2.0, S_input, 1.0/2.0, 0, NUM_STATE_FLUID);
 	}

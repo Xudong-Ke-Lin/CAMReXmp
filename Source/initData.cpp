@@ -1121,11 +1121,11 @@ CAMReXmp::initData ()
 	    Vector<Real> w_i{arr(i,j,k,0), v_x, v_y, v_z, p};
 	    arr(i,j,k,ENER_I) = get_energy(w_i);
 	    
-	    arr(i,j,k,RHO_E) = rho/m;
+	    arr(i,j,k,RHO_E) = 0.0;//rho/m;
 	    arr(i,j,k,MOMX_E) = arr(i,j,k,RHO_E)*v_x;
 	    arr(i,j,k,MOMY_E) = arr(i,j,k,RHO_E)*v_y;
 	    arr(i,j,k,MOMZ_E) = arr(i,j,k,RHO_E)*v_z;
-	    Vector<Real> w_e{arr(i,j,k,RHO_E), v_x, v_y, v_z, p};
+	    Vector<Real> w_e{rho/m, 0.0, 0.0, 0.0, p};
 	    arr(i,j,k,ENER_E) = get_energy(w_e);
 
 	    arr(i,j,k,BX) = B_x;
@@ -1295,10 +1295,11 @@ CAMReXmp::initData ()
 	    arr(i,j,k,ENER_I) = get_energy(w_i);
 	    
 	    arr(i,j,k,RHO_E) = rho;
-	    arr(i,j,k,MOMX_E) = arr(i,j,k,RHO_E)*v_x;
-	    arr(i,j,k,MOMY_E) = arr(i,j,k,RHO_E)*v_y;
-	    arr(i,j,k,MOMZ_E) = arr(i,j,k,RHO_E)*v_z;
-	    Vector<Real> w_e{arr(i,j,k,RHO_E), v_x, v_y, v_z, p};
+	    arr(i,j,k,MOMX_E) = 0.0;//arr(i,j,k,RHO_E)*v_x;
+	    arr(i,j,k,MOMY_E) = 0.0;//arr(i,j,k,RHO_E)*v_y;
+	    arr(i,j,k,MOMZ_E) = 0.0;//arr(i,j,k,RHO_E)*v_z;
+	    //Vector<Real> w_e{arr(i,j,k,RHO_E), v_x, v_y, v_z, p};
+	    Vector<Real> w_e{arr(i,j,k,RHO_E), 0.0, 0.0, 0.0, p};
 	    arr(i,j,k,ENER_E) = get_energy(w_e);
 
 	    arr(i,j,k,BX) = B_x;
