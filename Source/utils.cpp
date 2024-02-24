@@ -790,57 +790,6 @@ Vector<Real> half_update_R(Vector<Real> u_iL, Vector<Real> u_iR, Real dx, Real d
   return half_step_evolution;
 }
 
-Vector<Real> TVD_flux(const Array4<Real>& arr, const Array4<Real>& slopes,
-		      int i, int j, int k, int iOffset, int jOffset, int kOffset,
-		      int start, int len, int startSlope,
-		      Real dx, Real dt, int d,
-		      std::function<Vector<Real> (Vector<Real>,Vector<Real>,int)> solver){
-
-  Vector<Real> u_iMinus1, u_i;
-
-  Vector<Real> slopes_iMinus1, slopes_i;
-  /*
-  int offset;
-  if (d==0)
-    offset = 0;
-  else if (d==1)
-    offset = NUM_STATE;//_FLUID;
-  */
-  for (int n = start; n<start+len; n++)
-    {
-      //ui_iMinus2.push_back(arr(i-2*iOffset,j-2*jOffset,k-2*kOffset,n));
-      u_iMinus1.push_back(arr(i-iOffset,j-jOffset,k-kOffset,n));
-      u_i.push_back(arr(i,j,k,n));
-      //ui_iPlus1.push_back(arr(i+iOffset,j+jOffset,k+kOffset,n));
-
-      //slopes_iMinus1.push_back(slopes(i-iOffset,j-jOffset,k-kOffset,n+offset));
-      //slopes_i.push_back(slopes(i,j,k,n+offset)); 
-    }
-  for (int n = startSlope; n<startSlope+len; n++)
-    {
-
-      slopes_iMinus1.push_back(slopes(i-iOffset,j-jOffset,k-kOffset,n));
-      slopes_i.push_back(slopes(i,j,k,n)); 
-    }
-
-  // Slope limiting variable index
-  //Vector<int> limiting_idx(NUM_STATE_FLUID/2, NUM_STATE_FLUID/2-1);
-  
-  // Cell boundary extrapolated values at the left and the right for the ion
-  //Vector<Real> slopes_iMinus1_i = TVD_slopes(ui_iMinus2, ui_iMinus1, ui_i, limiting_idx);
-  //Vector<Real> slopes_i_i = TVD_slopes(ui_iMinus1, ui_i, ui_iPlus1, limiting_idx);
-  Vector<Real> u_iMinus1R,u_iL;
-  for (int n = 0; n<len; n++)
-    {
-      u_iMinus1R.push_back(u_iMinus1[n] + 0.5*slopes_iMinus1[n]);
-      u_iL.push_back(u_i[n] - 0.5*slopes_i[n]);
-    }
-
-  // flux depending on the speeds, defined in slides or Toro's book
-  Vector<Real> flux = solver(u_iMinus1R,u_iL,d);
-
-  return flux;
-}
 Vector<Real> MUSCL_Hancock_TVD_flux(const Array4<Real>& arr, const Array4<Real>& slopes,
 				    int i, int j, int k, int iOffset, int jOffset, int kOffset,
 				    int start, int len,
@@ -1214,10 +1163,42 @@ Vector<Real> flux_LLF(const Vector<Real>& u_i, const Vector<Real>& u_iPlus1, int
       }
     return flux;
 }
+Vector<Real> TVD_flux(const Array4<Real>& arr, const Array4<Real>& slopes,
+		      int i, int j, int k, int iOffset, int jOffset, int kOffset,
+		      int start, int len, int startSlope, int d,
+		      std::function<Vector<Real> (Vector<Real>,Vector<Real>,int)> solver){
+
+  Vector<Real> u_iMinus1, u_i;
+
+  Vector<Real> slopes_iMinus1, slopes_i;
+
+  for (int n = start; n<start+len; n++)
+    {
+      u_iMinus1.push_back(arr(i-iOffset,j-jOffset,k-kOffset,n));
+      u_i.push_back(arr(i,j,k,n));
+    }
+  for (int n = startSlope; n<startSlope+len; n++)
+    {
+
+      slopes_iMinus1.push_back(slopes(i-iOffset,j-jOffset,k-kOffset,n));
+      slopes_i.push_back(slopes(i,j,k,n)); 
+    }
+
+  Vector<Real> u_iMinus1R,u_iL;
+  for (int n = 0; n<len; n++)
+    {
+      u_iMinus1R.push_back(u_iMinus1[n] + 0.5*slopes_iMinus1[n]);
+      u_iL.push_back(u_i[n] - 0.5*slopes_i[n]);
+    }
+
+  // flux depending on the speeds, defined in slides or Toro's book
+  Vector<Real> flux = solver(u_iMinus1R,u_iL,d);
+
+  return flux;
+}
 Vector<Real> WENO_flux(const Array4<Real>& arr, const Array4<Real>& slopes,
 		       int i, int j, int k, int iOffset, int jOffset, int kOffset,
-		       int start, int len,
-		       Real dx, Real dt, int d,
+		       int start, int len, int d,
 		       std::function<Vector<Real> (Vector<Real>,Vector<Real>,int)> solver){
   Vector<Real> u_iMinus1;
   Vector<Real> u_i;
@@ -1368,8 +1349,7 @@ Vector<Real> WENO_flux(const Array4<Real>& arr, const Array4<Real>& slopes,
 }
 Vector<Real> WENO_flux_flat(const Array4<Real>& arr, const Array4<Real>& slopes, const Array4<Real>& tau,
 			    int i, int j, int k, int iOffset, int jOffset, int kOffset,
-			    int start, int len,
-			    Real dx, Real dt, int d,
+			    int start, int len, int d,
 			    std::function<Vector<Real> (Vector<Real>,Vector<Real>,int)> solver){
   Vector<Real> u_iMinus1;
   Vector<Real> u_i;

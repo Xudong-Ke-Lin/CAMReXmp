@@ -356,15 +356,14 @@ void CAMReXmp::plasmaSolverTVD(MultiFab& S_dest, MultiFab& S_source, MultiFab (&
 	  {
 	    Vector<Real> flux_i = TVD_flux(arr, slopes, i, j, k, iOffset, jOffset, kOffset,
 					   0, NUM_STATE_FLUID/2, d*NUM_STATE,
-					   dx[d], dt, d, HLLC);	    
+					   d, HLLC);	    
 	    Vector<Real> flux_e = TVD_flux(arr, slopes, i, j, k, iOffset, jOffset, kOffset,
 					   NUM_STATE_FLUID/2, NUM_STATE_FLUID/2, d*NUM_STATE+NUM_STATE_FLUID/2,
-					   dx[d], dt, d, HLLC);	    
+					   d, HLLC);	    
 	    Vector<Real> flux_em = TVD_flux(arr, slopes, i, j, k, iOffset, jOffset, kOffset,
 					    BX, NUM_STATE_MAXWELL, d*NUM_STATE+BX,
-					    dx[d], dt, d, RankineHugoniot);
+					    d, RankineHugoniot);
 	    
-	    //Vector<Real> flux = fluid_flux_HLLC(arr, i, j, k, iOffset, jOffset, kOffset, dx[d], dt, d);
 
 	    for(int n=0; n<NUM_STATE_FLUID/2; n++)
 	      {		
@@ -614,15 +613,13 @@ void CAMReXmp::plasmaSolverTVD(MultiFab& S_source, const Real* dx, Real dt)
 	  {
 	    Vector<Real> flux_i = TVD_flux(arr, slopes, i, j, k, iOffset, jOffset, kOffset,
 					   0, NUM_STATE_FLUID/2, d*NUM_STATE,
-					   dx[d], dt, d, HLLC);	    
+					   d, HLLC);	    
 	    Vector<Real> flux_e = TVD_flux(arr, slopes, i, j, k, iOffset, jOffset, kOffset,
 					   NUM_STATE_FLUID/2, NUM_STATE_FLUID/2, d*NUM_STATE+NUM_STATE_FLUID/2,
-					   dx[d], dt, d, HLLC);	    
+					   d, HLLC);	    
 	    Vector<Real> flux_em = TVD_flux(arr, slopes, i, j, k, iOffset, jOffset, kOffset,
 					    BX, NUM_STATE_MAXWELL, d*NUM_STATE+BX,
-					    dx[d], dt, d, RankineHugoniot);
-	    
-	    //Vector<Real> flux = fluid_flux_HLLC(arr, i, j, k, iOffset, jOffset, kOffset, dx[d], dt, d);
+					    d, RankineHugoniot);	    
 
 	    for(int n=0; n<NUM_STATE_FLUID/2; n++)
 	      {		

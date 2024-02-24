@@ -483,10 +483,10 @@ void CAMReXmp::fluidSolverTVD(MultiFab& S_dest, MultiFab& S_source, MultiFab (&f
 	  {
 	    Vector<Real> flux_i = TVD_flux(arr, slopes, i, j, k, iOffset, jOffset, kOffset,
 					   0, NUM_STATE_FLUID/2, d*NUM_STATE_FLUID,
-					   dx[d], dt, d, HLLC);
+					   d, HLLC);
 	    Vector<Real> flux_e = TVD_flux(arr, slopes, i, j, k, iOffset, jOffset, kOffset,
 					   NUM_STATE_FLUID/2, NUM_STATE_FLUID/2, d*NUM_STATE_FLUID+NUM_STATE_FLUID/2,
-					   dx[d], dt, d, HLLC);
+					   d, HLLC);
 
 	    for(int n=0; n<NUM_STATE_FLUID/2; n++)
 	      {		
@@ -789,16 +789,14 @@ void CAMReXmp::fluidSolverWENO(MultiFab& S_dest, MultiFab& S_source, MultiFab (&
 	  for(int i = lo.x; i <= hi.x+iOffset; i++)
 	  {
 	    Vector<Real> flux_i = WENO_flux(arr, slopes, i, j, k, iOffset, jOffset, kOffset,
-					    0, NUM_STATE_FLUID/2, dx[d], dt, d,
-					    HLLC);
+					    0, NUM_STATE_FLUID/2, d, HLLC);
 	    Vector<Real> flux_e = WENO_flux(arr, slopes, i, j, k, iOffset, jOffset, kOffset,
-					    NUM_STATE_FLUID/2, NUM_STATE_FLUID/2, dx[d], dt, d,
-					    HLLC);
+					    NUM_STATE_FLUID/2, NUM_STATE_FLUID/2, d, HLLC);
 
 	    /*Vector<Real> flux_i = WENO_flux_flat(arr, slopes, tau, i, j, k, iOffset, jOffset, kOffset,
-						 0, NUM_STATE_FLUID/2, dx[d], dt, d, HLLC);
+						 0, NUM_STATE_FLUID/2, d, HLLC);
 	    Vector<Real> flux_e = WENO_flux_flat(arr, slopes, tau_e, i, j, k, iOffset, jOffset, kOffset,
-						 NUM_STATE_FLUID/2, NUM_STATE_FLUID/2, dx[d], dt, d, HLLC);
+						 NUM_STATE_FLUID/2, NUM_STATE_FLUID/2, d, HLLC);
 	    */
 	    for(int n=0; n<NUM_STATE_FLUID/2; n++)
 	      {		
@@ -1658,10 +1656,10 @@ void CAMReXmp::fluidSolverTVD(MultiFab& S_source, const Real* dx, Real dt)
 	  {
 	    Vector<Real> flux_i = TVD_flux(arr, slopes, i, j, k, iOffset, jOffset, kOffset,
 					   0, NUM_STATE_FLUID/2, d*NUM_STATE_FLUID,
-					   dx[d], dt, d, HLLC);
+					   d, HLLC);
 	    Vector<Real> flux_e = TVD_flux(arr, slopes, i, j, k, iOffset, jOffset, kOffset,
 					   NUM_STATE_FLUID/2, NUM_STATE_FLUID/2, d*NUM_STATE_FLUID+NUM_STATE_FLUID/2,
-					   dx[d], dt, d, HLLC);
+					   d, HLLC);
 
 	    for(int n=0; n<NUM_STATE_FLUID/2; n++)
 	      {		
@@ -1953,16 +1951,14 @@ void CAMReXmp::fluidSolverWENO(MultiFab& S_source, const Real* dx, Real dt)
 	  for(int i = lo.x; i <= hi.x+iOffset; i++)
 	  {
 	    Vector<Real> flux_i = WENO_flux(arr, slopes, i, j, k, iOffset, jOffset, kOffset,
-					    0, NUM_STATE_FLUID/2, dx[d], dt, d,
-					    HLLC);
+					    0, NUM_STATE_FLUID/2, d, HLLC);
 	    Vector<Real> flux_e = WENO_flux(arr, slopes, i, j, k, iOffset, jOffset, kOffset,
-					    NUM_STATE_FLUID/2, NUM_STATE_FLUID/2, dx[d], dt, d,
-					    HLLC);
+					    NUM_STATE_FLUID/2, NUM_STATE_FLUID/2, d, HLLC);
 
 	    /*Vector<Real> flux_i = WENO_flux_flat(arr, slopes, tau, i, j, k, iOffset, jOffset, kOffset,
-						 0, NUM_STATE_FLUID/2, dx[d], dt, d, HLLC);
+						 0, NUM_STATE_FLUID/2, d, HLLC);
 	    Vector<Real> flux_e = WENO_flux_flat(arr, slopes, tau_e, i, j, k, iOffset, jOffset, kOffset,
-						 NUM_STATE_FLUID/2, NUM_STATE_FLUID/2, dx[d], dt, d, HLLC);
+						 NUM_STATE_FLUID/2, NUM_STATE_FLUID/2, d, HLLC);
 	    */
 	    for(int n=0; n<NUM_STATE_FLUID/2; n++)
 	      {		

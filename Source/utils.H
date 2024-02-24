@@ -140,18 +140,15 @@ Vector<Real> MUSCL_Hancock_WENO_flux(const Array4<Real>& arr, const Array4<Real>
 				     std::function<Vector<Real> (Vector<Real>,Vector<Real>,int)> solver);
 Vector<Real> TVD_flux(const Array4<Real>& arr, const Array4<Real>& slopes,
 		      int i, int j, int k, int iOffset, int jOffset, int kOffset,
-		      int start, int len, int startSlope,
-		      Real dx, Real dt, int d,
+		      int start, int len, int startSlope, int d,
 		      std::function<Vector<Real> (Vector<Real>,Vector<Real>,int)> solver);
 Vector<Real> WENO_flux(const Array4<Real>& arr, const Array4<Real>& slopes,
 		       int i, int j, int k, int iOffset, int jOffset, int kOffset,
-		       int start, int len,
-		       Real dx, Real dt, int d,
+		       int start, int len, int d,
 		       std::function<Vector<Real> (Vector<Real>,Vector<Real>,int)> solver);
 Vector<Real> WENO_flux_flat(const Array4<Real>& arr, const Array4<Real>& slopes, const Array4<Real>& tau,
 			    int i, int j, int k, int iOffset, int jOffset, int kOffset,
-			    int start, int len,
-			    Real dx, Real dt, int d,
+			    int start, int len, int d,
 			    std::function<Vector<Real> (Vector<Real>,Vector<Real>,int)> solver);
 Vector<Real> exact_flux(const Array4<Real>& arr, int i, int j, int k, int iOffset, int jOffset, int kOffset,
  			int start, int length, Real dx, Real dt, int d);
