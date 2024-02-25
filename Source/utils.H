@@ -165,5 +165,13 @@ Vector<Real> get_charge_scaled(Vector<Real> u_i, Vector<Real> u_e);
 void WENOcharacteristic(const Array4<Real>& arr, const Array4<Real>& slopes,
 			int i, int j, int k, int iOffset, int jOffset, int kOffset,
 			int start, int len, int d);
+////////////////////////////////////////////////////////////////////////////////////////////////////
+// pressure-based semi-implicit methods
+////////////////////////////////////////////////////////////////////////////////////////////////////
+Vector<Real> fluidAdvectionFlux(const Vector<Real>& u_i, int d);
+Vector<Real> RusanovAdvection(const Vector<Real>& u_i, const Vector<Real>& u_iPlus1, int d);
+Vector<Real> pressure_explicit(const Array4<Real>& arr, 
+			       int i, int j, int k, int iOffset, int jOffset, int kOffset,
+			       int start, int len, Real dx, Real dt, int d);
 
 #endif /*_utils_H_*/

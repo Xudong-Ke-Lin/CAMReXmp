@@ -1773,3 +1773,98 @@ void WENOcharacteristic(const Array4<Real>& arr, const Array4<Real>& slopes,
       slopes(i,j,k,n+NUM_STATE_FLUID+2*NUM_STATE_FLUID*d+start) = dotProduct(right[n],{slopesw1[1],slopesw2[1],slopesw3[1],slopesw4[1],slopesw5[1]});
     }
 }
+////////////////////////////////////////////////////////////////////////////////////////////////////
+// pressure-based semi-implicit methods
+////////////////////////////////////////////////////////////////////////////////////////////////////
+Vector<Real> fluidAdvectionFlux(const Vector<Real>& u_i, int d){
+  // define conserved variables
+  Real rho_i = u_i[0];
+  Real momX_i = u_i[1+d];
+  Real momY_i = u_i[1+(1+d)%3];
+  Real momZ_i = u_i[1+(2+d)%3];
+  Real E_i = u_i[ENER_I];
+
+  // define primitive variables
+  Real v_x_i = momX_i/rho_i;
+  Real v_y_i = momY_i/rho_i;
+  Real v_z_i = momZ_i/rho_i;
+
+  // define kinetic energy
+  Real rho_k_i = 0.5*rho_i*get_magnitude_squared(v_x_i,v_y_i,v_z_i);
+  
+  // flux function
+  Vector<Real> function(u_i.size(),0.0);
+  function[0] = v_x_i*rho_i;
+  function[1+d] = v_x_i*momX_i;
+  function[1+(1+d)%3] = v_x_i*momY_i;
+  function[1+(2+d)%3] = v_x_i*momZ_i;
+  function[ENER_I] = v_x_i*rho_k_i;
+  return function;
+}
+Vector<Real> RusanovAdvection(const Vector<Real>& u_i, const Vector<Real>& u_iPlus1, int d){
+  
+  Vector<Real> flux, func_i, func_iPlus1;
+  func_i = fluidAdvectionFlux(u_i,d);
+  func_iPlus1 = fluidAdvectionFlux(u_iPlus1,d);
+  Real speed_i, speed_iPlus1, speed_max;
+  speed_i = std::abs(u_i[MOMX_I+d]);
+  speed_iPlus1 = std::abs(u_iPlus1[MOMX_I+d]);
+  speed_max = std::max(speed_i,speed_iPlus1);
+  
+  for (int i = 0; i<u_i.size(); i++)
+    {
+      flux.push_back(0.5*(func_iPlus1[i]+func_i[i]
+			  - speed_max*(u_iPlus1[i]-u_i[i])));
+    }
+  return flux;
+}
+Vector<Real> pressure_explicit(const Array4<Real>& arr, 
+			       int i, int j, int k, int iOffset, int jOffset, int kOffset,
+			       int start, int len, Real dx, Real dt, int d){
+  
+  Vector<Real> u_iMinus1, u_i, u_iPlus1;
+
+  Vector<Real> u_iMinusHalf, u_iPlusHalf;
+
+  for (int n = start; n<start+len; n++)
+    {
+      u_iMinus1.push_back(arr(i-iOffset,j-jOffset,k-kOffset,n));
+      u_i.push_back(arr(i,j,k,n));
+      u_iPlus1.push_back(arr(i+iOffset,j+jOffset,k+kOffset,n));
+
+      u_iMinusHalf.push_back(0.5*(u_iMinus1[n]+u_i[n]));
+      u_iPlusHalf.push_back(0.5*(u_i[n]+u_iPlus1[n]));
+    }
+
+  // for momentum
+  Real momX_iPlusHalf = u_iPlusHalf[1+d];//0.5*(u_i[1+d]+u_iPlus1[1+d]);
+  Real momX_iMinusHalf = u_iMinusHalf[1+d];//0.5*(u_i[1+d]+u_iPlus1[1+d]);
+
+  Real p_iMinus1 = get_pressure(u_iMinus1);
+  Real p_i = get_pressure(u_i);
+  Real p_iPlus1 = get_pressure(u_iPlus1);
+
+  // for enthalpy
+  Real p_iPlusHalf = get_pressure(u_iPlusHalf);//0.5*(p_i+p_iPlus1);//get_pressure(u_iPlusHalf);//std::max(p_i,p_iPlus1);
+  Real rho_iPlusHalf = u_iPlusHalf[0];//0.5*(u_i[0]+u_iPlus1[0]);
+  Real e_iPlusHalf = p_iPlusHalf/((Gamma-1)*rho_iPlusHalf);
+  Real h_iPlusHalf = e_iPlusHalf+p_iPlusHalf/rho_iPlusHalf;
+
+  Real p_iMinusHalf = get_pressure(u_iMinusHalf);//0.5*(p_i+p_iMinus1);
+  Real rho_iMinusHalf = u_iMinusHalf[0];
+  Real e_iMinusHalf = p_iMinusHalf/((Gamma-1)*rho_iMinusHalf);
+  Real h_iMinusHalf = e_iMinusHalf+p_iMinusHalf/rho_iMinusHalf;
+
+  // momentum update
+  Real momX_iPlusHalf_nPlus1 = momX_iPlusHalf - dt/dx * (p_iPlus1 - p_i);
+  Real momX_iMinusHalf_nPlus1 = momX_iMinusHalf - dt/dx * (p_i - p_iMinus1);
+  
+  // energy update
+  Real ener_i_nPlus1 = u_i[ENER_I] - dt/dx * (h_iPlusHalf*momX_iPlusHalf - h_iMinusHalf*momX_iMinusHalf);
+  
+  // flux depending on the speeds, defined in slides or Toro's book
+  Vector<Real> flux(len,0.0);
+  flux[1+d] = 0.5*(momX_iPlusHalf_nPlus1+momX_iMinusHalf_nPlus1);
+  flux[ENER_I] = ener_i_nPlus1;
+  return flux;
+}

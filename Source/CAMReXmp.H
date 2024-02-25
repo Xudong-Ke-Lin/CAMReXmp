@@ -308,6 +308,11 @@ private:
 
   void implicitYeeMaxwellSolver(Array<MultiFab,AMREX_SPACEDIM>&, Array<MultiFab,AMREX_SPACEDIM>&, MultiFab&, MultiFab&, const Real*, Real, Real);
 
+  ////////////////////////////////////////////////////////////
+  // pressure-based semi-implicit methods
+  ////////////////////////////////////////////////////////////
+  void fluidSolverAdvTVD(MultiFab&, const Real*, Real);
+  void fluidSolverPres(MultiFab&, const Real*, Real);  
 };    
 
 /**

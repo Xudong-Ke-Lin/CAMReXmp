@@ -1631,7 +1631,7 @@ CAMReXmp::read_params ()
   }
   else if (fluidOrder==2){
     amrex::Print() << "fluid 2nd order TVD" << std::endl;
-    fluidSolverWithChosenSpaceOrder = &CAMReXmp::fluidSolverTVD;
+    fluidSolverWithChosenSpaceOrder = &CAMReXmp::fluidSolverAdvTVD;//fluidSolverTVD;
   }
   else if (fluidOrder==3){
     amrex::Print() << "fluid 3rd order WENO" << std::endl;
