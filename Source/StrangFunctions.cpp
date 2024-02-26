@@ -45,11 +45,11 @@ void CAMReXmp::StrangSecond(const Real* dx, Real dt, Real time)
 #endif	        
   }
 
+  fluidSolverPres(dx,0.5*dt,time+dt);
+  
   RK2(dx,dt,time+dt);
 
-  MultiFab S_input(grids, dmap, NUM_STATE, NUM_GROW);
-  FillPatch(*this, S_input, NUM_GROW, time+dt, Phi_Type, 0, NUM_STATE);
-  fluidSolverPres(S_input,dx,dt);
+  fluidSolverPres(dx,0.5*dt,time+dt);
   return;
   
   if (sourceMethod!="no")

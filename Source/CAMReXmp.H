@@ -312,7 +312,7 @@ private:
   // pressure-based semi-implicit methods
   ////////////////////////////////////////////////////////////
   void fluidSolverAdvTVD(MultiFab&, const Real*, Real);
-  void fluidSolverPres(MultiFab&, const Real*, Real);  
+  void fluidSolverPres(const Real*, Real, Real);
 };    
 
 /**

@@ -1226,6 +1226,7 @@ CAMReXmp::estTimeStep (Real)
   for(unsigned int d = 0; d < amrex::SpaceDim; ++d)
   {
     Vector<Real> c_array {0.0};
+    Vector<Real> v_array {0.0};
     
     for (MFIter mfi(Sborder, true); mfi.isValid(); ++mfi)
     {
@@ -1248,12 +1249,15 @@ CAMReXmp::estTimeStep (Real)
 		  Real v = arr(i,j,k,MOMX_I+d+fluid)/arr(i,j,k,RHO_I+fluid);
 		  Vector<Real> u_i = get_data_zone(arr,i,j,k,fluid,NUM_STATE_FLUID/2);
 		  Real a = get_speed(u_i);
-		  c_array.push_back(std::abs(v)+a);
+		  //c_array.push_back(std::abs(v)+a);
+		  v_array.push_back(2.0*std::abs(v));
+		  c_array.push_back(a);
 		}
 	    }
 	}
     }
-    c_h = *std::max_element(c_array.begin(), c_array.end());
+    //c_h = *std::max_element(c_array.begin(), c_array.end());
+    c_h = (*std::max_element(v_array.begin(), v_array.end()) < 1e-8 ? *std::max_element(c_array.begin(), c_array.end()) : *std::max_element(v_array.begin(), v_array.end()));
 
     // dt does not need to resolve plasma and cyclotron frequencies
     // because usually an implicit souce term update is used
