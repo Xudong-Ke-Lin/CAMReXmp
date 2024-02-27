@@ -293,6 +293,7 @@ private:
   void fluidSolverExact(MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], const Real*, Real);
   void MUSCLHancokFluidSolverTVD(MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], const Real*, Real);
   void fluidSolverWENO(MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], const Real*, Real);
+  void shockDetector(MultiFab&, Real, MultiFab&, int, int);
   void flattenerAlgorithm(MultiFab&, MultiFab&, MultiFab&, int, int);
   void plasmaSolverTVD(MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], const Real*, Real);
   void MUSCLHancokPlasmaSolverTVD(MultiFab&, MultiFab&, MultiFab (&)[AMREX_SPACEDIM], const Real*, Real);
@@ -311,9 +312,12 @@ private:
   ////////////////////////////////////////////////////////////
   // pressure-based semi-implicit methods
   ////////////////////////////////////////////////////////////
+  void fluidSolverAdvMonotone(MultiFab&, const Real*, Real);
   void fluidSolverAdvTVD(MultiFab&, const Real*, Real);
   void fluidSolverPres(const Real*, Real, Real);
-  void RKIMEX2(const Real*, Real, Real);  
+  void flattenerAlgorithmIMEX(MultiFab&, MultiFab&, int, int, const Real*, Real, Real);
+  void RKIMEX2(const Real*, Real, Real);
+  
 };    
 
 /**
