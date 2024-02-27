@@ -314,9 +314,16 @@ private:
   ////////////////////////////////////////////////////////////
   void fluidSolverAdvMonotone(MultiFab&, const Real*, Real);
   void fluidSolverAdvTVD(MultiFab&, const Real*, Real);
-  void fluidSolverPres(const Real*, Real, Real);
+  void fluidSolverPres(MultiFab&, const Real*, Real, Real, int);
   void flattenerAlgorithmIMEX(MultiFab&, MultiFab&, int, int, const Real*, Real, Real);
   void RKIMEX2(const Real*, Real, Real);
+
+
+  ////////////////////////////////////////////////////////////
+  // general solvers for especific sub-systems
+  ////////////////////////////////////////////////////////////
+  void generalSolverMonotone(MultiFab&, const Real*, Real, int, int, std::function<Vector<Real> (Vector<Real>,Vector<Real>,int)>);
+  void generalSolverTVD(MultiFab&, const Real*, Real, int, int, std::function<Vector<Real> (Vector<Real>,Vector<Real>,int)>);
   
 };    
 

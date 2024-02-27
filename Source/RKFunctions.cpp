@@ -376,6 +376,8 @@ void CAMReXmp::RKIMEX2(const Real* dx, Real dt, Real time)
   // IMEX-SSP(2,2,2) L-Stable scheme parameter
   Real gammaIMEX = 1. - 1./sqrt(2.);
 
+  int fluid = RHO_E;
+  
   // get multifabs references
   MultiFab& S_new = get_new_data(Phi_Type);
   
@@ -396,31 +398,30 @@ void CAMReXmp::RKIMEX2(const Real* dx, Real dt, Real time)
   // IMEX-SSP(2,2,2)
   //////////////////////////////////////////////////////////////////////////////
   // implicit pressure solve for gamma dt
-  fluidSolverPres(dx,gammaIMEX*dt,time);
+  fluidSolverPres(S_input, dx,gammaIMEX*dt,time,fluid);
   FillPatch(*this, S1, NUM_GROW, time, Phi_Type, 0, NUM_STATE);
   FillPatch(*this, R1, NUM_GROW, time, Phi_Type, 0, NUM_STATE);
   // note when using R1, it needs to be divided by gammaIMEX
-  MultiFab::Subtract(R1, S_input, RHO_I, RHO_I, 5, NUM_GROW);
+  MultiFab::Subtract(R1, S_input, fluid, fluid, 5, NUM_GROW);
   
   // explicit advection solve for dt
-  fluidSolverAdvTVD(S1,dx,dt);
+  generalSolverTVD(S1,dx,dt,fluid,5,RusanovAdvection);
   FillPatch(*this, L1, NUM_GROW, time, Phi_Type, 0, NUM_STATE); 
-  MultiFab::Subtract(L1, S1, RHO_I, RHO_I, 5, NUM_GROW);
+  MultiFab::Subtract(L1, S1, fluid, fluid, 5, NUM_GROW);
 
   // implicit pressure solve for gamma dt
   MultiFab::LinComb(Stmp, 1.0, S_input, 0, 1.0, L1, 0, 0, NUM_STATE, NUM_GROW);
   MultiFab::LinComb(Stmp, 1.0, Stmp, 0, (1.0-2.0*gammaIMEX)/gammaIMEX, R1, 0, 0, NUM_STATE, NUM_GROW);
-  MultiFab::Copy(S_new, Stmp, 0, 0, NUM_STATE_FLUID, 0);
-  fluidSolverPres(dx,gammaIMEX*dt,time);
+  fluidSolverPres(Stmp,dx,gammaIMEX*dt,time,fluid);
   FillPatch(*this, S2, NUM_GROW, time, Phi_Type, 0, NUM_STATE);  
   FillPatch(*this, R2, NUM_GROW, time, Phi_Type, 0, NUM_STATE);
   // note when using R2, it needs to be divided by gammaIMEX
-  MultiFab::Subtract(R2, Stmp, RHO_I, RHO_I, 5, NUM_GROW);
+  MultiFab::Subtract(R2, Stmp, fluid, fluid, 5, NUM_GROW);
   
   // explicit advection solve for dt
-  fluidSolverAdvTVD(S2,dx,dt);
+  generalSolverTVD(S2,dx,dt,fluid,5,RusanovAdvection);
   FillPatch(*this, L2, NUM_GROW, time, Phi_Type, 0, NUM_STATE);
-  MultiFab::Subtract(L2, S2, RHO_I, RHO_I, 5, NUM_GROW);
+  MultiFab::Subtract(L2, S2, fluid, fluid, 5, NUM_GROW);
 
   // final updated data
   MultiFab::LinComb(S_new, 1.0, S_input, 0, 0.5, L1, 0, 0, NUM_STATE, 0);
@@ -430,7 +431,7 @@ void CAMReXmp::RKIMEX2(const Real* dx, Real dt, Real time)
 
   // A posteriori stabilization at high Mach number
   FillPatch(*this, Stmp, NUM_GROW, time, Phi_Type, 0, NUM_STATE);
-  flattenerAlgorithmIMEX(S_input, Stmp, RHO_I, 5, dx, dt, time);
+  flattenerAlgorithmIMEX(S_input, Stmp, fluid, 5, dx, dt, time);
 
   //////////////////////////////////////////////////////////////////////////////
   // IMEX-SSP(3,2,2)
@@ -441,34 +442,34 @@ void CAMReXmp::RKIMEX2(const Real* dx, Real dt, Real time)
   MultiFab L3(grids, dmap, NUM_STATE, NUM_GROW);
   MultiFab R3(grids, dmap, NUM_STATE, NUM_GROW);
 
-  fluidSolverPres(dx,0.5*dt,time);
+  fluidSolverPres(S_input, dx,0.5*dt,time,fluid);
   FillPatch(*this, S1, NUM_GROW, time, Phi_Type, 0, NUM_STATE);
   FillPatch(*this, R1, NUM_GROW, time, Phi_Type, 0, NUM_STATE);
-  MultiFab::Subtract(R1, S_input, RHO_I, RHO_I, 5, NUM_GROW);
+  MultiFab::Subtract(R1, S_input, fluid, fluid, 5, NUM_GROW);
 
-  MultiFab::LinComb(Stmp, 1., S_input, 0, -1., R1, 0, 0, NUM_STATE, 0);
-  MultiFab::Copy(S_new, Stmp, 0, 0, NUM_STATE_FLUID, 0);
-  fluidSolverPres(dx,0.5*dt,time);
+  MultiFab::LinComb(Stmp, 1., S_input, 0, -1., R1, 0, 0, NUM_STATE, NUM_GROW);
+  //MultiFab::Copy(S_new, Stmp, 0, 0, NUM_STATE_FLUID, 0);
+  fluidSolverPres(Stmp,dx,0.5*dt,time,fluid);  
   FillPatch(*this, S2, NUM_GROW, time, Phi_Type, 0, NUM_STATE);
   FillPatch(*this, R2, NUM_GROW, time, Phi_Type, 0, NUM_STATE);
-  MultiFab::Subtract(R2, Stmp, RHO_I, RHO_I, 5, NUM_GROW);
+  MultiFab::Subtract(R2, Stmp, fluid, fluid, 5, NUM_GROW);
   
-  fluidSolverAdvTVD(S2,dx,dt);
+  generalSolverTVD(S2,dx,dt,fluid,5,RusanovAdvection);
   FillPatch(*this, L2, NUM_GROW, time, Phi_Type, 0, NUM_STATE);
-  MultiFab::Subtract(L2, S2, RHO_I, RHO_I, 5, NUM_GROW);
+  MultiFab::Subtract(L2, S2, fluid, fluid, 5, NUM_GROW);
 
-  MultiFab::LinComb(Stmp, 1., S_input, 0, 1., L2, 0, 0, NUM_STATE, 0);
-  MultiFab::LinComb(Stmp, 1.0, Stmp, 0, 1., R2, 0, 0, NUM_STATE, 0);
-  MultiFab::Copy(S_new, Stmp, 0, 0, NUM_STATE_FLUID, 0);
-  fluidSolverPres(dx,0.5*dt,time);
+  MultiFab::LinComb(Stmp, 1., S_input, 0, 1., L2, 0, 0, NUM_STATE, NUM_GROW);
+  MultiFab::LinComb(Stmp, 1.0, Stmp, 0, 1., R2, 0, 0, NUM_STATE, NUM_GROW);
+  //MultiFab::Copy(S_new, Stmp, 0, 0, NUM_STATE_FLUID, 0);
+  fluidSolverPres(Stmp,dx,0.5*dt,time,fluid);
   FillPatch(*this, S3, NUM_GROW, time, Phi_Type, 0, NUM_STATE);
   FillPatch(*this, R3, NUM_GROW, time, Phi_Type, 0, NUM_STATE);
-  MultiFab::Subtract(R3, Stmp, RHO_I, RHO_I, 5, NUM_GROW);
+  MultiFab::Subtract(R3, Stmp, fluid, fluid, 5, NUM_GROW);
 
-  fluidSolverAdvTVD(S3,dx,dt);
+  generalSolverTVD(S3,dx,dt,fluid,5,RusanovAdvection);
   FillPatch(*this, L3, NUM_GROW, time, Phi_Type, 0, NUM_STATE);
   MultiFab::Copy(S_new, L3, 0, 0, NUM_STATE_FLUID, 0);
-  MultiFab::Subtract(L3, S3, RHO_I, RHO_I, 5, NUM_GROW);
+  MultiFab::Subtract(L3, S3, fluid, fluid, 5, NUM_GROW);
 
   // L3, R2 and R3 already are 0.5*dt
   MultiFab::LinComb(S_new, 1.0, S_input, 0, 0.5, L2, 0, 0, NUM_STATE, 0);
@@ -478,6 +479,6 @@ void CAMReXmp::RKIMEX2(const Real* dx, Real dt, Real time)
 
   // A posteriori stabilization at high Mach number
   FillPatch(*this, Stmp, NUM_GROW, time, Phi_Type, 0, NUM_STATE);
-  flattenerAlgorithmIMEX(S_input, Stmp, RHO_I, 5, dx, dt, time);
+  flattenerAlgorithmIMEX(S_input, Stmp, fluid, 5, dx, dt, time);
   */
 }
