@@ -1809,7 +1809,7 @@ Vector<Real> RusanovAdvection(const Vector<Real>& u_i, const Vector<Real>& u_iPl
   Real speed_i, speed_iPlus1, speed_max;
   speed_i = std::abs(u_i[MOMX_I+d]);
   speed_iPlus1 = std::abs(u_iPlus1[MOMX_I+d]);
-  speed_max = std::max(speed_i,speed_iPlus1);
+  speed_max = 2.0*std::max(speed_i,speed_iPlus1);
   
   for (int i = 0; i<u_i.size(); i++)
     {

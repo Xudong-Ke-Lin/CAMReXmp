@@ -2293,7 +2293,8 @@ void CAMReXmp::fluidSolverPres(const Real* dx, Real dt, Real time)
   FillPatch(*this, S_source, NUM_GROW, time, Phi_Type, 0, NUM_STATE);
 
   // Picard iteration start
-  for (int iter = 0; iter<2; iter++)
+  int iterFin = 2;
+  for (int iter = 0; iter<iterFin; iter++)
   {
   MultiFab S_tmp(grids, dmap, NUM_STATE, NUM_GROW);  
   FillPatch(*this, S_tmp, NUM_GROW, time, Phi_Type, 0, NUM_STATE);
@@ -2509,7 +2510,7 @@ void CAMReXmp::fluidSolverPres(const Real* dx, Real dt, Real time)
       const auto& arrP = S_pressure.array(mfi);
       const auto& arr = S_tmp.array(mfi);
       const auto& arrOld = S_source.array(mfi);
-	  
+      
       for(int k = lo.z; k <= hi.z; k++)
 	{
 	  for(int j = lo.y; j <= hi.y; j++)
@@ -2527,7 +2528,6 @@ void CAMReXmp::fluidSolverPres(const Real* dx, Real dt, Real time)
 		      arr(i,j,k,MOMX_I+d) = arrOld(i,j,k,MOMX_I+d)
 			- 0.5*dt/dx[d]*(arrP(i+iOffset,j+jOffset,k+kOffset,0)
 					-arrP(i-iOffset,j-jOffset,k-kOffset,0));
-
 		    }
 		  
 		  // kinetic energy
@@ -2539,7 +2539,6 @@ void CAMReXmp::fluidSolverPres(const Real* dx, Real dt, Real time)
 	    }
 	}	  
     }
-
-  MultiFab::Copy(S_dest, S_tmp, 0, 0, NUM_STATE_FLUID, 0);
+  MultiFab::Copy(S_dest, S_tmp, 0, 0, NUM_STATE_FLUID, 0);  
   }
 }

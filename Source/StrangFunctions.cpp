@@ -45,11 +45,12 @@ void CAMReXmp::StrangSecond(const Real* dx, Real dt, Real time)
 #endif	        
   }
 
-  fluidSolverPres(dx,0.5*dt,time+dt);
+  /*fluidSolverPres(dx,0.5*dt,time+dt);
   
   RK2(dx,dt,time+dt);
 
-  fluidSolverPres(dx,0.5*dt,time+dt);
+  fluidSolverPres(dx,0.5*dt,time+dt);*/
+  RKIMEX2(dx,dt,time+dt);
   return;
   
   if (sourceMethod!="no")

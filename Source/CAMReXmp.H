@@ -313,6 +313,7 @@ private:
   ////////////////////////////////////////////////////////////
   void fluidSolverAdvTVD(MultiFab&, const Real*, Real);
   void fluidSolverPres(const Real*, Real, Real);
+  void RKIMEX2(const Real*, Real, Real);  
 };    
 
 /**
