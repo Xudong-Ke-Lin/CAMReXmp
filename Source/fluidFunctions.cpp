@@ -2447,11 +2447,44 @@ void CAMReXmp::fluidSolverPres(MultiFab& S_source, const Real* dx, Real dt, Real
   
   MultiFab& S_dest = get_new_data(Phi_Type);
 
+  MultiFab S_pressure(grids, dmap, 1, NUM_GROW);
+  for(MFIter mfi(S_pressure, true); mfi.isValid(); ++mfi)
+    {
+      const Box& bx = mfi.tilebox();
+	  
+      const Dim3 lo = lbound(bx);
+      const Dim3 hi = ubound(bx);
+	  
+      const auto& arrP = S_pressure.array(mfi);
+      const auto& arr = S_source.array(mfi);
+	  
+      for(int k = lo.z; k <= hi.z; k++)
+	{
+	  for(int j = lo.y; j <= hi.y; j++)
+	    {
+	      for(int i = lo.x; i <= hi.x; i++)
+		{
+		  Vector<Real> u_i = get_data_zone(arr,i,j,k,start,len);
+		      
+		  // pressure
+		  arrP(i,j,k,0) = get_pressure(u_i);
+		}
+	    }
+	}	  
+    }
+
+  // We need to compute boundary conditions again after each update
+  S_pressure.FillBoundary(geom.periodicity());
+     
+  // added by 2020D 
+  // Fill non-periodic physical boundaries                          
+  FillDomainBoundary(S_pressure, geom, {bc[ENER_I+start]});
+
   // Picard iteration start
   int iterFin = 2;
+  MultiFab S_tmp(grids, dmap, NUM_STATE, NUM_GROW);  
   for (int iter = 0; iter<iterFin; iter++)
   {
-  MultiFab S_tmp(grids, dmap, NUM_STATE, NUM_GROW);  
   FillPatch(*this, S_tmp, NUM_GROW, time, Phi_Type, 0, NUM_STATE);
   
   // b coefficients for linear solver
@@ -2476,6 +2509,7 @@ void CAMReXmp::fluidSolverPres(MultiFab& S_source, const Real* dx, Real dt, Real
 	  const Dim3 hi = ubound(bx);
 	  
 	  const auto& arrB = bcoeffs[d].array(mfi);
+	  const auto& arrP = S_pressure.array(mfi);
 	  const auto& arr = S_tmp.array(mfi);
 	  
 	  for(int k = lo.z; k <= hi.z; k++)
@@ -2491,16 +2525,16 @@ void CAMReXmp::fluidSolverPres(MultiFab& S_source, const Real* dx, Real dt, Real
 		      Real rho_iPlus1 = u_iPlus1[RHO_I];
 		      
 		      // pressure
-		      Real p_i = get_pressure(u_i);
-		      Real p_iPlus1 = get_pressure(u_iPlus1);
+		      Real p_i = arrP(i-iOffset,j-jOffset,k-kOffset,0);
+		      Real p_iPlus1 = arrP(i,j,k,0);
 
 		      // internal energy
 		      Real e_i = p_i/((Gamma-1));
 		      Real e_iPlus1 = p_iPlus1/((Gamma-1));
 
 		      // enthalpy
-		      Real h_i = e_i+p_i;///rho_i;
-		      Real h_iPlus1 = e_iPlus1+p_iPlus1;///rho_iPlus1;
+		      Real h_i = e_i+p_i;
+		      Real h_iPlus1 = e_iPlus1+p_iPlus1;
 
 		      // momentum
 		      Real mom_i = get_magnitude(u_i[MOMX_I],u_i[MOMY_I],u_i[MOMZ_I]);
@@ -2516,43 +2550,8 @@ void CAMReXmp::fluidSolverPres(MultiFab& S_source, const Real* dx, Real dt, Real
 	}
     }
 
-  MultiFab S_pressure(grids, dmap, 1, NUM_GROW);
-  for(MFIter mfi(S_pressure, true); mfi.isValid(); ++mfi)
-    {
-      const Box& bx = mfi.tilebox();
-	  
-      const Dim3 lo = lbound(bx);
-      const Dim3 hi = ubound(bx);
-	  
-      const auto& arrP = S_pressure.array(mfi);
-      const auto& arr = S_tmp.array(mfi);
-	  
-      for(int k = lo.z; k <= hi.z; k++)
-	{
-	  for(int j = lo.y; j <= hi.y; j++)
-	    {
-	      for(int i = lo.x; i <= hi.x; i++)
-		{
-		  Vector<Real> u_i = get_data_zone(arr,i,j,k,start,len);
-		      
-		  // pressure
-		  arrP(i,j,k,0) = get_pressure(u_i);
-		}
-	    }
-	}	  
-    }
-
-  // We need to compute boundary conditions again after each update
-  S_pressure.FillBoundary(geom.periodicity());
-     
-  // added by 2020D 
-  // Fill non-periodic physical boundaries                          
-  FillDomainBoundary(S_pressure, geom, {bc[ENER_I+start]});
-
   MultiFab Rhs(grids, dmap, 1, NUM_GROW);
   
-  //MultiFab::Copy(Rhs, S_source, ENER_I, 0, 1, 0);
-
   for (int d = 0; d < amrex::SpaceDim ; d++)   
   {
 
@@ -2655,7 +2654,13 @@ void CAMReXmp::fluidSolverPres(MultiFab& S_source, const Real* dx, Real dt, Real
   // Fill non-periodic physical boundaries                          
   FillDomainBoundary(S_pressure, geom, {bc[ENER_I+start]});
   
-  for(MFIter mfi(S_tmp, true); mfi.isValid(); ++mfi)
+  for (int d = 0; d < amrex::SpaceDim ; d++)
+  {
+    const int iOffset = ( d == 0 ? 1 : 0);
+    const int jOffset = ( d == 1 ? 1 : 0);
+    const int kOffset = ( d == 2 ? 1 : 0);
+    
+    for(MFIter mfi(S_tmp, true); mfi.isValid(); ++mfi)
     {
       const Box& bx = mfi.tilebox();
 	  
@@ -2674,28 +2679,507 @@ void CAMReXmp::fluidSolverPres(MultiFab& S_source, const Real* dx, Real dt, Real
 		{
 		      
 		  // new momentum
-		  for (int d = 0; d < amrex::SpaceDim ; d++)
-		    {
-		      const int iOffset = ( d == 0 ? 1 : 0);
-		      const int jOffset = ( d == 1 ? 1 : 0);
-		      const int kOffset = ( d == 2 ? 1 : 0);
 
-		      arr(i,j,k,MOMX_I+d+start) = arrOld(i,j,k,MOMX_I+d+start)
-			- 0.5*dt/dx[d]*(arrP(i+iOffset,j+jOffset,k+kOffset,0)
-					-arrP(i-iOffset,j-jOffset,k-kOffset,0));
-		    }
+		  arr(i,j,k,MOMX_I+d+start) = arrOld(i,j,k,MOMX_I+d+start)
+		    - 0.5*dt/dx[d]*(arrP(i+iOffset,j+jOffset,k+kOffset,0)
+				    -arrP(i-iOffset,j-jOffset,k-kOffset,0));
 		  
-		  // kinetic energy
-		  Real kin = 0.5*get_magnitude_squared(arr(i,j,k,MOMX_I+start),arr(i,j,k,MOMY_I+start),arr(i,j,k,MOMZ_I+start))/arr(i,j,k,RHO_I+start);
-
-		  // new energy
-		  arr(i,j,k,ENER_I+start) = arrP(i,j,k,0)/(Gamma-1.0) + kin;
 		}
 	    }
 	}	  
     }
+  }
   MultiFab::Copy(S_dest, S_tmp, start, start, len, 0);  
   }
+  // fill data with new updated momentum
+  FillPatch(*this, S_tmp, NUM_GROW, time, Phi_Type, 0, NUM_STATE);
+  std::array<MultiFab, BL_SPACEDIM> S_enthalpy;
+  for(int n = 0; n < BL_SPACEDIM; n++)
+    {
+      const BoxArray& ba = convert(S_source.boxArray(), IntVect::TheDimensionVector(n));
+      S_enthalpy[n].define(ba, S_source.DistributionMap(), 1, 0);
+    }  
+  for(int d = 0; d < BL_SPACEDIM; d++)
+    {
+      const int iOffset = ( d == 0 ? 1 : 0);
+      const int jOffset = ( d == 1 ? 1 : 0);
+      const int kOffset = ( d == 2 ? 1 : 0);
+
+      for(MFIter mfi(S_enthalpy[d], true); mfi.isValid(); ++mfi)
+	{
+	  const Box& bx = mfi.tilebox();
+	  
+	  const Dim3 lo = lbound(bx);
+	  const Dim3 hi = ubound(bx);
+	  
+	  const auto& arrB = S_enthalpy[d].array(mfi);
+	  const auto& arrP = S_pressure.array(mfi);
+	  const auto& arr = S_tmp.array(mfi);
+	  
+	  for(int k = lo.z; k <= hi.z; k++)
+	    {
+	      for(int j = lo.y; j <= hi.y; j++)
+		{
+		  for(int i = lo.x; i <= hi.x; i++)
+		    {
+		      Vector<Real> u_i = get_data_zone(arr,i-iOffset,j-jOffset,k-kOffset,start,len);
+		      Vector<Real> u_iPlus1 = get_data_zone(arr,i,j,k,start,len);
+		      
+		      Real rho_i = u_i[RHO_I];
+		      Real rho_iPlus1 = u_iPlus1[RHO_I];
+		      
+		      // pressure
+		      Real p_i = arrP(i-iOffset,j-jOffset,k-kOffset,0);
+		      Real p_iPlus1 = arrP(i,j,k,0);
+
+		      // internal energy
+		      Real e_i = p_i/((Gamma-1));
+		      Real e_iPlus1 = p_iPlus1/((Gamma-1));
+
+		      // enthalpy
+		      Real h_i = e_i+p_i;
+		      Real h_iPlus1 = e_iPlus1+p_iPlus1;
+
+		      // momentum
+		      Real mom_i = get_magnitude(u_i[MOMX_I],u_i[MOMY_I],u_i[MOMZ_I]);
+		      Real mom_iPlus1 = get_magnitude(u_iPlus1[MOMX_I],u_iPlus1[MOMY_I],u_iPlus1[MOMZ_I]);
+
+		      if (std::abs(mom_i+mom_iPlus1)<1e-12)
+			arrB(i,j,k,0) = 0.5*(h_i/rho_i + h_iPlus1/rho_iPlus1);
+		      else
+			arrB(i,j,k,0) = (h_i*mom_i/rho_i + h_iPlus1*mom_iPlus1/rho_iPlus1)/(mom_i+mom_iPlus1);
+		    }
+		}
+	    }	  
+	}
+    }
+  for (int d = 0; d < amrex::SpaceDim ; d++)
+  {
+    const int iOffset = ( d == 0 ? 1 : 0);
+    const int jOffset = ( d == 1 ? 1 : 0);
+    const int kOffset = ( d == 2 ? 1 : 0);
+    
+    for(MFIter mfi(S_tmp, true); mfi.isValid(); ++mfi)
+    {
+      const Box& bx = mfi.tilebox();
+	  
+      const Dim3 lo = lbound(bx);
+      const Dim3 hi = ubound(bx);
+	  
+      const auto& arrP = S_pressure.array(mfi);
+      const auto& arrH = S_enthalpy[d].array(mfi);
+      const auto& arr = S_tmp.array(mfi);
+      const auto& arrOld = S_source.array(mfi);
+      
+      for(int k = lo.z; k <= hi.z; k++)
+	{
+	  for(int j = lo.y; j <= hi.y; j++)
+	    {
+	      for(int i = lo.x; i <= hi.x; i++)
+		{
+		  
+		  Real momX_iMinus1 = arr(i-iOffset,j-jOffset,k-kOffset,MOMX_I+d+start);
+		  Real momX_i = arr(i,j,k,MOMX_I+d+start);
+		  Real momX_iPlus1 = arr(i+iOffset,j+jOffset,k+kOffset,MOMX_I+d+start);
+		  if (d==0)
+		    arr(i,j,k,ENER_I+start) = arrOld(i,j,k,ENER_I+start);
+		  arr(i,j,k,ENER_I+start) -= dt/(2.0*dx[d])*(arrH(i+iOffset,j+jOffset,k+kOffset,0)*(momX_iPlus1+momX_i)
+							     -arrH(i,j,k,0)*(momX_i+momX_iMinus1));
+		}
+	    }
+	}	  
+    }
+  }
+  MultiFab::Copy(S_dest, S_tmp, ENER_I+start, ENER_I+start, 1, 0);
+}
+void CAMReXmp::fluidSolverPresDumbser(MultiFab& S_source, const Real* dx, Real dt, Real time, int start)
+{
+
+  const int len = 5;
+  
+  MultiFab& S_dest = get_new_data(Phi_Type);
+
+  MultiFab S_pressure(grids, dmap, 1, NUM_GROW);
+  for(MFIter mfi(S_pressure, true); mfi.isValid(); ++mfi)
+    {
+      const Box& bx = mfi.tilebox();
+	  
+      const Dim3 lo = lbound(bx);
+      const Dim3 hi = ubound(bx);
+	  
+      const auto& arrP = S_pressure.array(mfi);
+      const auto& arr = S_source.array(mfi);
+	  
+      for(int k = lo.z; k <= hi.z; k++)
+	{
+	  for(int j = lo.y; j <= hi.y; j++)
+	    {
+	      for(int i = lo.x; i <= hi.x; i++)
+		{
+		  Vector<Real> u_i = get_data_zone(arr,i,j,k,start,len);
+		      
+		  // pressure
+		  arrP(i,j,k,0) = get_pressure(u_i);
+		}
+	    }
+	}	  
+    }
+
+  // We need to compute boundary conditions again after each update
+  S_pressure.FillBoundary(geom.periodicity());
+     
+  // added by 2020D 
+  // Fill non-periodic physical boundaries                          
+  FillDomainBoundary(S_pressure, geom, {bc[ENER_I+start]});
+
+  // Picard iteration start
+  int iterFin = 2;
+  MultiFab S_tmp(grids, dmap, NUM_STATE, NUM_GROW);  
+  for (int iter = 0; iter<iterFin; iter++)
+  {
+  FillPatch(*this, S_tmp, NUM_GROW, time, Phi_Type, 0, NUM_STATE);
+  
+  // b coefficients for linear solver
+  // these are also the face-centered enthalpies
+  std::array<MultiFab, BL_SPACEDIM> bcoeffs;
+  for(int n = 0; n < BL_SPACEDIM; n++)
+    {
+      const BoxArray& ba = convert(S_source.boxArray(), IntVect::TheDimensionVector(n));
+      bcoeffs[n].define(ba, S_source.DistributionMap(), 1, 0);
+    }  
+  for(int d = 0; d < BL_SPACEDIM; d++)
+    {
+      const int iOffset = ( d == 0 ? 1 : 0);
+      const int jOffset = ( d == 1 ? 1 : 0);
+      const int kOffset = ( d == 2 ? 1 : 0);
+
+      for(MFIter mfi(bcoeffs[d], true); mfi.isValid(); ++mfi)
+	{
+	  const Box& bx = mfi.tilebox();
+	  
+	  const Dim3 lo = lbound(bx);
+	  const Dim3 hi = ubound(bx);
+	  
+	  const auto& arrB = bcoeffs[d].array(mfi);
+	  const auto& arrP = S_pressure.array(mfi);
+	  const auto& arr = S_tmp.array(mfi);
+	  
+	  for(int k = lo.z; k <= hi.z; k++)
+	    {
+	      for(int j = lo.y; j <= hi.y; j++)
+		{
+		  for(int i = lo.x; i <= hi.x; i++)
+		    {
+		      Vector<Real> u_i = get_data_zone(arr,i-iOffset,j-jOffset,k-kOffset,start,len);
+		      Vector<Real> u_iPlus1 = get_data_zone(arr,i,j,k,start,len);
+
+		      // density
+		      Real rho_i = u_i[RHO_I];
+		      Real rho_iPlus1 = u_iPlus1[RHO_I];
+		      
+		      // pressure
+		      Real p_i = arrP(i-iOffset,j-jOffset,k-kOffset,0);
+		      Real p_iPlus1 = arrP(i,j,k,0);
+
+		      // staggered variables
+		      Real rho_iPlusHalf = 0.5*(rho_i+rho_iPlus1);
+		      Real p_iPlusHalf = std::max(0.0,std::max(p_i,p_iPlus1));
+		      
+		      // internal energy
+		      Real e_iPlusHalf = p_iPlusHalf/((Gamma-1)*rho_iPlusHalf);
+
+		      arrB(i,j,k,0) = e_iPlusHalf+p_iPlusHalf/rho_iPlusHalf;
+		    }
+		}
+	    }	  
+	}
+    }
+
+  MultiFab Rhs(grids, dmap, 1, NUM_GROW);
+
+  for (int d = 0; d < amrex::SpaceDim ; d++)   
+  {
+
+    const int iOffset = ( d == 0 ? 1 : 0);
+    const int jOffset = ( d == 1 ? 1 : 0);
+    const int kOffset = ( d == 2 ? 1 : 0);
+
+    for(MFIter mfi(Rhs, true); mfi.isValid(); ++mfi)
+      {
+	const Box& bx = mfi.tilebox();
+      
+	const Dim3 lo = lbound(bx);
+	const Dim3 hi = ubound(bx);
+	  
+	// old and new data
+	const auto& arrOld = S_source.array(mfi);
+	const auto& arrNew = S_tmp.array(mfi);
+	// enthalpies
+	const auto& arrH = bcoeffs[d].array(mfi);
+	const auto& rhs = Rhs.array(mfi);
+      
+	for(int k = lo.z; k <= hi.z; k++)
+	  {
+	    for(int j = lo.y; j <= hi.y; j++)
+	      {
+		for(int i = lo.x; i <= hi.x; i++)
+		  {
+		    Real h_iPlusHalf = arrH(i+iOffset,j+jOffset,k+kOffset,0);
+		    Real h_iMinusHalf = arrH(i,j,k,0);
+
+		    if (d==0)
+		      {
+
+			Vector<Real> u_iMinus1 = get_data_zone(arrNew,i-iOffset,j-jOffset,k-kOffset,start,len);
+			Vector<Real> u_i = get_data_zone(arrNew,i,j,k,start,len);
+			Vector<Real> u_iPlus1 = get_data_zone(arrNew,i+iOffset,j+jOffset,k+kOffset,start,len);
+
+			// density
+			Real rho_iMinusHalf = 0.5*(u_iMinus1[RHO_I]+u_i[RHO_I]);
+			Real rho_iPlusHalf = 0.5*(u_iPlus1[RHO_I]+u_i[RHO_I]);
+			
+			// momentum
+			Real momX_iMinusHalf = 0.5*(u_iMinus1[MOMX_I]+u_i[MOMX_I]);
+			Real momY_iMinusHalf = 0.5*(u_iMinus1[MOMY_I]+u_i[MOMY_I]);
+			Real momZ_iMinusHalf = 0.5*(u_iMinus1[MOMZ_I]+u_i[MOMZ_I]);
+			Real momX_iPlusHalf = 0.5*(u_iPlus1[MOMX_I]+u_i[MOMX_I]);
+			Real momY_iPlusHalf = 0.5*(u_iPlus1[MOMY_I]+u_i[MOMY_I]);
+			Real momZ_iPlusHalf = 0.5*(u_iPlus1[MOMZ_I]+u_i[MOMZ_I]);
+			
+			// kinetic energy
+			Real kin_iMinusHalf = 0.5*get_magnitude_squared(momX_iMinusHalf,momY_iMinusHalf,momZ_iMinusHalf)/rho_iMinusHalf;
+			Real kin_iPlusHalf = 0.5*get_magnitude_squared(momX_iPlusHalf,momY_iPlusHalf,momZ_iPlusHalf)/rho_iPlusHalf;
+			
+			Real kin_i = 0.5*(kin_iMinusHalf+kin_iPlusHalf);
+			
+			rhs(i,j,k,0) = arrOld(i,j,k,ENER_I+start) - kin_i;
+		      }
+
+ 		    Vector<Real> u_iMinus1 = get_data_zone(arrOld,i-iOffset,j-jOffset,k-kOffset,start,len);
+		    Vector<Real> u_i = get_data_zone(arrOld,i,j,k,start,len);
+		    Vector<Real> u_iPlus1 = get_data_zone(arrOld,i+iOffset,j+jOffset,k+kOffset,start,len);
+			
+		    // momentum
+		    Real momX_iMinusHalf = 0.5*(u_iMinus1[MOMX_I+d]+u_i[MOMX_I+d]);
+		    Real momX_iPlusHalf = 0.5*(u_iPlus1[MOMX_I+d]+u_i[MOMX_I+d]);
+		    
+		    rhs(i,j,k,0) -= dt/dx[d]*(h_iPlusHalf*momX_iPlusHalf - h_iMinusHalf*momX_iMinusHalf);
+		  }
+	      }
+	  }
+      }
+  }
+
+  // For MLMG solver
+  int verbose = 2;
+  int bottom_verbose = 0;
+  int max_iter = 100;
+  //int max_fmg_iter = 0;
+  int linop_maxorder = 2;
+  bool agglomeration = true;
+  bool consolidation = true;
+  bool semicoarsening = false;
+  int max_coarsening_level = 30;
+  int max_semicoarsening_level = 0;
+
+  LPInfo info;
+  info.setAgglomeration(agglomeration);
+  info.setConsolidation(consolidation);
+  info.setSemicoarsening(semicoarsening);
+  info.setMaxCoarseningLevel(max_coarsening_level);
+  info.setMaxSemicoarseningLevel(max_semicoarsening_level);
+  
+  const auto tol_rel = Real(1.e-10);
+  const auto tol_abs = Real(0.0);
+
+  MLABecLaplacian mlabec({geom}, {grids}, {dmap}, info);
+  mlabec.setMaxOrder(linop_maxorder);
+  
+  // Set boundary conditions for MLABecLaplacian
+  std::array<LinOpBCType, AMREX_SPACEDIM> mlmg_lobc;
+  std::array<LinOpBCType, AMREX_SPACEDIM> mlmg_hibc;  
+  setDomainBC(mlmg_lobc, mlmg_hibc, ENER_I+start);
+  mlabec.setDomainBC(mlmg_lobc, mlmg_hibc);
+  
+  // Set boundary conditions for the current patch 
+  mlabec.setLevelBC(0,&S_pressure);
+
+  Real ascalar = 1.0/(Gamma-1.0);
+  Real bscalar = dt*dt;
+  mlabec.setScalars(ascalar, bscalar);
+
+  mlabec.setACoeffs(0, 1.0);
+  mlabec.setBCoeffs(0, amrex::GetArrOfConstPtrs(bcoeffs));
+  MLMG mlmg(mlabec);
+  
+  mlmg.setMaxIter(max_iter);
+  mlmg.setMaxFmgIter(max_fmg_iter);
+  mlmg.setVerbose(verbose);
+  mlmg.setBottomVerbose(bottom_verbose);  
+
+  mlmg.solve({&S_pressure}, {&Rhs}, tol_rel, tol_abs);
+
+  // We need to compute boundary conditions again after each update
+  S_pressure.FillBoundary(geom.periodicity());
+     
+  // added by 2020D 
+  // Fill non-periodic physical boundaries                          
+  FillDomainBoundary(S_pressure, geom, {bc[ENER_I+start]});
+  
+  for (int d = 0; d < amrex::SpaceDim ; d++)   
+  {
+
+    const int iOffset = ( d == 0 ? 1 : 0);
+    const int jOffset = ( d == 1 ? 1 : 0);
+    const int kOffset = ( d == 2 ? 1 : 0);
+
+    for(MFIter mfi(S_tmp, true); mfi.isValid(); ++mfi)
+    {
+      const Box& bx = mfi.tilebox();
+	  
+      const Dim3 lo = lbound(bx);
+      const Dim3 hi = ubound(bx);
+	  
+      const auto& arrP = S_pressure.array(mfi);
+      const auto& arr = S_tmp.array(mfi);
+      const auto& arrOld = S_source.array(mfi);
+      const auto& arrH = bcoeffs[d].array(mfi);
+      
+      for(int k = lo.z; k <= hi.z; k++)
+	{
+	  for(int j = lo.y; j <= hi.y; j++)
+	    {
+	      for(int i = lo.x; i <= hi.x; i++)
+		{		      
+
+		  Vector<Real> u_iMinus1 = get_data_zone(arrOld,i-iOffset,j-jOffset,k-kOffset,start,len);
+		  Vector<Real> u_i = get_data_zone(arrOld,i,j,k,start,len);
+		  Vector<Real> u_iPlus1 = get_data_zone(arrOld,i+iOffset,j+jOffset,k+kOffset,start,len);
+			
+		  // old momentum
+		  Real momX_iMinusHalf = 0.5*(u_iMinus1[MOMX_I+d]+u_i[MOMX_I+d]);
+		  Real momX_iPlusHalf = 0.5*(u_iPlus1[MOMX_I+d]+u_i[MOMX_I+d]);
+		  
+		  Real momX_iMinusHalfNew = momX_iMinusHalf - dt/dx[d]*(arrP(i,j,k,0)
+									-arrP(i-iOffset,j-jOffset,k-kOffset,0));
+		  Real momX_iPlusHalfNew = momX_iPlusHalf - dt/dx[d]*(arrP(i+iOffset,j+jOffset,k+kOffset,0)
+								      -arrP(i,j,k,0));
+		  
+		  arr(i,j,k,MOMX_I+d+start) = 0.5*(momX_iMinusHalfNew+momX_iPlusHalfNew);
+
+		}
+	    }
+	}	  
+    }
+  }
+  MultiFab::Copy(S_dest, S_tmp, start, start, len, 0);  
+  }
+  // fill data with new updated momentum
+  FillPatch(*this, S_tmp, NUM_GROW, time, Phi_Type, 0, NUM_STATE);
+  std::array<MultiFab, BL_SPACEDIM> S_enthalpy;
+  for(int n = 0; n < BL_SPACEDIM; n++)
+    {
+      const BoxArray& ba = convert(S_source.boxArray(), IntVect::TheDimensionVector(n));
+      S_enthalpy[n].define(ba, S_source.DistributionMap(), 1, 0);
+    }  
+  for(int d = 0; d < BL_SPACEDIM; d++)
+    {
+      const int iOffset = ( d == 0 ? 1 : 0);
+      const int jOffset = ( d == 1 ? 1 : 0);
+      const int kOffset = ( d == 2 ? 1 : 0);
+
+      for(MFIter mfi(S_enthalpy[d], true); mfi.isValid(); ++mfi)
+	{
+	  const Box& bx = mfi.tilebox();
+	  
+	  const Dim3 lo = lbound(bx);
+	  const Dim3 hi = ubound(bx);
+	  
+	  const auto& arrB = S_enthalpy[d].array(mfi);
+	  const auto& arrP = S_pressure.array(mfi);
+	  const auto& arr = S_tmp.array(mfi);
+	  
+	  for(int k = lo.z; k <= hi.z; k++)
+	    {
+	      for(int j = lo.y; j <= hi.y; j++)
+		{
+		  for(int i = lo.x; i <= hi.x; i++)
+		    {
+		      Vector<Real> u_i = get_data_zone(arr,i-iOffset,j-jOffset,k-kOffset,start,len);
+		      Vector<Real> u_iPlus1 = get_data_zone(arr,i,j,k,start,len);
+
+		      // density
+		      Real rho_i = u_i[RHO_I];
+		      Real rho_iPlus1 = u_iPlus1[RHO_I];
+		      
+		      // pressure
+		      Real p_i = arrP(i-iOffset,j-jOffset,k-kOffset,0);
+		      Real p_iPlus1 = arrP(i,j,k,0);
+
+		      // staggered variables
+		      Real rho_iPlusHalf = 0.5*(rho_i+rho_iPlus1);
+		      Real p_iPlusHalf = std::max(0.0,std::max(p_i,p_iPlus1));
+		      
+		      // internal energy
+		      Real e_iPlusHalf = p_iPlusHalf/((Gamma-1)*rho_iPlusHalf);
+
+		      arrB(i,j,k,0) = e_iPlusHalf+p_iPlusHalf/rho_iPlusHalf;
+		    }
+		}
+	    }	  
+	}
+    }
+  for (int d = 0; d < amrex::SpaceDim ; d++)   
+  {
+
+    const int iOffset = ( d == 0 ? 1 : 0);
+    const int jOffset = ( d == 1 ? 1 : 0);
+    const int kOffset = ( d == 2 ? 1 : 0);
+
+    for(MFIter mfi(S_tmp, true); mfi.isValid(); ++mfi)
+    {
+      const Box& bx = mfi.tilebox();
+	  
+      const Dim3 lo = lbound(bx);
+      const Dim3 hi = ubound(bx);
+	  
+      const auto& arrP = S_pressure.array(mfi);
+      const auto& arrH = S_enthalpy[d].array(mfi);
+      const auto& arr = S_tmp.array(mfi);
+      const auto& arrOld = S_source.array(mfi);
+      
+      for(int k = lo.z; k <= hi.z; k++)
+	{
+	  for(int j = lo.y; j <= hi.y; j++)
+	    {
+	      for(int i = lo.x; i <= hi.x; i++)
+		{		      
+		  
+		  Vector<Real> u_iMinus1 = get_data_zone(arrOld,i-iOffset,j-jOffset,k-kOffset,start,len);
+		  Vector<Real> u_i = get_data_zone(arrOld,i,j,k,start,len);
+		  Vector<Real> u_iPlus1 = get_data_zone(arrOld,i+iOffset,j+jOffset,k+kOffset,start,len);
+			
+		  // old momentum
+		  Real momX_iMinusHalf = 0.5*(u_iMinus1[MOMX_I+d]+u_i[MOMX_I+d]);
+		  Real momX_iPlusHalf = 0.5*(u_iPlus1[MOMX_I+d]+u_i[MOMX_I+d]);
+		  
+		  Real momX_iMinusHalfNew = momX_iMinusHalf - dt/dx[d]*(arrP(i,j,k,0)
+									-arrP(i-iOffset,j-jOffset,k-kOffset,0));
+		  Real momX_iPlusHalfNew = momX_iPlusHalf - dt/dx[d]*(arrP(i+iOffset,j+jOffset,k+kOffset,0)
+								      -arrP(i,j,k,0));
+		  
+
+		  if (d==0)
+		    arr(i,j,k,ENER_I+start) = arrOld(i,j,k,ENER_I+start); 
+		  arr(i,j,k,ENER_I+start) -= dt/dx[d]*(arrH(i+iOffset,j+jOffset,k+kOffset,0)*momX_iPlusHalf
+						       - arrH(i,j,k,0)*momX_iMinusHalf);
+		  
+		}
+	    }
+	}
+    }
+  }
+  MultiFab::Copy(S_dest, S_tmp, ENER_I+start, ENER_I+start, 1, 0);  
 }
 void CAMReXmp::flattenerAlgorithmIMEX(MultiFab& S_source, MultiFab& S_highOrder, int start, int len, const Real* dx, Real dt, Real time){
   
@@ -2703,6 +3187,7 @@ void CAMReXmp::flattenerAlgorithmIMEX(MultiFab& S_source, MultiFab& S_highOrder,
   const int zdim = ( amrex::SpaceDim == 3 ? 1 : 0);
   
   Real kappa = 0.001;
+  //Real kappa = 0.4;
 
   // Calculate flattener
   MultiFab flattener(grids, dmap, 1, 1);
@@ -2932,6 +3417,7 @@ void CAMReXmp::generalSolverTVD(MultiFab& S_source, const Real* dx, Real dt, int
 	    {
 	      for(int i = lo.x-iDomainOffset; i <= hi.x+iDomainOffset; i++)
 		{
+		  // component-wise limiting
 		  for (int n = start; n<start+len; n++)
 		    {
 		      Vector<Real> limiterX = get_data_stencil(arr, i, j, k, 1, 0, 0, n);
@@ -2949,6 +3435,8 @@ void CAMReXmp::generalSolverTVD(MultiFab& S_source, const Real* dx, Real dt, int
 		    }
 #endif
 		  
+		  //int iOffset = 1, jOffset = 0, kOffset = 0;
+		  //TVDcharacteristic(arr,slopes,i,j,k,iOffset,jOffset,kOffset,start,5,0);
 		}
 	    }
 	}

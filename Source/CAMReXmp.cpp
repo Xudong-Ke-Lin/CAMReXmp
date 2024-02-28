@@ -1246,18 +1246,32 @@ CAMReXmp::estTimeStep (Real)
 	      for(int i = lo.x; i <= hi.x; i++)
 		{
 		  // compute fastest speeds
-		  Real v = arr(i,j,k,MOMX_I+d+fluid)/arr(i,j,k,RHO_I+fluid);
+		  /*Real v = arr(i,j,k,MOMX_I+d+fluid)/arr(i,j,k,RHO_I+fluid);
 		  Vector<Real> u_i = get_data_zone(arr,i,j,k,fluid,NUM_STATE_FLUID/2);
 		  Real a = get_speed(u_i);
 		  //c_array.push_back(std::abs(v)+a);
 		  v_array.push_back(2.0*std::abs(v));
 		  c_array.push_back(a);
+		  */
+		  Real v_i = arr(i,j,k,MOMX_I+d)/arr(i,j,k,RHO_I);
+		  Real v_e = arr(i,j,k,MOMX_E+d)/arr(i,j,k,RHO_E);
+		  Vector<Real> u_i = get_data_zone(arr,i,j,k,RHO_I,NUM_STATE_FLUID/2);
+		  Vector<Real> u_e = get_data_zone(arr,i,j,k,RHO_E,NUM_STATE_FLUID/2);
+		  if (std::abs(v_e)<1e-8)
+		    v_e = get_speed(u_e);
+		  else
+		    v_e *= 2.0;
+		  Real c_i = get_speed(u_i);
+		  //c_array.push_back(std::abs(v)+a);
+		  //v_array.push_back(2.0*std::abs(v));
+		  c_array.push_back(std::max(std::abs(v_i)+c_i,v_e));
+		  
 		}
 	    }
 	}
     }
-    //c_h = *std::max_element(c_array.begin(), c_array.end());
-    c_h = (*std::max_element(v_array.begin(), v_array.end()) < 1e-8 ? *std::max_element(c_array.begin(), c_array.end()) : *std::max_element(v_array.begin(), v_array.end()));
+    c_h = *std::max_element(c_array.begin(), c_array.end());
+    //c_h = (*std::max_element(v_array.begin(), v_array.end()) < 1e-8 ? *std::max_element(c_array.begin(), c_array.end()) : *std::max_element(v_array.begin(), v_array.end()));
 
     // dt does not need to resolve plasma and cyclotron frequencies
     // because usually an implicit souce term update is used
@@ -1281,7 +1295,7 @@ CAMReXmp::estTimeStep (Real)
   
   if (c_h>c && EMconstraint && fluidconstraint)
     {
-      amrex::Abort("Fluid velocity is higher than speed of light!");
+      //amrex::Abort("Fluid velocity is higher than speed of light!");
       amrex::Print() << "Fluid velocity is higher than speed of light!" << std::endl;
       ParmParse pp;
       Real stop_time;
@@ -1635,7 +1649,7 @@ CAMReXmp::read_params ()
   }
   else if (fluidOrder==2){
     amrex::Print() << "fluid 2nd order TVD" << std::endl;
-    fluidSolverWithChosenSpaceOrder = &CAMReXmp::fluidSolverAdvTVD;//fluidSolverTVD;
+    fluidSolverWithChosenSpaceOrder = &CAMReXmp::fluidSolverTVD;
   }
   else if (fluidOrder==3){
     amrex::Print() << "fluid 3rd order WENO" << std::endl;

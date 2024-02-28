@@ -45,14 +45,6 @@ void CAMReXmp::StrangSecond(const Real* dx, Real dt, Real time)
 #endif	        
   }
 
-  /*fluidSolverPres(dx,0.5*dt,time+dt);
-  
-  RK2(dx,dt,time+dt);
-
-  fluidSolverPres(dx,0.5*dt,time+dt);*/
-  RKIMEX2(dx,dt,time+dt);
-  return;
-  
   if (sourceMethod!="no")
     sourceUpdate(0.5*dt, time+dt);
 
@@ -66,8 +58,10 @@ void CAMReXmp::StrangSecond(const Real* dx, Real dt, Real time)
       elecFieldCellAve(time+dt);
     }
 #endif
-  
-  RK2(dx,dt,time+dt);
+
+  RK2(dx,dt,time+dt,RHO_I,5,HLLC);
+  RKIMEX2(dx,dt,time+dt,RHO_E);
+
   if (MaxwellTimeMethod=="IM" && MaxwellDivMethod=="NONE")
     MaxwellSolverCN(dx,dt,time+dt);
   //MaxwellSolverFDTDCN(dx,dt,time+dt);

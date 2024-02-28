@@ -174,5 +174,7 @@ void WENOcharacteristic(const Array4<Real>& arr, const Array4<Real>& slopes,
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 Vector<Real> fluidAdvectionFlux(const Vector<Real>& u_i, int d);
 Vector<Real> RusanovAdvection(const Vector<Real>& u_i, const Vector<Real>& u_iPlus1, int d);
-
+void TVDcharacteristic(const Array4<Real>& arr, const Array4<Real>& slopes,
+		       int i, int j, int k, int iOffset, int jOffset, int kOffset,
+		       int start, int len, int d);
 #endif /*_utils_H_*/

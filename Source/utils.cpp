@@ -1825,9 +1825,9 @@ Vector<Real> RusanovAdvection(const Vector<Real>& u_i, const Vector<Real>& u_iPl
   func_i = fluidAdvectionFlux(u_i,d);
   func_iPlus1 = fluidAdvectionFlux(u_iPlus1,d);
   Real speed_i, speed_iPlus1, speed_max;
-  speed_i = std::abs(u_i[MOMX_I+d]);
-  speed_iPlus1 = std::abs(u_iPlus1[MOMX_I+d]);
-  speed_max = 2.0*std::max(speed_i,speed_iPlus1);
+  speed_i = std::abs(u_i[MOMX_I+d]/u_i[RHO_I]);
+  speed_iPlus1 = std::abs(u_iPlus1[MOMX_I+d]/u_iPlus1[RHO_I]);
+  speed_max = std::max(speed_i,speed_iPlus1);
   
   for (int i = 0; i<u_i.size(); i++)
     {
@@ -1835,4 +1835,93 @@ Vector<Real> RusanovAdvection(const Vector<Real>& u_i, const Vector<Real>& u_iPl
 			  - speed_max*(u_iPlus1[i]-u_i[i])));
     }
   return flux;
+}
+void TVDcharacteristic(const Array4<Real>& arr, const Array4<Real>& slopes,
+		       int i, int j, int k, int iOffset, int jOffset, int kOffset,
+		       int start, int len, int d){
+  // local characteristic reconstruction		      
+  Vector<Real> u_i = get_data_zone(arr,i,j,k,start,start+len);
+  // define conserved variables
+  Real rho_i = u_i[0];
+  Real momX_i = u_i[1];
+  Real momY_i = u_i[2];
+  Real momZ_i = u_i[3];
+  Real E_i = u_i[ENER_I];
+		  
+  // define primitive variables
+  Real v_x_i = momX_i/rho_i;
+  Real v_y_i = momY_i/rho_i;
+  Real v_z_i = momZ_i/rho_i;
+  Real v_squared = get_magnitude_squared(v_x_i,v_y_i,v_z_i);
+  Real p_i = get_pressure({rho_i,momX_i,momY_i,momZ_i,E_i});
+  // sound speed
+  Real c_i = get_speed(u_i);
+  // enthalpy
+  Real H_i = (E_i+p_i)/rho_i;
+  // useful variables
+  Real b1 = (Gamma-1.0)/(c_i*c_i);
+  Real b2 = 0.5*v_squared*b1;
+
+  Vector<Vector<Real>> left, right;
+  if (d==0){
+    left.push_back({0.5*(b2+v_x_i/c_i),-0.5*(b1*v_x_i+1.0/c_i),-0.5*b1*v_y_i,-0.5*b1*v_z_i,0.5*b1});
+    left.push_back({1.0-b2,b1*v_x_i,b1*v_y_i,b1*v_z_i,-b1});
+    left.push_back({0.5*(b2-v_x_i/c_i),-0.5*(b1*v_x_i-1.0/c_i),-0.5*b1*v_y_i,-0.5*b1*v_z_i,0.5*b1});
+    left.push_back({-v_y_i,0.0,1.0,0.0,0.0});
+    left.push_back({-v_z_i,0.0,0.0,1.0,0.0});
+  } else if (d==1){
+    left.push_back({0.5*(b2+v_y_i/c_i),-0.5*b1*v_x_i,-0.5*(b1*v_y_i+1.0/c_i),-0.5*b1*v_z_i,0.5*b1});
+    left.push_back({1.0-b2,b1*v_x_i,b1*v_y_i,b1*v_z_i,-b1});
+    left.push_back({0.5*(b2-v_y_i/c_i),-0.5*b1*v_x_i,-0.5*(b1*v_y_i-1.0/c_i),-0.5*b1*v_z_i,0.5*b1});
+    left.push_back({v_x_i,-1.0,0.0,0.0,0.0});
+    left.push_back({v_z_i,0.0,0.0,-1.0,0.0});			
+  }
+  
+  // Conserved variables covering the stencils
+  //Vector<Real> u_iMinus2 = get_data_zone(arr,i-2*iOffset,j-2*jOffset,k-2*kOffset,start,start+len);
+  Vector<Real> u_iMinus1 = get_data_zone(arr,i-iOffset,j-jOffset,k-kOffset,start,start+len);
+  Vector<Real> u_iPlus1 = get_data_zone(arr,i+iOffset,j+jOffset,k+kOffset,start,start+len);
+  //Vector<Real> u_iPlus2 = get_data_zone(arr,i+2*iOffset,j+2*jOffset,k+2*kOffset,start,start+len);
+  // Characteristic variables covering the stencils
+  Vector<Real> w_iMinus2,w_iMinus1,w_i,w_iPlus1,w_iPlus2;  
+  for (int n=0; n<left.size(); n++)
+    {
+      //w_iMinus2.push_back(dotProduct(left[n],u_iMinus2));
+      w_iMinus1.push_back(dotProduct(left[n],u_iMinus1));
+      w_i.push_back(dotProduct(left[n],u_i));
+      w_iPlus1.push_back(dotProduct(left[n],u_iPlus1));
+      //w_iPlus2.push_back(dotProduct(left[n],u_iPlus2));
+    }
+  
+  // Stencils of characteristic variables
+  Vector<Real> w1 = {w_iMinus1[0],w_i[0],w_iPlus1[0]};
+  Vector<Real> w2 = {w_iMinus1[1],w_i[1],w_iPlus1[1]};
+  Vector<Real> w3 = {w_iMinus1[2],w_i[2],w_iPlus1[2]};
+  Vector<Real> w4 = {w_iMinus1[3],w_i[3],w_iPlus1[3]};		  
+  Vector<Real> w5 = {w_iMinus1[4],w_i[4],w_iPlus1[4]};
+		  
+  Real slopesw1 = TVD_slope(w1[0],w1[1],w1[2]);		      
+  Real slopesw2 = TVD_slope(w2[0],w2[1],w2[2]);
+  Real slopesw3 = TVD_slope(w3[0],w3[1],w3[2]);
+  Real slopesw4 = TVD_slope(w4[0],w4[1],w4[2]);
+  Real slopesw5 = TVD_slope(w5[0],w5[1],w5[2]);
+
+  if (d==0){
+    right.push_back({1.0,1.0,1.0,0.0,0.0});
+    right.push_back({v_x_i-c_i,v_x_i,v_x_i+c_i,0.0,0.0});
+    right.push_back({v_y_i,v_y_i,v_y_i,1.0,0.0});
+    right.push_back({v_z_i,v_z_i,v_z_i,0.0,1.0});
+    right.push_back({H_i-v_x_i*c_i,0.5*v_squared,H_i+v_x_i*c_i,v_y_i,v_z_i});
+  } else if (d==1){
+    right.push_back({1.0,1.0,1.0,0.0,0.0});
+    right.push_back({v_x_i,v_x_i,v_x_i,-1.0,0.0});
+    right.push_back({v_y_i-c_i,v_y_i,v_y_i+c_i,0.0,0.0});
+    right.push_back({v_z_i,v_z_i,v_z_i,0.0,-1.0});
+    right.push_back({H_i-v_y_i*c_i,0.5*v_squared,H_i+v_y_i*c_i,-v_x_i,-v_z_i});
+  }
+
+  for (int n = 0; n<right.size(); n++)
+    {
+      slopes(i,j,k,n+len*d) = dotProduct(right[n],{slopesw1,slopesw2,slopesw3,slopesw4,slopesw5});
+    }
 }
