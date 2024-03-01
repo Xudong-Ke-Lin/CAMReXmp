@@ -185,5 +185,5 @@ Vector<Real> flux_FORCE(const Vector<Real>& u_i, const Vector<Real>& u_iPlus1,
 Vector<Real> flux_MUSTA1(Vector<Real>& u_i, Vector<Real>& u_iPlus1, 
 			 double dx, double dt, int d, Real cfl,
 			 std::function<Vector<Real> (const Vector<Real>&, int)> flux_function);
-
+Vector<Real> get_electron_var(const Vector<Real>& u_i);
 #endif /*_utils_H_*/
