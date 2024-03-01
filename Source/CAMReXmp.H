@@ -275,7 +275,8 @@ private:
   void elecFieldCellAve(Real);
   void Projection(const Real*, Real);
 #endif
-  void MaxwellSolverCN(const Real*, Real, Real);  
+  void MaxwellSolverCN(const Real*, Real, Real);
+  void MaxwellSolverBE(const Real*, Real, Real);  
   void sourceUpdate(Real, Real);
   void sourceUpdateCyl(const Real*, Real, Real);
   void sourceUpdateVoid(Array4<Real>&, int, int, int, Real);
@@ -318,7 +319,7 @@ private:
   void fluidSolverPresDumbser(MultiFab&, const Real*, Real, Real, int);
   void flattenerAlgorithmIMEX(MultiFab&, MultiFab&, int, int, const Real*, Real, Real);
   void RKIMEX2(const Real*, Real, Real, int);
-
+  void RK2electronSubcycling(const Real*, Real, Real);
   ////////////////////////////////////////////////////////////
   // general solvers for especific sub-systems
   ////////////////////////////////////////////////////////////

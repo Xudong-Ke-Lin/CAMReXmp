@@ -1205,19 +1205,8 @@ CAMReXmp::estTimeStep (Real)
   bool fluidconstraint = (fluidOrder != 0 ? true : false);
   bool EMconstraint = (MaxwellOrder != 0 ? true : false);
   
-  /*Vector<Real> dim;
-  if (geom.Coord()==0)
-    dim = {0,1};
-  else if (geom.Coord()==1)
-  dim = {0,2};*/
-  /*ParmParse pp;
-  std::string coor;
-  pp.query("coor",coor);  
-  if (coor=="xz")
-    dim = {0,2};
-  else
-    dim = {0,1};*/
-
+  Real vel = 1e-14;
+  
   // if electron mass smaller than ion mass, use electron velocities
   const int fluid = ( m>1.0 ? NUM_STATE_FLUID/2 : 0);
   
@@ -1250,48 +1239,55 @@ CAMReXmp::estTimeStep (Real)
 		  Vector<Real> u_i = get_data_zone(arr,i,j,k,fluid,NUM_STATE_FLUID/2);
 		  Real a = get_speed(u_i);
 		  //c_array.push_back(std::abs(v)+a);
-		  v_array.push_back(2.0*std::abs(v));
+		  //v_array.push_back(2.0*std::abs(v));
+		  v_array.push_back(std::abs(v));
 		  c_array.push_back(a);
-		  */
+		  */		  
 		  Real v_i = arr(i,j,k,MOMX_I+d)/arr(i,j,k,RHO_I);
 		  Real v_e = arr(i,j,k,MOMX_E+d)/arr(i,j,k,RHO_E);
 		  Vector<Real> u_i = get_data_zone(arr,i,j,k,RHO_I,NUM_STATE_FLUID/2);
 		  Vector<Real> u_e = get_data_zone(arr,i,j,k,RHO_E,NUM_STATE_FLUID/2);
-		  if (std::abs(v_e)<1e-8)
-		    v_e = get_speed(u_e);
-		  else
-		    v_e *= 2.0;
+		  //if (parent->levelSteps(0)<10 || std::abs(v_e)<1e-8)
+		  //v_e = std::abs(v_e) + get_speed(u_e);
+		  //else
+		  //v_e *= 2.0;
 		  Real c_i = get_speed(u_i);
 		  //c_array.push_back(std::abs(v)+a);
 		  //v_array.push_back(2.0*std::abs(v));
-		  c_array.push_back(std::max(std::abs(v_i)+c_i,v_e));
+		  //c_array.push_back(std::max(std::abs(v_i)+c_i,v_e));
 		  
+		  Real c_e = get_speed(u_e);
+		  c_array.push_back(std::abs(v_e)+c_e);
+		  v_array.push_back(std::max(std::abs(v_i)+c_i,std::abs(v_e)+0.5*c_e));
 		}
 	    }
 	}
     }
     c_h = *std::max_element(c_array.begin(), c_array.end());
-    //c_h = (*std::max_element(v_array.begin(), v_array.end()) < 1e-8 ? *std::max_element(c_array.begin(), c_array.end()) : *std::max_element(v_array.begin(), v_array.end()));
+    vel = *std::max_element(v_array.begin(), v_array.end());
+    //c_h = (*std::max_element(v_array.begin(), v_array.end()) < 1e-12 ? *std::max_element(c_array.begin(), c_array.end()) : *std::max_element(v_array.begin(), v_array.end()));
 
     // dt does not need to resolve plasma and cyclotron frequencies
     // because usually an implicit souce term update is used
     if (EMconstraint && fluidconstraint && MaxwellTimeMethod=="EX")
       dt_est = std::min(dt_est, dx[d]/std::max(c_h, c));
     else if (EMconstraint && fluidconstraint && (MaxwellTimeMethod=="EXsubcycling" || MaxwellTimeMethod=="IM"))
-      dt_est = std::min(dt_est, dx[d]/c_h);
+      dt_est = std::min(dt_est, dx[d]/vel);
     else if (EMconstraint && !fluidconstraint)
       dt_est = std::min(dt_est, dx[d]/c);
     else
       dt_est = std::min(dt_est, dx[d]/c_h);
-        
+    if (parent->levelSteps(0)<20)
+      dt_est = std::min(dt_est, dx[d]/c_h);
   }  
   
   // Ensure that we really do have the minimum across all processors
   ParallelDescriptor::ReduceRealMin(dt_est);
   ParallelDescriptor::ReduceRealMax(c_h);
+  ParallelDescriptor::ReduceRealMax(vel);
 
   dt_est *= cfl;
-  amrex::Print() << c_h << " " << dt_est << std::endl;
+  amrex::Print() << c_h << " " << vel << " " << dt_est << std::endl;
   
   if (c_h>c && EMconstraint && fluidconstraint)
     {

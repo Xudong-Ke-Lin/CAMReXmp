@@ -500,3 +500,46 @@ void CAMReXmp::RK2(const Real* dx, Real dt, Real time, int start, int len,
   MultiFab::LinComb(S_new, 0.5, S_new, start, 0.5, S_input, start, start, len, 0);
   
 }
+void CAMReXmp::RK2electronSubcycling(const Real* dx, Real dt, Real time)
+{
+
+  // get multifabs references
+  MultiFab& S_new = get_new_data(Phi_Type);
+  
+  // input states
+  MultiFab S_input(grids, dmap, NUM_STATE, NUM_GROW);
+  
+  // intermediate states in RK2
+  MultiFab S1(grids, dmap, NUM_STATE, NUM_GROW);  
+  
+  Real dtElec = cfl*std::min(dx[0],dx[1])/c_h;
+  Real dt_current = dtElec; 
+
+  do{
+    amrex::Print() << "Updating hyperbolic part, dt=" << dtElec << ", current dt=" << dt_current << " and final dt=" << dt << std::endl;
+
+    // fill initial input data
+    // note that it is using the updated fluid states for the entire loop
+    FillPatch(*this, S_input, NUM_GROW, time, Phi_Type, 0, NUM_STATE);
+
+    generalSolverTVD(S_input,dx,dtElec,RHO_E,5,HLLC);
+    
+    // fill intermediate states 
+    FillPatch(*this, S1, NUM_GROW, time, Phi_Type, 0, NUM_STATE);
+
+    generalSolverTVD(S1,dx,dtElec,RHO_E,5,HLLC);    
+    MultiFab::LinComb(S_new, 0.5, S_new, RHO_E, 0.5, S_input, RHO_E, RHO_E, 5, 0);
+    
+    if (dt_current+dtElec > dt)
+      {
+	// if at final time step, stop
+	if (dt_current==dt)
+	  break;
+	// at the final time step, use the remaining dt
+	dtElec = std::abs(dt - dt_current);
+	if (dtElec<1e-14)
+	  break;
+      }
+    dt_current += dtElec;
+  } while (dt_current <= dt);
+}

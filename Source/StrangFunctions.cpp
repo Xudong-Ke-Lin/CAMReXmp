@@ -47,7 +47,7 @@ void CAMReXmp::StrangSecond(const Real* dx, Real dt, Real time)
 
   if (sourceMethod!="no")
     sourceUpdate(0.5*dt, time+dt);
-
+  
   if (geom.Coord()==1)
     sourceUpdateCyl(dx, 0.5*dt, time+dt);
 
@@ -60,10 +60,16 @@ void CAMReXmp::StrangSecond(const Real* dx, Real dt, Real time)
 #endif
 
   RK2(dx,dt,time+dt,RHO_I,5,HLLC);
+  // explicit electron fluxes update
+  //RK2(dx,dt,time+dt,RHO_E,5,HLLC);
+  // pressure-based semi-implicit electron update
   RKIMEX2(dx,dt,time+dt,RHO_E);
+  // explicit with sub-cycling electron fluxes update
+  //RK2electronSubcycling(dx,dt,time+dt);
 
   if (MaxwellTimeMethod=="IM" && MaxwellDivMethod=="NONE")
-    MaxwellSolverCN(dx,dt,time+dt);
+    //MaxwellSolverCN(dx,dt,time+dt);
+    MaxwellSolverBE(dx,dt,time+dt);
   //MaxwellSolverFDTDCN(dx,dt,time+dt);
   //RK2fluidRK3Maxwell(dx,dt,time+dt);
   //RK3(dx,dt,time+dt);
@@ -75,10 +81,10 @@ void CAMReXmp::StrangSecond(const Real* dx, Real dt, Real time)
   
   if (sourceMethod!="no") 
     sourceUpdate(0.5*dt, time+dt);
-
+  
   if (geom.Coord()==1)
     sourceUpdateCyl(dx, 0.5*dt, time+dt);
-
+  
 #if (AMREX_SPACEDIM >= 2)  
   //if (sourceMethod=="IM" && MaxwellDivMethod!="HDC")
   if (((sourceMethod=="IM" || sourceMethod=="STIFF" || sourceMethod=="EXACT")
