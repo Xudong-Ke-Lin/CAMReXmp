@@ -138,6 +138,10 @@ Vector<Real> MUSCL_Hancock_WENO_flux(const Array4<Real>& arr, const Array4<Real>
 				     Real dx, Real dt, int d,
 				     std::function<Vector<Real> (const Vector<Real>&, int)> flux_function,
 				     std::function<Vector<Real> (Vector<Real>,Vector<Real>,int)> solver);
+Vector<Real> monotone_flux(const Array4<Real>& arr,
+ 			   int i, int j, int k, int iOffset, int jOffset, int kOffset,
+ 			   int start, int len, int d,
+ 			   std::function<Vector<Real> (Vector<Real>,Vector<Real>,int)> solver);
 Vector<Real> TVD_flux(const Array4<Real>& arr, const Array4<Real>& slopes,
 		      int i, int j, int k, int iOffset, int jOffset, int kOffset,
 		      int start, int len, int startSlope, int d,

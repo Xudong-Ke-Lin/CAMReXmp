@@ -368,3 +368,24 @@ void CAMReXmp::linearCombination(MultiFab& S_new, MultiFab& S1, Real a1, MultiFa
   //FillDomainBoundary(S_new, geom, bc);
 
 }
+void CAMReXmp::RK2(const Real* dx, Real dt, Real time, int start, int len,
+		   std::function<Vector<Real> (Vector<Real>,Vector<Real>,int)> solver)
+{
+  // get multifabs references
+  MultiFab& S_new = get_new_data(Phi_Type);
+
+  // input states
+  MultiFab S_input(grids, dmap, NUM_STATE, NUM_GROW);
+  FillPatch(*this, S_input, NUM_GROW, time, Phi_Type, 0, NUM_STATE);
+
+  // intermediate states in RK2
+  MultiFab S1(grids, dmap, NUM_STATE, NUM_GROW);
+
+  generalSolverTVD(S_input,dx,dt,start,len,solver);
+  FillPatch(*this, S1, NUM_GROW, time, Phi_Type, 0, NUM_STATE);
+
+  generalSolverTVD(S1,dx,dt,start,len,solver);
+
+  MultiFab::LinComb(S_new, 0.5, S_new, start, 0.5, S_input, start, start, len, 0);
+
+}

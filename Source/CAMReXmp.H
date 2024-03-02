@@ -308,6 +308,12 @@ private:
 
   void implicitYeeMaxwellSolver(Array<MultiFab,AMREX_SPACEDIM>&, Array<MultiFab,AMREX_SPACEDIM>&, MultiFab&, MultiFab&, const Real*, Real, Real);
 
+  ////////////////////////////////////////////////////////////
+  // general solvers for especific sub-systems
+  ////////////////////////////////////////////////////////////
+  void generalSolverMonotone(MultiFab&, const Real*, Real, int, int, std::function<Vector<Real> (Vector<Real>,Vector<Real>,int)>);
+  void generalSolverTVD(MultiFab&, const Real*, Real, int, int, std::function<Vector<Real> (Vector<Real>,Vector<Real>,int)>);
+  void RK2(const Real*, Real, Real, int, int, std::function<Vector<Real> (Vector<Real>,Vector<Real>,int)>);
 };    
 
 /**
