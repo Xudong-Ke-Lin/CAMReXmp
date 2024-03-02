@@ -9,6 +9,7 @@ using namespace amrex;
 
 void CAMReXmp::StrangSecond(const Real* dx, Real dt, Real time)
 {
+
   // copy old data to new data
   {    
     MultiFab& S_new = get_new_data(Phi_Type);
@@ -58,10 +59,14 @@ void CAMReXmp::StrangSecond(const Real* dx, Real dt, Real time)
       elecFieldCellAve(time+dt);
     }
 #endif
-  
-  RK2(dx,dt,time+dt);
-  if (MaxwellTimeMethod=="IM" && MaxwellDivMethod=="NONE")
-    MaxwellSolverCN(dx,dt,time+dt);
+
+  //RK2(dx,dt,time+dt);
+  RK2GOL(dx,dt,time+dt);
+  //RK2(dx,dt,time+dt,RHO_I,5,HLLC);
+  //RK2(dx,dt,time+dt,RHO_E,5,HLLC);
+  RK2(dx,dt,time+dt,BX,NUM_STATE_MAXWELL,RankineHugoniot);
+  //if (MaxwellTimeMethod=="IM" && MaxwellDivMethod=="NONE")
+  //MaxwellSolverCN(dx,dt,time+dt);
   //MaxwellSolverFDTDCN(dx,dt,time+dt);
   //RK2fluidRK3Maxwell(dx,dt,time+dt);
   //RK3(dx,dt,time+dt);

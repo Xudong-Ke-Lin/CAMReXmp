@@ -723,7 +723,7 @@ CAMReXmp::advance (Real time,
 
   const Real* dx = geom.CellSize();
   const Real* prob_lo = geom.ProbLo();
- 
+
   //
   // Get pointers to Flux registers, or set pointer to zero if not there.
   //
@@ -1187,7 +1187,7 @@ CAMReXmp::estTimeStep (Real)
 {
   // This is just a dummy value to start with 
   Real dt_est  = 1.0e+20;
-  
+
   const Real* dx = geom.CellSize();
   const Real* prob_lo = geom.ProbLo();
   const Real cur_time = state[Phi_Type].curTime();
@@ -1249,31 +1249,20 @@ CAMReXmp::estTimeStep (Real)
 		  Vector<Real> u_i = get_data_zone(arr,i,j,k,fluid,NUM_STATE_FLUID/2);
 		  Real a = get_speed(u_i);
 		  c_array.push_back(std::abs(v)+a);*/
-		  // define conserved variables
-		  Real rho_i = arr(i,j,k,0);
-		  Real momX_i = arr(i,j,k,1+d);
-		  Real momY_i = arr(i,j,k,1+(1+d)%3);
-		  Real momZ_i = arr(i,j,k,1+(2+d)%3);
-		  Real J_x = arr(i,j,k,MOMX_E+d);
-		  Real J_y = arr(i,j,k,MOMX_E+(1+d)%3);
-		  Real J_z = arr(i,j,k,MOMX_E+(2+d)%3);
-		  Real E_e = arr(i,j,k,ENER_E);
-
-		  // quasineutrality n_i=n_e_rho_i/m_i, rho_e=rho_i*(m_e/m_i) and m_i=1
-		  Real n_e = rho_i;
-		  Real rho_e = rho_i/m;
-		  Real m_e = 1.0/m;
-		  Real q_i = r_i;
-  
+		  // electron variables
+		  Vector<Real> u_e = get_electron_var(get_data_zone(arr,i,j,k,0,10));
+		  Real rho_e = u_e[0];
+		  Real momX_e = u_e[1+d];
+		  Real momY_e = u_e[1+(1+d)%3];
+		  Real momZ_e = u_e[1+(2+d)%3];
+		  Real E_e = u_e[4];
+		  
 		  // define primitive variables
-		  Real v_x_i = momX_i/rho_i;
-		  Real v_y_i = momY_i/rho_i;
-		  Real v_z_i = momZ_i/rho_i;
-		  Real v_x_e = v_x_i-J_x/(n_e*q_i);
-		  Real v_y_e = v_y_i-J_y/(n_e*q_i);
-		  Real v_z_e = v_z_i-J_z/(n_e*q_i);
-		  Vector<Real> u_i = {rho_e,rho_e*v_x_e,rho_e*v_y_e,rho_e*v_z_e,E_e};
-		  Real a = get_speed(u_i);
+		  Real v_x_e = momX_e/rho_e;
+		  Real v_y_e = momY_e/rho_e;
+		  Real v_z_e = momZ_e/rho_e;
+
+		  Real a = get_speed(u_e);
 		  c_array.push_back(std::abs(v_x_e)+a);
 		  //amrex::Print() << rho_e << " " << rho_e*v_x_e << " " << rho_e*v_y_e << " " << rho_e*v_z_e << " " << E_e << " " << a << std::endl;
 		}
@@ -1304,7 +1293,7 @@ CAMReXmp::estTimeStep (Real)
   
   if (c_h>c && EMconstraint && fluidconstraint)
     {
-      amrex::Abort("Fluid velocity is higher than speed of light!");
+      //amrex::Abort("Fluid velocity is higher than speed of light!");
       amrex::Print() << "Fluid velocity is higher than speed of light!" << std::endl;
       ParmParse pp;
       Real stop_time;
@@ -1658,7 +1647,7 @@ CAMReXmp::read_params ()
   }
   else if (fluidOrder==2){
     amrex::Print() << "fluid 2nd order TVD" << std::endl;
-    fluidSolverWithChosenSpaceOrder = &CAMReXmp::fluidSolverTVDGOL;
+    fluidSolverWithChosenSpaceOrder = &CAMReXmp::fluidSolverTVD;
   }
   else if (fluidOrder==3){
     amrex::Print() << "fluid 3rd order WENO" << std::endl;

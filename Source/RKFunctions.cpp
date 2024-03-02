@@ -389,3 +389,26 @@ void CAMReXmp::RK2(const Real* dx, Real dt, Real time, int start, int len,
   MultiFab::LinComb(S_new, 0.5, S_new, start, 0.5, S_input, start, start, len, 0);
 
 }
+void CAMReXmp::RK2GOL(const Real* dx, Real dt, Real time)
+{
+  int start = 0;
+  int len = 10;
+  
+  // get multifabs references
+  MultiFab& S_new = get_new_data(Phi_Type);
+
+  // input states
+  MultiFab S_input(grids, dmap, NUM_STATE, NUM_GROW);
+  FillPatch(*this, S_input, NUM_GROW, time, Phi_Type, 0, NUM_STATE);
+
+  // intermediate states in RK2
+  MultiFab S1(grids, dmap, NUM_STATE, NUM_GROW);
+
+  fluidSolverTVDGOL(S_input,dx,dt);
+  FillPatch(*this, S1, NUM_GROW, time, Phi_Type, 0, NUM_STATE);
+
+  fluidSolverTVDGOL(S1,dx,dt);
+
+  MultiFab::LinComb(S_new, 0.5, S_new, start, 0.5, S_input, start, start, len, 0);
+
+}
