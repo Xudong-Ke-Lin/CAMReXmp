@@ -1163,6 +1163,24 @@ Vector<Real> flux_LLF(const Vector<Real>& u_i, const Vector<Real>& u_iPlus1, int
       }
     return flux;
 }
+Vector<Real> monotone_flux(const Array4<Real>& arr,
+ 			   int i, int j, int k, int iOffset, int jOffset, int kOffset,
+ 			   int start, int len, int d,
+ 			   std::function<Vector<Real> (Vector<Real>,Vector<Real>,int)> solver){
+
+  Vector<Real> u_iMinus1, u_i;
+
+  for (int n = start; n<start+len; n++)
+    {
+      u_iMinus1.push_back(arr(i-iOffset,j-jOffset,k-kOffset,n));
+      u_i.push_back(arr(i,j,k,n));
+    }
+
+  // flux depending on the speeds, defined in slides or Toro's book
+  Vector<Real> flux = solver(u_iMinus1,u_i,d);
+
+  return flux;
+}
 Vector<Real> TVD_flux(const Array4<Real>& arr, const Array4<Real>& slopes,
 		      int i, int j, int k, int iOffset, int jOffset, int kOffset,
 		      int start, int len, int startSlope, int d,
