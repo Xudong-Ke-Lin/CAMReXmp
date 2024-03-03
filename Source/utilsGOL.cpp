@@ -20,14 +20,6 @@ Real get_pressure_totalGOL(const Vector<Real>& u_i)
   Real J_y = u_i[MOMX_E];
   Real J_z = u_i[MOMX_E];
   
-  // electron variables
-  /*Vector<Real> u_e = get_electron_var(u_i);
-  Real rho_e = u_e[0];
-  Real momX_e = u_e[1];
-  Real momY_e = u_e[2];
-  Real momZ_e = u_e[3];
-  */
-  
   // quasineutrality n_i=n_e, rho_e=rho_i*(m_e/m_i) and m_i=1
   Real n_e = rho;
   Real m_e = 1.0/m;
@@ -37,18 +29,11 @@ Real get_pressure_totalGOL(const Vector<Real>& u_i)
   Real v_x = momX/rho;
   Real v_y = momY/rho;
   Real v_z = momZ/rho;
-  Real rho_e = rho/m;
-  Real v_x_e = v_x-J_x/(n_e*q_i);
-  Real v_y_e = v_y-J_y/(n_e*q_i);
-  Real v_z_e = v_z-J_z/(n_e*q_i);
-  /*Real v_x_e = momX_e/rho_e;
-  Real v_y_e = momY_e/rho_e;
-  Real v_z_e = momZ_e/rho_e;
-  */
+
   Real v2 = get_magnitude_squared(v_x,v_y,v_z);
-  //Real J2 = get_magnitude_squared(J_x,J_y,J_z);
-  Real ve2 = get_magnitude_squared(v_x_e,v_y_e,v_z_e);
-  return (Gamma-1.0)*(E - 0.5*rho*v2 - 0.5*rho_e*ve2);
+  Real J2 = get_magnitude_squared(J_x,J_y,J_z);
+
+  return (Gamma-1.0)*(E - 0.5*rho*v2 - 0.5*m_e/(q_i*q_i*n_e)*J2);
 }
 Vector<Real> get_electron_var(const Vector<Real>& u_i){
 
@@ -61,7 +46,7 @@ Vector<Real> get_electron_var(const Vector<Real>& u_i){
   Real J_x = u_i[MOMX_E];
   Real J_y = u_i[MOMY_E];
   Real J_z = u_i[MOMZ_E];  
-  //Real E_e = u_i[ENER_E];
+  Real E_e = u_i[ENER_E];
   
   // quasineutrality n_i=n_e, rho_e=rho_i*(m_e/m_i) and m_i=1
   Real n_e = rho;
@@ -77,9 +62,6 @@ Vector<Real> get_electron_var(const Vector<Real>& u_i){
   Real v_x_e = v_x-J_x/(n_e*q_i);
   Real v_y_e = v_y-J_y/(n_e*q_i);
   Real v_z_e = v_z-J_z/(n_e*q_i);
-  Real p_e = p/2.;
-
-  Real E_e = p_e/(Gamma-1.) + 0.5*rho_e*get_magnitude_squared(v_x_e,v_y_e,v_z_e);
   
   Vector<Real> elec_var(5,0.0);
   elec_var[0] = rho_e;
@@ -101,7 +83,6 @@ Vector<Real> fluidGOLFlux(const Vector<Real>& u_i, int d){
   Real J_x = u_i[MOMX_E+d];
   Real J_y = u_i[MOMX_E+(1+d)%3];
   Real J_z = u_i[MOMX_E+(2+d)%3];
-  //Real E_e = u_i[ENER_E];
 
   // electron variables
   Vector<Real> u_e = get_electron_var(u_i);
@@ -124,8 +105,7 @@ Vector<Real> fluidGOLFlux(const Vector<Real>& u_i, int d){
   Real v_x_e = momX_e/rho_e;
   Real v_y_e = momY_e/rho_e;
   Real v_z_e = momZ_e/rho_e;
-  //Real p_e = get_pressure(u_e);
-  Real p_e = p/2.;
+  Real p_e = get_pressure(u_e);
   
   // flux function
   Vector<Real> function(u_i.size(),0.0);
@@ -137,7 +117,7 @@ Vector<Real> fluidGOLFlux(const Vector<Real>& u_i, int d){
   function[MOMX_E+d] = 2.0*J_x*v_x - J_x*J_x/(n_e*q_i) -p_e*q_i/m_e;
   function[MOMX_E+(1+d)%3] = v_x*J_y + v_y*J_x - J_x*J_y/(n_e*q_i);
   function[MOMX_E+(2+d)%3] = v_x*J_z + v_z*J_x - J_x*J_z/(n_e*q_i);  
-  //function[ENER_E] = (E_e+p_e)*v_x_e;
+  function[ENER_E] = (E_e+p_e)*v_x_e;
   return function;
 }
 Vector<Real> fluidTWOFlux(const Vector<Real>& u_i, int d){
@@ -193,9 +173,9 @@ Real get_max_speed(const Vector<Real>& u_i, int d)
   // electron variables
   Vector<Real> u_e = get_electron_var(u_i);
   Real rho_e = u_e[0];
-  Real momX_e = u_e[1+d];
-  Real momY_e = u_e[1+(1+d)%3];
-  Real momZ_e = u_e[1+(2+d)%3];
+  Real momX_e = u_e[1];
+  Real momY_e = u_e[2];
+  Real momZ_e = u_e[3];
   
   // quasineutrality n_i=n_e, rho_e=rho_i*(m_e/m_i) and m_i=1
   Real n_e = rho;
@@ -213,7 +193,7 @@ Real get_max_speed(const Vector<Real>& u_i, int d)
   Real p_e = get_pressure(u_e);
 
   Real c_e = get_speed(u_e);
-  amrex::Abort("Should include the current in the eigenvalues");
+  //amrex::Abort("Should include the current in the eigenvalues");
   return std::abs(v_x_e)+c_e;
   
   //return std::abs(v_x_e)+get_speed({rho_e,rho_e*v_x_e,rho_e*v_y_e,rho_e*v_z_e,E_e});
@@ -226,6 +206,7 @@ Vector<Real> flux_Rusanov(const Vector<Real>& u_i, const Vector<Real>& u_iPlus1,
   func_i = flux_function(u_i,d);
   func_iPlus1 = flux_function(u_iPlus1,d);
   Real speed_max = std::max(get_max_speed(u_i,d),get_max_speed(u_iPlus1,d));
+
   for (int i = 0; i<u_i.size(); i++)
     {
       flux.push_back(0.5*(func_iPlus1[i]+func_i[i]

@@ -27,7 +27,7 @@ void CAMReXmp::sourceUpdateIMMidpointGOL(Array4<Real>& arr, int i, int j, int k,
   Real J_x = arr(i,j,k,MOMX_E);
   Real J_y = arr(i,j,k,MOMY_E);
   Real J_z = arr(i,j,k,MOMZ_E);
-  //Real E_e = arr(i,j,k,ENER_E);
+  Real E_e = arr(i,j,k,ENER_E);
   Real B_x = arr(i,j,k,BX);
   Real B_y = arr(i,j,k,BY);
   Real B_z = arr(i,j,k,BZ);
@@ -63,14 +63,6 @@ void CAMReXmp::sourceUpdateIMMidpointGOL(Array4<Real>& arr, int i, int j, int k,
   Real J = get_magnitude(J_x, J_y, J_z);
   Real kin_J = 0.5*m_e/(q_i*q_i*n_e)*J*J;
 
-  /*Real p = get_pressure_totalGOL(u_i);
-  Real p_e = get_pressure(u_e);
-  if (i==258)//(p-p_e<1e-14 || p_e<1e-14)
-    {
-      amrex::Print() << "Source term before " << i << " " << p-p_e << " " << p_e << std::endl;
-      //amrex::Abort();
-    }
-  */
   // matrix for momentum, current and electric field source terms update
   MatrixXd matrix = MatrixXd::Constant(9,9,0.0);
   matrix(0,1+3) = B_z/l_r, matrix(0,2+3) = -B_y/l_r;
@@ -91,7 +83,6 @@ void CAMReXmp::sourceUpdateIMMidpointGOL(Array4<Real>& arr, int i, int j, int k,
 
   // calculate the matrix used in to invert
   MatrixXd finalMatrix = identityMat - 0.5*dt*matrix;
-  //MatrixXd finalMatrix = identityMat - dt*matrix;
 
   // LU decomposition, useful to calculate the inverse
   Eigen::FullPivLU<MatrixXd> lu_matrix(finalMatrix);
@@ -121,15 +112,12 @@ void CAMReXmp::sourceUpdateIMMidpointGOL(Array4<Real>& arr, int i, int j, int k,
   functionInt[EZ] = source_var_new(8);
   
   functionInt[ENER_I] = E;
-  //functionInt[ENER_E] = E_e;
+  functionInt[ENER_E] = E_e;
   //functionInt[ENER_I] = E + 0.5*dt/l_r*(functionInt[EX]*functionInt[MOMX_E] + functionInt[EY]*functionInt[MOMY_E] + functionInt[EZ]*functionInt[MOMZ_E]);
   //functionInt[ENER_E] = E_e + 0.5*dt/l_r*(functionInt[EX]*(functionInt[MOMX_E]-q_i*functionInt[1]) + functionInt[EY]*(functionInt[MOMY_E]-q_i*functionInt[2]) + functionInt[EZ]*(functionInt[MOMZ_E]-q_i*functionInt[3]));
-  //functionInt[ENER_I] = E + dt/l_r*(functionInt[EX]*functionInt[MOMX_E] + functionInt[EY]*functionInt[MOMY_E] + functionInt[EZ]*functionInt[MOMZ_E]);
-  //functionInt[ENER_E] = E_e + dt/l_r*(functionInt[EX]*(functionInt[MOMX_E]-q_i*functionInt[1]) + functionInt[EY]*(functionInt[MOMY_E]-q_i*functionInt[2]) + functionInt[EZ]*(functionInt[MOMZ_E]-q_i*functionInt[3]));
 
   for (int n=0; n<NUM_STATE; n++)
     arr(i,j,k,n) = 2.0*functionInt[n]-arr(i,j,k,n);
-  //arr(i,j,k,n) = functionInt[n];
 
   // get new electron velocities
   v_x = arr(i,j,k,MOMX_I)/rho;
@@ -141,22 +129,15 @@ void CAMReXmp::sourceUpdateIMMidpointGOL(Array4<Real>& arr, int i, int j, int k,
 
   // get kinetic energies
   Real v_new = get_magnitude(v_x, v_y, v_z);
-  //Real v_e_new = get_magnitude(v_x_e, v_y_e, v_z_e);
+  Real v_e_new = get_magnitude(v_x_e, v_y_e, v_z_e);
   Real kin_new = 0.5*rho*v_new*v_new;
-  //Real kin_e_new = 0.5*rho_e*v_e_new*v_e_new;  
+  Real kin_e_new = 0.5*rho_e*v_e_new*v_e_new;  
   Real J_new = get_magnitude(arr(i,j,k,MOMX_E), arr(i,j,k,MOMY_E), arr(i,j,k,MOMZ_E));
   Real kin_J_mew = 0.5*m_e/(q_i*q_i*n_e)*J_new*J_new;
-  
+
+  // see eq. 5.48 from the Sandia report of Richard M.J.Kramer
+  // entitled "A Plasma Modeling Hierarchy and Verification Approach"
   arr(i,j,k,ENER_I) += kin_new-kin + kin_J_mew-kin_J;//kin_e_new-kin_e;
-  //arr(i,j,k,ENER_E) += kin_e_new-kin_e;
+  arr(i,j,k,ENER_E) += kin_e_new-kin_e;
  
-  /*p = get_pressure_totalGOL(get_data_zone(arr,i,j,k,0,5));
- p_e = get_pressure({rho_e,rho_e*v_x_e,rho_e*v_y_e,rho_e*v_z_e,E_e});
- if (i==258)//(p-p_e<1e-14 || p_e<1e-14)
-   {
-     amrex::Print() << "Source term after " << i << " " << p-p_e << " " << p_e << std::endl;
-     if (p-p_e<1e-14 || p_e<1e-14)
-       amrex::Abort();
-   }
-  */
 }
