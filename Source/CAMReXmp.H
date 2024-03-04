@@ -314,14 +314,15 @@ private:
   void generalSolverMonotone(MultiFab&, const Real*, Real, int, int, std::function<Vector<Real> (Vector<Real>,Vector<Real>,int)>);
   void generalSolverTVD(MultiFab&, const Real*, Real, int, int, std::function<Vector<Real> (Vector<Real>,Vector<Real>,int)>);
   void RK2(const Real*, Real, Real, int, int, std::function<Vector<Real> (Vector<Real>,Vector<Real>,int)>);
-  void RK2GOL(const Real*, Real, Real);
 
   ////////////////////////////////////////////////////////////
   // 2 fluid plasma with generalized Ohm's law functions
   ////////////////////////////////////////////////////////////
   void sourceUpdateIMMidpointGOL(Array4<Real>& arr, int i, int j, int k, Real dt);
+  void fluidSolverMonotoneGOL(MultiFab&, const Real*, Real);
   void fluidSolverTVDGOL(MultiFab&, const Real*, Real);
-  
+  void SLICfluidSolverTVDGOL(MultiFab&, const Real*, Real);
+  void RK2GOL(const Real*, Real, Real);
 };    
 
 /**

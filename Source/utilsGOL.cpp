@@ -35,6 +35,12 @@ Real get_pressure_totalGOL(const Vector<Real>& u_i)
 
   return (Gamma-1.0)*(E - 0.5*rho*v2 - 0.5*m_e/(q_i*q_i*n_e)*J2);
 }
+Real get_speedGOL(Vector<Real> u_i){
+  // speed of sound for ideal gas
+  Real rho = u_i[0];
+  Real p = get_pressure_totalGOL(u_i);
+  return std::sqrt((Gamma*p)/rho);
+}
 Vector<Real> get_electron_var(const Vector<Real>& u_i){
 
   // define conserved variables
@@ -57,7 +63,6 @@ Vector<Real> get_electron_var(const Vector<Real>& u_i){
   Real v_x = momX/rho;
   Real v_y = momY/rho;
   Real v_z = momZ/rho;
-  Real p = get_pressure_totalGOL(u_i);
 
   Real v_x_e = v_x-J_x/(n_e*q_i);
   Real v_y_e = v_y-J_y/(n_e*q_i);
@@ -92,6 +97,9 @@ Vector<Real> fluidGOLFlux(const Vector<Real>& u_i, int d){
   Real momZ_e = u_e[1+(2+d)%3];
   Real E_e = u_e[4];
   
+  // ion variable
+  Real E_i = E - E_e;
+
   // quasineutrality n_i=n_e, rho_e=rho_i*(m_e/m_i) and m_i=1
   Real n_e = rho;
   Real m_e = 1.0/m;
@@ -106,14 +114,17 @@ Vector<Real> fluidGOLFlux(const Vector<Real>& u_i, int d){
   Real v_y_e = momY_e/rho_e;
   Real v_z_e = momZ_e/rho_e;
   Real p_e = get_pressure(u_e);
+  Real p_i = p - p_e;
   
   // flux function
   Vector<Real> function(u_i.size(),0.0);
   function[0] = rho*v_x;
-  function[1+d] = rho*v_x*v_x + p;
+  //function[1+d] = rho*v_x*v_x + p;
+  function[1+d] = rho*v_x*v_x + p_i + p_e;
   function[1+(1+d)%3] = rho*v_x*v_y;
   function[1+(2+d)%3] = rho*v_x*v_z;
-  function[ENER_I] = (E+p)*v_x + (E_e+p_e)*(-J_x/(n_e*q_i));
+  //function[ENER_I] = (E+p)*v_x + (E_e+p_e)*(-J_x/(n_e*q_i));
+  function[ENER_I] = (E_i+p_i)*v_x + (E_e+p_e)*(v_x-J_x/(n_e*q_i));
   function[MOMX_E+d] = 2.0*J_x*v_x - J_x*J_x/(n_e*q_i) -p_e*q_i/m_e;
   function[MOMX_E+(1+d)%3] = v_x*J_y + v_y*J_x - J_x*J_y/(n_e*q_i);
   function[MOMX_E+(2+d)%3] = v_x*J_z + v_z*J_x - J_x*J_z/(n_e*q_i);  
@@ -143,7 +154,7 @@ Vector<Real> fluidTWOFlux(const Vector<Real>& u_i, int d){
   Real v_z_e = momZ_e/rho_e;
   Real p_e = get_pressure({rho_e,momX_e,momY_e,momZ_e,E_e});
 
-  // flux functiono
+  // flux function
   Vector<Real> function(u_i.size(),0.0);
   function[0] = rho_i*v_x_i;
   function[1+d] = rho_i*v_x_i*v_x_i + p_i;
@@ -192,15 +203,13 @@ Real get_max_speed(const Vector<Real>& u_i, int d)
   Real v_z_e = momZ_e/rho_e;
   Real p_e = get_pressure(u_e);
 
+  Real c = get_speedGOL(u_i);
   Real c_e = get_speed(u_e);
   //amrex::Abort("Should include the current in the eigenvalues");
-  return std::abs(v_x_e)+c_e;
-  
-  //return std::abs(v_x_e)+get_speed({rho_e,rho_e*v_x_e,rho_e*v_y_e,rho_e*v_z_e,E_e});
-  //return get_speed({rho_e,rho_e*v_x_e,rho_e*v_y_e,rho_e*v_z_e,E_e});
+  return std::max(std::abs(v_x)+c,std::abs(v_x_e)+c_e);
   
 }
-Vector<Real> flux_Rusanov(const Vector<Real>& u_i, const Vector<Real>& u_iPlus1, Real dx, Real dt, int d,
+Vector<Real> flux_Rusanov(const Vector<Real>& u_i, const Vector<Real>& u_iPlus1, int d,
 			  std::function<Vector<Real> (const Vector<Real>&, int)> flux_function){
   Vector<Real> flux, func_i, func_iPlus1;
   func_i = flux_function(u_i,d);
@@ -215,6 +224,21 @@ Vector<Real> flux_Rusanov(const Vector<Real>& u_i, const Vector<Real>& u_iPlus1,
   
   return flux;
 
+}
+Vector<Real> monotone_fluxGOL(const Array4<Real>& arr,
+			      int i, int j, int k, int iOffset, int jOffset, int kOffset,
+			      int start, int len, int d){
+
+  Vector<Real> u_iMinus1, u_i;
+
+  for (int n = start; n<start+len; n++)
+    {
+      u_iMinus1.push_back(arr(i-iOffset,j-jOffset,k-kOffset,n));
+      u_i.push_back(arr(i,j,k,n));      
+    }
+  Vector<Real> flux = flux_Rusanov(u_iMinus1,u_i,d,fluidGOLFlux);
+
+  return flux;
 }
 Vector<Real> TVD_fluxGOL(const Array4<Real>& arr, const Array4<Real>& slopes,
 			 int i, int j, int k, int iOffset, int jOffset, int kOffset,
@@ -244,10 +268,48 @@ Vector<Real> TVD_fluxGOL(const Array4<Real>& arr, const Array4<Real>& slopes,
     }
 
   // flux depending on the speeds, defined in slides or Toro's book
-  Vector<Real> flux = flux_FORCE(u_iMinus1R,u_iL,dx,dt,d,fluidGOLFlux);
-  //Vector<Real> flux = flux_Rusanov(u_iMinus1R,u_iL,dx,dt,d,fluidGOLFlux);
+  //Vector<Real> flux = flux_FORCE(u_iMinus1R,u_iL,dx,dt,d,fluidGOLFlux);
+  Vector<Real> flux = flux_Rusanov(u_iMinus1R,u_iL,d,fluidGOLFlux);
   //Vector<Real> flux = flux_MUSTA1(u_iMinus1R,u_iL,dx,dt,d,0.8,fluidGOLFlux);
   //Vector<Real> flux = flux_MUSTA1(u_iMinus1R,u_iL,dx,dt,d,0.8);
+  return flux;
+}
+Vector<Real> SLIC_TVD_fluxGOL(const Array4<Real>& arr, const Array4<Real>& slopes,
+			      int i, int j, int k, int iOffset, int jOffset, int kOffset,
+			      int start, int len, int startSlope, Real dx, Real dt, int d){
+
+  Vector<Real> u_iMinus1, u_i;
+
+  Vector<Real> slopes_iMinus1, slopes_i;
+
+  for (int n = start; n<start+len; n++)
+    {
+      u_iMinus1.push_back(arr(i-iOffset,j-jOffset,k-kOffset,n));
+      u_i.push_back(arr(i,j,k,n));      
+    }
+  for (int n = startSlope; n<startSlope+len; n++)
+    {
+
+      slopes_iMinus1.push_back(slopes(i-iOffset,j-jOffset,k-kOffset,n));
+      slopes_i.push_back(slopes(i,j,k,n)); 
+    }
+
+  Vector<Real> u_iMinus1L,u_iMinus1R,u_iL,u_iR;
+  for (int n = 0; n<len; n++)
+    {
+      u_iMinus1L.push_back(u_iMinus1[n] - 0.5*slopes_iMinus1[n]);
+      u_iMinus1R.push_back(u_iMinus1[n] + 0.5*slopes_iMinus1[n]);
+      u_iL.push_back(u_i[n] - 0.5*slopes_i[n]);
+      u_iR.push_back(u_i[n] + 0.5*slopes_i[n]);
+    }
+
+  // Reiamnn problem left state
+  Vector<Real> u_iMinus1_nPlusHalf_R = half_update_R(u_iMinus1L, u_iMinus1R, dx, dt, d, fluidGOLFlux);
+  // Reiamnn problem right state
+  Vector<Real> u_i_nPlusHalf_L = half_update_L(u_iL, u_iR, dx, dt, d, fluidGOLFlux);
+  
+  Vector<Real> flux = flux_FORCE(u_iMinus1_nPlusHalf_R,u_i_nPlusHalf_L,dx,dt,d,fluidGOLFlux);
+
   return flux;
 }
 

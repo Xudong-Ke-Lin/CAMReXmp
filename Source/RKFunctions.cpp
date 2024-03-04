@@ -160,7 +160,7 @@ void CAMReXmp::RK3(const Real* dx, Real dt, Real time)
   S_EM_input[1].define(convert(grids,IntVect{AMREX_D_DECL(0,1,0)}), dmap, 6, NUM_GROW);
 #endif
   
-  // intermediate states in RK2
+  // intermediate states in RK3
   MultiFab S1(grids, dmap, NUM_STATE, NUM_GROW);
   MultiFab S2(grids, dmap, NUM_STATE, NUM_GROW);
 #if (AMREX_SPACEDIM >= 2)  

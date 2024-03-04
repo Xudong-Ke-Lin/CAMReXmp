@@ -173,9 +173,15 @@ void WENOcharacteristic(const Array4<Real>& arr, const Array4<Real>& slopes,
 // 2 fluid plasma with generalized Ohm's law functions
 ////////////////////////////////////////////////////////////
 Vector<Real> fluidGOLFlux(const Vector<Real>& u_i, int d);
+Vector<Real> monotone_fluxGOL(const Array4<Real>& arr,
+			      int i, int j, int k, int iOffset, int jOffset, int kOffset,
+			      int start, int len, int d);
 Vector<Real> TVD_fluxGOL(const Array4<Real>& arr, const Array4<Real>& slopes,
 			 int i, int j, int k, int iOffset, int jOffset, int kOffset,
 			 int start, int len, int startSlope, Real dx, Real dt, int d);
+Vector<Real> SLIC_TVD_fluxGOL(const Array4<Real>& arr, const Array4<Real>& slopes,
+			      int i, int j, int k, int iOffset, int jOffset, int kOffset,
+			      int start, int len, int startSlope, Real dx, Real dt, int d);
 
 Vector<Real> flux_LF(const Vector<Real>& u_i, const Vector<Real>& u_iPlus1, 
 		     double dx, double dt, int d,
