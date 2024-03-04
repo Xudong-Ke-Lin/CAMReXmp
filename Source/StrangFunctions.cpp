@@ -60,22 +60,18 @@ void CAMReXmp::StrangSecond(const Real* dx, Real dt, Real time)
     }
 #endif
 
-  //RK2(dx,dt,time+dt);
+  // two-fluid with GOL solver
   RK2GOL(dx,dt,time+dt);
-  //SLICfluidSolverTVDGOL(S_input,dx,dt);
-  //RK2(dx,dt,time+dt,RHO_I,5,HLLC);
-  //RK2(dx,dt,time+dt,RHO_E,5,HLLC);
+  // Maxwell solver
   if (MaxwellTimeMethod=="EX" && MaxwellDivMethod=="HDC")
     RK2(dx,dt,time+dt,BX,NUM_STATE_MAXWELL,RankineHugoniot);
   if (MaxwellTimeMethod=="IM" && MaxwellDivMethod=="NONE")
     MaxwellSolverCN(dx,dt,time+dt);
-  //MaxwellSolverFDTDCN(dx,dt,time+dt);
-  //RK2fluidRK3Maxwell(dx,dt,time+dt);
-  //RK3(dx,dt,time+dt);
+
 #if (AMREX_SPACEDIM >= 2)  
-  if (MaxwellTimeMethod=="IM" && MaxwellDivMethod=="FDTD")
-    MaxwellSolverFDTDCN(dx,dt,time+dt);
-    //MaxwellSolverFDTDCNAMReX(dx,dt,time+dt);
+  //if (MaxwellTimeMethod=="IM" && MaxwellDivMethod=="FDTD")
+  //MaxwellSolverFDTDCN(dx,dt,time+dt);
+  //MaxwellSolverFDTDCNAMReX(dx,dt,time+dt);
 #endif
   
   if (sourceMethod!="no") 

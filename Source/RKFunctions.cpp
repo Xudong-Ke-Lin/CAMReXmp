@@ -412,3 +412,101 @@ void CAMReXmp::RK2GOL(const Real* dx, Real dt, Real time)
   MultiFab::LinComb(S_new, 0.5, S_new, start, 0.5, S_input, start, start, len, 0);
 
 }
+void CAMReXmp::RKGOLIMEX2(const Real* dx, Real dt, Real time)
+{
+
+  amrex::Abort("Not efficient enough. It requires the time step dt is restricted by half of electron sound speed c_e.");
+  amrex::Abort("Note that to use it, need to change the flux function to the advection version.");
+  amrex::Abort("For stability purposes, the initial few time steps should be fully restricted by c_e");
+
+  // IMEX-SSP(2,2,2) L-Stable scheme parameter
+  Real gammaIMEX = 1. - 1./sqrt(2.);
+
+  // get multifabs references
+  MultiFab& S_new = get_new_data(Phi_Type);
+
+  // input states
+  MultiFab S_input(grids, dmap, NUM_STATE, NUM_GROW);
+  FillPatch(*this, S_input, NUM_GROW, time, Phi_Type, 0, NUM_STATE);
+
+  // intermediate states
+  MultiFab S1(grids, dmap, NUM_STATE, NUM_GROW);
+  MultiFab S2(grids, dmap, NUM_STATE, NUM_GROW);
+  MultiFab L1(grids, dmap, NUM_STATE, NUM_GROW);
+  MultiFab L2(grids, dmap, NUM_STATE, NUM_GROW);
+  MultiFab R1(grids, dmap, NUM_STATE, NUM_GROW);
+  MultiFab R2(grids, dmap, NUM_STATE, NUM_GROW);
+  MultiFab Stmp(grids, dmap, NUM_STATE, NUM_GROW);
+
+  //////////////////////////////////////////////////////////////////////////////
+  // IMEX-SSP(2,2,2)
+  //////////////////////////////////////////////////////////////////////////////
+  // implicit pressure solve for gamma dt
+  fluidSolverGOLelecPres(S_input, dx,gammaIMEX*dt,time);
+  FillPatch(*this, S1, NUM_GROW, time, Phi_Type, 0, NUM_STATE);
+  FillPatch(*this, R1, NUM_GROW, time, Phi_Type, 0, NUM_STATE);
+  // note when using R1, it needs to be divided by gammaIMEX
+  MultiFab::Subtract(R1, S_input, 0, 0, 10, NUM_GROW);
+
+  // explicit advection solve for dt
+  fluidSolverTVDGOL(S1,dx,dt);
+  FillPatch(*this, L1, NUM_GROW, time, Phi_Type, 0, NUM_STATE); 
+  MultiFab::Subtract(L1, S1, 0, 0, 10, NUM_GROW);
+
+  // implicit pressure solve for gamma dt
+  MultiFab::LinComb(Stmp, 1.0, S_input, 0, 1.0, L1, 0, 0, 10, NUM_GROW);
+  MultiFab::LinComb(Stmp, 1.0, Stmp, 0, (1.0-2.0*gammaIMEX)/gammaIMEX, R1, 0, 0, 10, NUM_GROW);
+  fluidSolverGOLelecPres(Stmp,dx,gammaIMEX*dt,time);
+  FillPatch(*this, S2, NUM_GROW, time, Phi_Type, 0, NUM_STATE);  
+  FillPatch(*this, R2, NUM_GROW, time, Phi_Type, 0, NUM_STATE);
+  // note when using R2, it needs to be divided by gammaIMEX
+  MultiFab::Subtract(R2, Stmp, 0, 0, 10, NUM_GROW);
+
+  // explicit advection solve for dt
+  fluidSolverTVDGOL(S2,dx,dt);
+  FillPatch(*this, L2, NUM_GROW, time, Phi_Type, 0, NUM_STATE);
+  MultiFab::Subtract(L2, S2, 0, 0, 10, NUM_GROW);
+
+  // final updated data
+  MultiFab::LinComb(S_new, 1.0, S_input, 0, 0.5, L1, 0, 0, 10, 0);
+  MultiFab::LinComb(S_new, 1.0, S_new, 0, 0.5, L2, 0, 0, 10, 0);
+  MultiFab::LinComb(S_new, 1.0, S_new, 0, 0.5/gammaIMEX, R1, 0, 0, 10, 0);
+  MultiFab::LinComb(S_new, 1.0, S_new, 0, 0.5/gammaIMEX, R2, 0, 0, 10, 0);
+
+  //////////////////////////////////////////////////////////////////////////////
+  // IMEX-SSP(3,2,2)
+  //////////////////////////////////////////////////////////////////////////////
+  /*
+  // aditional intermediate states  
+  MultiFab S3(grids, dmap, NUM_STATE, NUM_GROW);
+  MultiFab L3(grids, dmap, NUM_STATE, NUM_GROW);
+  MultiFab R3(grids, dmap, NUM_STATE, NUM_GROW);
+  fluidSolverGOLelecPres(S_input, dx,0.5*dt,time);
+  FillPatch(*this, S1, NUM_GROW, time, Phi_Type, 0, NUM_STATE);
+  FillPatch(*this, R1, NUM_GROW, time, Phi_Type, 0, NUM_STATE);
+  MultiFab::Subtract(R1, S_input, 0, 0, 10, NUM_GROW);
+  MultiFab::LinComb(Stmp, 1., S_input, 0, -1., R1, 0, 0, 10, NUM_GROW);
+  fluidSolverGOLelecPres(Stmp,dx,0.5*dt,time);  
+  FillPatch(*this, S2, NUM_GROW, time, Phi_Type, 0, NUM_STATE);
+  FillPatch(*this, R2, NUM_GROW, time, Phi_Type, 0, NUM_STATE);
+  MultiFab::Subtract(R2, Stmp, 0, 0, 10, NUM_GROW);
+  
+  fluidSolverTVDGOL(S2,dx,dt);
+  FillPatch(*this, L2, NUM_GROW, time, Phi_Type, 0, NUM_STATE);
+  MultiFab::Subtract(L2, S2, 0, 0, 10, NUM_GROW);
+  MultiFab::LinComb(Stmp, 1., S_input, 0, 1., L2, 0, 0, 10, NUM_GROW);
+  MultiFab::LinComb(Stmp, 1.0, Stmp, 0, 1., R2, 0, 0, 10, NUM_GROW);
+  fluidSolverGOLelecPres(Stmp,dx,0.5*dt,time);
+  FillPatch(*this, S3, NUM_GROW, time, Phi_Type, 0, NUM_STATE);
+  FillPatch(*this, R3, NUM_GROW, time, Phi_Type, 0, NUM_STATE);
+  MultiFab::Subtract(R3, Stmp, 0, 0, 10, NUM_GROW);
+  fluidSolverTVDGOL(S3,dx,dt);
+  FillPatch(*this, L3, NUM_GROW, time, Phi_Type, 0, NUM_STATE);
+  MultiFab::Subtract(L3, S3, 0, 0, 10, NUM_GROW);
+  // L3, R2 and R3 already are 0.5*dt
+  MultiFab::LinComb(S_new, 1.0, S_input, 0, 0.5, L2, 0, 0, 10, 0);
+  MultiFab::LinComb(S_new, 1.0, S_new, 0, 0.5, L3, 0, 0, 10, 0);
+  MultiFab::LinComb(S_new, 1.0, S_new, 0, 1.0, R2, 0, 0, 10, 0);
+  MultiFab::LinComb(S_new, 1.0, S_new, 0, 1.0, R3, 0, 0, 10, 0);
+  */
+}

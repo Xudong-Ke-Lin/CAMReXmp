@@ -321,8 +321,10 @@ private:
   void sourceUpdateIMMidpointGOL(Array4<Real>& arr, int i, int j, int k, Real dt);
   void fluidSolverMonotoneGOL(MultiFab&, const Real*, Real);
   void fluidSolverTVDGOL(MultiFab&, const Real*, Real);
+  void fluidSolverGOLelecPres(MultiFab&, const Real*, Real, Real);
   void SLICfluidSolverTVDGOL(MultiFab&, const Real*, Real);
   void RK2GOL(const Real*, Real, Real);
+  void RKGOLIMEX2(const Real*, Real, Real);
 };    
 
 /**

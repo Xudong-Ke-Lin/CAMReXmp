@@ -137,7 +137,7 @@ void CAMReXmp::sourceUpdateIMMidpointGOL(Array4<Real>& arr, int i, int j, int k,
 
   // see eq. 5.48 from the Sandia report of Richard M.J.Kramer
   // entitled "A Plasma Modeling Hierarchy and Verification Approach"
-  arr(i,j,k,ENER_I) += kin_new-kin + kin_J_mew-kin_J;//kin_e_new-kin_e;
+  arr(i,j,k,ENER_I) += kin_new-kin + kin_J_mew-kin_J;
   arr(i,j,k,ENER_E) += kin_e_new-kin_e;
  
 }

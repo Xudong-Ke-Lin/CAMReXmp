@@ -1249,8 +1249,9 @@ CAMReXmp::estTimeStep (Real)
 		  Vector<Real> u_i = get_data_zone(arr,i,j,k,fluid,NUM_STATE_FLUID/2);
 		  Real a = get_speed(u_i);
 		  c_array.push_back(std::abs(v)+a);*/
+		  Vector<Real> u_i = get_data_zone(arr,i,j,k,0,10);
 		  // electron variables
-		  Vector<Real> u_e = get_electron_var(get_data_zone(arr,i,j,k,0,10));
+		  Vector<Real> u_e = get_electron_var(u_i);
 		  Real rho_e = u_e[0];
 		  Real momX_e = u_e[1+d];
 		  Real momY_e = u_e[1+(1+d)%3];
@@ -1264,7 +1265,6 @@ CAMReXmp::estTimeStep (Real)
 
 		  Real a = get_speed(u_e);
 		  c_array.push_back(std::abs(v_x_e)+a);
-		  //amrex::Print() << rho_e << " " << rho_e*v_x_e << " " << rho_e*v_y_e << " " << rho_e*v_z_e << " " << E_e << " " << a << std::endl;
 		}
 	    }
 	}
