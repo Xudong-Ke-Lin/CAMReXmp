@@ -197,29 +197,15 @@ void CAMReXmp::fluidSolverTVDGOL(MultiFab& S_source, const Real* dx, Real dt)
 	      for(int i = lo.x-iDomainOffset; i <= hi.x+iDomainOffset; i++)
 		{
 		  Vector<Real> limiterX = get_data_stencil(arr, i, j, k, 1, 0, 0, ENER_I);
-		  for (int n = 0; n<NUM_STATE_FLUID/2; n++)
-		    {
-		      Vector<Real> dataX = get_data_stencil(arr, i, j, k, 1, 0, 0, n);
-		      Real slopesX = TVD_slope(dataX,limiterX);
-		      slopes(i,j,k,n) = slopesX;		      
-		    }
-		  limiterX = get_data_stencil(arr, i, j, k, 1, 0, 0, ENER_E);
-		  for (int n = NUM_STATE_FLUID/2; n<NUM_STATE_FLUID; n++)
-		    {
+		  for (int n = 0; n<NUM_STATE_FLUID; n++)
+		    {		      
 		      Vector<Real> dataX = get_data_stencil(arr, i, j, k, 1, 0, 0, n);
 		      Real slopesX = TVD_slope(dataX,limiterX);
 		      slopes(i,j,k,n) = slopesX;		      
 		    }
 #if (AMREX_SPACEDIM >= 2)
 		  Vector<Real> limiterY = get_data_stencil(arr, i, j, k, 0, 1, 0, ENER_I);
-		  for (int n = 0; n<NUM_STATE_FLUID/2; n++)
-		    {
-		      Vector<Real> dataY = get_data_stencil(arr, i, j, k, 0, 1, 0, n);
-		      Real slopesY = TVD_slope(dataY,limiterY);
-		      slopes(i,j,k,n+NUM_STATE_FLUID) = slopesY;		      
-		    }
-		  limiterY = get_data_stencil(arr, i, j, k, 0, 1, 0, ENER_E);
-		  for (int n = NUM_STATE_FLUID/2; n<NUM_STATE_FLUID; n++)
+		  for (int n = 0; n<NUM_STATE_FLUID; n++)
 		    {
 		      Vector<Real> dataY = get_data_stencil(arr, i, j, k, 0, 1, 0, n);
 		      Real slopesY = TVD_slope(dataY,limiterY);
@@ -406,29 +392,15 @@ void CAMReXmp::SLICfluidSolverTVDGOL(MultiFab& S_source, const Real* dx, Real dt
 	      for(int i = lo.x-iDomainOffset; i <= hi.x+iDomainOffset; i++)
 		{
 		  Vector<Real> limiterX = get_data_stencil(arr, i, j, k, 1, 0, 0, ENER_I);
-		  for (int n = 0; n<NUM_STATE_FLUID/2; n++)
-		    {
-		      Vector<Real> dataX = get_data_stencil(arr, i, j, k, 1, 0, 0, n);
-		      Real slopesX = TVD_slope(dataX,limiterX);
-		      slopes(i,j,k,n) = slopesX;		      
-		    }
-		  limiterX = get_data_stencil(arr, i, j, k, 1, 0, 0, ENER_E);
-		  for (int n = NUM_STATE_FLUID/2; n<NUM_STATE_FLUID; n++)
-		    {
+		  for (int n = 0; n<NUM_STATE_FLUID; n++)
+		    {		      
 		      Vector<Real> dataX = get_data_stencil(arr, i, j, k, 1, 0, 0, n);
 		      Real slopesX = TVD_slope(dataX,limiterX);
 		      slopes(i,j,k,n) = slopesX;		      
 		    }
 #if (AMREX_SPACEDIM >= 2)
 		  Vector<Real> limiterY = get_data_stencil(arr, i, j, k, 0, 1, 0, ENER_I);
-		  for (int n = 0; n<NUM_STATE_FLUID/2; n++)
-		    {
-		      Vector<Real> dataY = get_data_stencil(arr, i, j, k, 0, 1, 0, n);
-		      Real slopesY = TVD_slope(dataY,limiterY);
-		      slopes(i,j,k,n+NUM_STATE_FLUID) = slopesY;		      
-		    }
-		  limiterY = get_data_stencil(arr, i, j, k, 0, 1, 0, ENER_E);
-		  for (int n = NUM_STATE_FLUID/2; n<NUM_STATE_FLUID; n++)
+		  for (int n = 0; n<NUM_STATE_FLUID; n++)
 		    {
 		      Vector<Real> dataY = get_data_stencil(arr, i, j, k, 0, 1, 0, n);
 		      Real slopesY = TVD_slope(dataY,limiterY);

@@ -1256,15 +1256,15 @@ CAMReXmp::estTimeStep (Real)
 		  Real momX_e = u_e[1+d];
 		  Real momY_e = u_e[1+(1+d)%3];
 		  Real momZ_e = u_e[1+(2+d)%3];
-		  Real E_e = u_e[4];
 		  
 		  // define primitive variables
 		  Real v_x_e = momX_e/rho_e;
 		  Real v_y_e = momY_e/rho_e;
 		  Real v_z_e = momZ_e/rho_e;
 
-		  Real a = get_speed(u_e);
-		  c_array.push_back(std::abs(v_x_e)+a);
+		  Real c_e = get_speed(u_e);
+		  Real c = get_speedGOL(u_i);
+		  c_array.push_back(std::max(std::abs(u_i[1+d]/u_i[0])+c,std::abs(v_x_e)+c_e));
 		}
 	    }
 	}

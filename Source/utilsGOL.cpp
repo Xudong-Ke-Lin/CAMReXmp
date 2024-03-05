@@ -114,17 +114,17 @@ Vector<Real> fluidGOLFlux(const Vector<Real>& u_i, int d){
   Real v_y_e = momY_e/rho_e;
   Real v_z_e = momZ_e/rho_e;
   Real p_e = get_pressure(u_e);
-  Real p_i = p - p_e;
+  //Real p_i = p - p_e;
   
   // flux function
   Vector<Real> function(u_i.size(),0.0);
   function[0] = rho*v_x;
-  //function[1+d] = rho*v_x*v_x + p;
-  function[1+d] = rho*v_x*v_x + p_i + p_e;
+  function[1+d] = rho*v_x*v_x + p;
+  //function[1+d] = rho*v_x*v_x + p_i + p_e;
   function[1+(1+d)%3] = rho*v_x*v_y;
   function[1+(2+d)%3] = rho*v_x*v_z;
-  //function[ENER_I] = (E+p)*v_x + (E_e+p_e)*(-J_x/(n_e*q_i));
-  function[ENER_I] = (E_i+p_i)*v_x + (E_e+p_e)*(v_x-J_x/(n_e*q_i));
+  function[ENER_I] = (E+p)*v_x + (E_e+p_e)*(-J_x/(n_e*q_i));
+  //function[ENER_I] = (E_i+p_i)*v_x + (E_e+p_e)*(v_x-J_x/(n_e*q_i));
   function[MOMX_E+d] = 2.0*J_x*v_x - J_x*J_x/(n_e*q_i) -p_e*q_i/m_e;
   function[MOMX_E+(1+d)%3] = v_x*J_y + v_y*J_x - J_x*J_y/(n_e*q_i);
   function[MOMX_E+(2+d)%3] = v_x*J_z + v_z*J_x - J_x*J_z/(n_e*q_i);  

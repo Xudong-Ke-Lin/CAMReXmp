@@ -172,6 +172,9 @@ void WENOcharacteristic(const Array4<Real>& arr, const Array4<Real>& slopes,
 ////////////////////////////////////////////////////////////
 // 2 fluid plasma with generalized Ohm's law functions
 ////////////////////////////////////////////////////////////
+Real get_pressure_totalGOL(const Vector<Real>& u_i);
+Real get_speedGOL(Vector<Real> u_i);
+Vector<Real> get_electron_var(const Vector<Real>& u_i);
 Vector<Real> fluidGOLFlux(const Vector<Real>& u_i, int d);
 // for Rusanov solver
 Vector<Real> monotone_fluxGOL(const Array4<Real>& arr,
@@ -197,5 +200,4 @@ Vector<Real> flux_RI(const Vector<Real>& u_i, const Vector<Real>& u_iPlus1,
 Vector<Real> flux_FORCE(const Vector<Real>& u_i, const Vector<Real>& u_iPlus1, 
 			double dx, double dt, int d,
 			std::function<Vector<Real> (const Vector<Real>&, int)> flux_function);
-Vector<Real> get_electron_var(const Vector<Real>& u_i);
 #endif /*_utils_H_*/
