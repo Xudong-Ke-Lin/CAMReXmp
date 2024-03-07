@@ -3007,7 +3007,7 @@ void CAMReXmp::Projection(const Real* dx, Real time)
   	      for(int i = lo.x; i <= hi.x; i++)
   		{	    	    
   		  // Initialise to zero
-  		  rhs(i,j,k,0) = -1.0/(lambda_d*lambda_d*l_r)*(r_i*arr(i,j,k,RHO_I) + r_e*arr(i,j,k,RHO_E));
+  		  rhs(i,j,k,0) = 0.0;//-1.0/(lambda_d*lambda_d*l_r)*(r_i*arr(i,j,k,RHO_I) + r_e*arr(i,j,k,RHO_E));
   		}
   	    }
   	}    
@@ -3057,8 +3057,8 @@ void CAMReXmp::Projection(const Real* dx, Real time)
   const Real phi_abs = soln_tol*Rhs.norm0();
 
   // Solve to get S^(n+1)
-  mlmg.solve({&phi}, {&Rhs}, soln_tol, phi_abs);
-  //mlmg.solve({&phi}, {&Rhs}, 1e-10, 0.0);
+  //mlmg.solve({&phi}, {&Rhs}, soln_tol, phi_abs);
+  mlmg.solve({&phi}, {&Rhs}, 1e-10, 0.0);
 
   // We need to compute boundary conditions again after each update
   S_input.FillBoundary(geom.periodicity());

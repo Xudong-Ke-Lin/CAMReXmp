@@ -983,6 +983,23 @@ Vector<Real> HLLC(Vector<Real> uL, Vector<Real> uR, int d)
 
   return flux;
 }
+Vector<Real> RusanovEuler(Vector<Real> uL, Vector<Real> uR, int d)
+{
+  Vector<Real> flux, func_i, func_iPlus1;
+  func_i = fluidFlux(uL,d);
+  func_iPlus1 = fluidFlux(uR,d);
+  Real speed_max = std::max(std::abs(uL[1+d]/uL[0])+get_speed(uL),
+			    std::abs(uR[1+d]/uR[0])+get_speed(uR));
+
+  for (int i = 0; i<uL.size(); i++)
+    {
+      flux.push_back(0.5*(func_iPlus1[i]+func_i[i]
+			  - speed_max*(uR[i]-uL[i])));
+    }
+  
+  return flux;
+
+}
 Vector<Real> RankineHugoniot(Vector<Real> uL, Vector<Real> uR, int d)
 {
   Vector<Real> flux(NUM_STATE_MAXWELL,0.0);

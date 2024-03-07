@@ -1121,7 +1121,7 @@ CAMReXmp::initData ()
 	    Vector<Real> w_i{arr(i,j,k,0), 0.0, 0.0, 0.0, p+p};
 	    arr(i,j,k,ENER_I) = get_energy(w_i);
 	    
-	    arr(i,j,k,RHO_E) = 0.0;//rho/m;
+	    arr(i,j,k,RHO_E) = rho/m;
 	    arr(i,j,k,MOMX_E) = arr(i,j,k,RHO_E)*v_x;
 	    arr(i,j,k,MOMY_E) = arr(i,j,k,RHO_E)*v_y;
 	    arr(i,j,k,MOMZ_E) = arr(i,j,k,RHO_E)*v_z;
@@ -1277,11 +1277,11 @@ CAMReXmp::initData ()
 	    
 	  } else if (test=="OTideal"){
 
-	    rho = Gamma*Gamma/2.0;
+	    rho = Gamma*Gamma;
 	    v_x = -std::sin(y);
 	    v_y = std::sin(x);
 	    v_z = 0.0;
-	    p = Gamma/2.0;
+	    p = Gamma;
 	    B_x = -std::sin(y);
 	    B_y = std::sin(2.0*x);
 	    B_z = 0.0;
@@ -1292,14 +1292,16 @@ CAMReXmp::initData ()
 	    arr(i,j,k,2) = arr(i,j,k,0)*v_y;
 	    arr(i,j,k,3) = arr(i,j,k,0)*v_z;
 	    Vector<Real> w_i{arr(i,j,k,0), v_x, v_y, v_z, p};
+	    // in theory for GOL system, there is a J contribution
+	    // but at the beginning, this is zero
 	    arr(i,j,k,ENER_I) = get_energy(w_i);
 	    
-	    arr(i,j,k,RHO_E) = 0.0;
+	    arr(i,j,k,RHO_E) = rho/m;
 	    arr(i,j,k,MOMX_E) = 0.0;//arr(i,j,k,RHO_E)*v_x;
 	    arr(i,j,k,MOMY_E) = 0.0;//arr(i,j,k,RHO_E)*v_y;
 	    arr(i,j,k,MOMZ_E) = 0.0;//arr(i,j,k,RHO_E)*v_z;
 	    //Vector<Real> w_e{arr(i,j,k,RHO_E), v_x, v_y, v_z, p};
-	    Vector<Real> w_e{rho/m, 0.0, 0.0, 0.0, p/2.0};
+	    Vector<Real> w_e{rho/m, v_x, v_y, v_z, p/2.0};
 	    arr(i,j,k,ENER_E) = get_energy(w_e);
 
 	    arr(i,j,k,BX) = B_x;

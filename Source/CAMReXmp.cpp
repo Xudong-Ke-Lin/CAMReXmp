@@ -787,7 +787,7 @@ CAMReXmp::advance (Real time,
 		    {	    	    
 		      // Initialise to zero
 		      arr(i,j,k,DIVB) = 0.0;
-		      arr(i,j,k,DIVE) = 1.0/(lambda_d*lambda_d*l_r)*(r_i*arr(i,j,k,RHO_I) + r_e*arr(i,j,k,RHO_E));
+		      arr(i,j,k,DIVE) = 0.0;//1.0/(lambda_d*lambda_d*l_r)*(r_i*arr(i,j,k,RHO_I) + r_e*arr(i,j,k,RHO_E));
 		    }
 		}
 	    }    

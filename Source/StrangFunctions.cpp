@@ -20,7 +20,7 @@ void CAMReXmp::StrangSecond(const Real* dx, Real dt, Real time)
     MultiFab::Copy(S_new, S_input, 0, 0, NUM_STATE, 0);
 
 #if (AMREX_SPACEDIM >= 2)     
-    if (MaxwellOrder!=0)
+    /*if (MaxwellOrder!=0)
       {		
 	MultiFab& S_EM_X_new = get_new_data(EM_X_Type);
 	MultiFab& S_EM_Y_new = get_new_data(EM_Y_Type);
@@ -43,6 +43,7 @@ void CAMReXmp::StrangSecond(const Real* dx, Real dt, Real time)
 	    MultiFab::Copy(S_EM_XY_new, S_EM_edge_input, 0, 0, 6, 0);
 	  }
       }
+    */
 #endif	        
   }
 
@@ -53,15 +54,19 @@ void CAMReXmp::StrangSecond(const Real* dx, Real dt, Real time)
     sourceUpdateCyl(dx, 0.5*dt, time+dt);
 
 #if (AMREX_SPACEDIM >= 2)  
-  if (((sourceMethod=="IM" || sourceMethod=="STIFF" || sourceMethod=="EXACT")
+  /*if (((sourceMethod=="IM" || sourceMethod=="STIFF" || sourceMethod=="EXACT")
        || (geom.Coord()==1 && MaxwellOrder!=0)) && MaxwellDivMethod!="HDC")
     {
       elecFieldCellAve(time+dt);
     }
+  */
 #endif
 
   // two-fluid with GOL solver
   RK2GOL(dx,dt,time+dt);
+  // original two-fluid
+  //RK2(dx,dt,time+dt,RHO_I,5,RusanovEuler);
+  //RK2(dx,dt,time+dt,RHO_E,5,RusanovEuler);
   // Maxwell solver
   if (MaxwellTimeMethod=="EX" && MaxwellDivMethod=="HDC")
     RK2(dx,dt,time+dt,BX,NUM_STATE_MAXWELL,RankineHugoniot);
@@ -82,7 +87,7 @@ void CAMReXmp::StrangSecond(const Real* dx, Real dt, Real time)
 
 #if (AMREX_SPACEDIM >= 2)  
   //if (sourceMethod=="IM" && MaxwellDivMethod!="HDC")
-  if (((sourceMethod=="IM" || sourceMethod=="STIFF" || sourceMethod=="EXACT")
+  /*if (((sourceMethod=="IM" || sourceMethod=="STIFF" || sourceMethod=="EXACT")
        || (geom.Coord()==1 && MaxwellOrder!=0)) && MaxwellDivMethod!="HDC")
     {
       elecFieldCellAve(time+dt);
@@ -92,6 +97,13 @@ void CAMReXmp::StrangSecond(const Real* dx, Real dt, Real time)
 	{
 	  Projection(dx,time+dt);      
 	}
+    }
+  */
+  if (projectionStep!= 0 &&
+      parent->levelSteps(0)!=0 &&
+      (parent->levelSteps(0))%projectionStep==0)
+    {
+      Projection(dx,time+dt);      
     }
 #endif
 }

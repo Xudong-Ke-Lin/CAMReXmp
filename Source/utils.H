@@ -125,6 +125,7 @@ Vector<Real> half_update_R(Vector<Real> u_iL, Vector<Real> u_iR, Real dx, Real d
 			   std::function<Vector<Real> (const Vector<Real>&, int)> flux_function);
 
 Vector<Real> HLLC(Vector<Real> uL, Vector<Real> uR, int d);
+Vector<Real> RusanovEuler(Vector<Real> uL, Vector<Real> uR, int d);
 Vector<Real> RankineHugoniot(Vector<Real> uL, Vector<Real> uR, int d);
 Vector<Real> MUSCL_Hancock_TVD_flux(const Array4<Real>& arr, const Array4<Real>& slopes,
 				    int i, int j, int k, int iOffset, int jOffset, int kOffset,
