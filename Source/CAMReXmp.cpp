@@ -162,20 +162,20 @@ CAMReXmp::variableSetUp ()
   // from documentation (https://amrex-codes.github.io/amrex/doxygen/AMReX__Interpolater_8cpp.html)
   // &face_linear_interp or &face_divfree_interp
   // can use .ixType() to check the type, xface will give (N,C) -> Nodal in x and center in y
-#if (AMREX_SPACEDIM >= 2)
-  IndexType xface(IntVect{AMREX_D_DECL(1,0,0)});
-  IndexType yface(IntVect{AMREX_D_DECL(0,1,0)});
-  IndexType edge(IntVect{AMREX_D_DECL(1,1,0)});
-  desc_lst.addDescriptor(EM_X_Type,xface,
-			 StateDescriptor::Point,storedGhostZones,6,
-			 &face_linear_interp);
-  desc_lst.addDescriptor(EM_Y_Type,yface,
-			 StateDescriptor::Point,storedGhostZones,6,
-			 &face_linear_interp);
-  desc_lst.addDescriptor(EM_XY_Type,edge,
-			 StateDescriptor::Point,storedGhostZones,6,
-			 &node_bilinear_interp);
-#endif
+// #if (AMREX_SPACEDIM >= 2)
+//   IndexType xface(IntVect{AMREX_D_DECL(1,0,0)});
+//   IndexType yface(IntVect{AMREX_D_DECL(0,1,0)});
+//   IndexType edge(IntVect{AMREX_D_DECL(1,1,0)});
+//   desc_lst.addDescriptor(EM_X_Type,xface,
+// 			 StateDescriptor::Point,storedGhostZones,6,
+// 			 &face_linear_interp);
+//   desc_lst.addDescriptor(EM_Y_Type,yface,
+// 			 StateDescriptor::Point,storedGhostZones,6,
+// 			 &face_linear_interp);
+//   desc_lst.addDescriptor(EM_XY_Type,edge,
+// 			 StateDescriptor::Point,storedGhostZones,6,
+// 			 &node_bilinear_interp);
+// #endif
   
   /*//Set up boundary conditions, all boundaries can be set
   //independently, including for individual variables, but lo (left) and hi (right) are useful ways to
@@ -563,56 +563,56 @@ CAMReXmp::variableSetUp ()
   desc_lst.setComponent(Phi_Type, DIVE, "divEerror", bc[DIVE],
 			StateDescriptor::BndryFunc(nullfill));
 
-#if (AMREX_SPACEDIM >= 2)  
-  // face-cenctred primary variables in 2D
-  //desc_lst.setComponent(EM_X_Type, BX_LOCAL, "magxFace", bc_EM[BX_LOCAL],
-  //                      StateDescriptor::BndryFunc(nullfill));
-  desc_lst.setComponent(EM_Y_Type, BX_LOCAL, "magxFace", bc_EM[BX_LOCAL],
-			StateDescriptor::BndryFunc(nullfill));
-  //desc_lst.setComponent(EM_Y_Type, BY_LOCAL, "magyFace", bc_EM[BY_LOCAL],
-  //                      StateDescriptor::BndryFunc(nullfill));
-  desc_lst.setComponent(EM_X_Type, BY_LOCAL, "magyFace", bc_EM[BY_LOCAL],
-                        StateDescriptor::BndryFunc(nullfill));
-  desc_lst.setComponent(EM_X_Type, EX_LOCAL, "elecxFace", bc_EM[EX_LOCAL],
-                        StateDescriptor::BndryFunc(nullfill));
-  desc_lst.setComponent(EM_Y_Type, EY_LOCAL, "elecyFace", bc_EM[EY_LOCAL],
-                        StateDescriptor::BndryFunc(nullfill));
-  // face-centred moments of the primary variables in 2D
-  // used for the divergence-free (second or higher order) reconstruction
-  //desc_lst.setComponent(EM_X_Type, BY_LOCAL, "magyFaceX", bc_EM[BY_LOCAL],
-  //                      StateDescriptor::BndryFunc(nullfill));
-  desc_lst.setComponent(EM_Y_Type, BY_LOCAL, "magyFaceY", bc_EM[BY_LOCAL],
-                        StateDescriptor::BndryFunc(nullfill));
-  desc_lst.setComponent(EM_X_Type, BZ_LOCAL, "magzFaceX", bc_EM[BZ_LOCAL],
-                        StateDescriptor::BndryFunc(nullfill));
-  //desc_lst.setComponent(EM_Y_Type, BX_LOCAL, "magxFaceY", bc_EM[BX_LOCAL],
-  //                      StateDescriptor::BndryFunc(nullfill));
-  desc_lst.setComponent(EM_X_Type, BX_LOCAL, "magxFaceX", bc_EM[BX_LOCAL],
-                        StateDescriptor::BndryFunc(nullfill));
-  desc_lst.setComponent(EM_Y_Type, BZ_LOCAL, "magzFaceY", bc_EM[BZ_LOCAL],
-                        StateDescriptor::BndryFunc(nullfill));
-  desc_lst.setComponent(EM_X_Type, EY_LOCAL, "elecyFaceX", bc_EM[EY_LOCAL],
-                        StateDescriptor::BndryFunc(nullfill));
-  desc_lst.setComponent(EM_X_Type, EZ_LOCAL, "eleczFaceX", bc_EM[EZ_LOCAL],
-                        StateDescriptor::BndryFunc(nullfill));
-  desc_lst.setComponent(EM_Y_Type, EX_LOCAL, "elecxFaceY", bc_EM[EX_LOCAL],
-                        StateDescriptor::BndryFunc(nullfill));
-  desc_lst.setComponent(EM_Y_Type, EZ_LOCAL, "eleczFaceY", bc_EM[EZ_LOCAL],
-                        StateDescriptor::BndryFunc(nullfill));
+// #if (AMREX_SPACEDIM >= 2)  
+//   // face-cenctred primary variables in 2D
+//   //desc_lst.setComponent(EM_X_Type, BX_LOCAL, "magxFace", bc_EM[BX_LOCAL],
+//   //                      StateDescriptor::BndryFunc(nullfill));
+//   desc_lst.setComponent(EM_Y_Type, BX_LOCAL, "magxFace", bc_EM[BX_LOCAL],
+// 			StateDescriptor::BndryFunc(nullfill));
+//   //desc_lst.setComponent(EM_Y_Type, BY_LOCAL, "magyFace", bc_EM[BY_LOCAL],
+//   //                      StateDescriptor::BndryFunc(nullfill));
+//   desc_lst.setComponent(EM_X_Type, BY_LOCAL, "magyFace", bc_EM[BY_LOCAL],
+//                         StateDescriptor::BndryFunc(nullfill));
+//   desc_lst.setComponent(EM_X_Type, EX_LOCAL, "elecxFace", bc_EM[EX_LOCAL],
+//                         StateDescriptor::BndryFunc(nullfill));
+//   desc_lst.setComponent(EM_Y_Type, EY_LOCAL, "elecyFace", bc_EM[EY_LOCAL],
+//                         StateDescriptor::BndryFunc(nullfill));
+//   // face-centred moments of the primary variables in 2D
+//   // used for the divergence-free (second or higher order) reconstruction
+//   //desc_lst.setComponent(EM_X_Type, BY_LOCAL, "magyFaceX", bc_EM[BY_LOCAL],
+//   //                      StateDescriptor::BndryFunc(nullfill));
+//   desc_lst.setComponent(EM_Y_Type, BY_LOCAL, "magyFaceY", bc_EM[BY_LOCAL],
+//                         StateDescriptor::BndryFunc(nullfill));
+//   desc_lst.setComponent(EM_X_Type, BZ_LOCAL, "magzFaceX", bc_EM[BZ_LOCAL],
+//                         StateDescriptor::BndryFunc(nullfill));
+//   //desc_lst.setComponent(EM_Y_Type, BX_LOCAL, "magxFaceY", bc_EM[BX_LOCAL],
+//   //                      StateDescriptor::BndryFunc(nullfill));
+//   desc_lst.setComponent(EM_X_Type, BX_LOCAL, "magxFaceX", bc_EM[BX_LOCAL],
+//                         StateDescriptor::BndryFunc(nullfill));
+//   desc_lst.setComponent(EM_Y_Type, BZ_LOCAL, "magzFaceY", bc_EM[BZ_LOCAL],
+//                         StateDescriptor::BndryFunc(nullfill));
+//   desc_lst.setComponent(EM_X_Type, EY_LOCAL, "elecyFaceX", bc_EM[EY_LOCAL],
+//                         StateDescriptor::BndryFunc(nullfill));
+//   desc_lst.setComponent(EM_X_Type, EZ_LOCAL, "eleczFaceX", bc_EM[EZ_LOCAL],
+//                         StateDescriptor::BndryFunc(nullfill));
+//   desc_lst.setComponent(EM_Y_Type, EX_LOCAL, "elecxFaceY", bc_EM[EX_LOCAL],
+//                         StateDescriptor::BndryFunc(nullfill));
+//   desc_lst.setComponent(EM_Y_Type, EZ_LOCAL, "eleczFaceY", bc_EM[EZ_LOCAL],
+//                         StateDescriptor::BndryFunc(nullfill));
 
-  desc_lst.setComponent(EM_XY_Type, BX_LOCAL, "magxEdge", bc_EM[BX_LOCAL],
-                        StateDescriptor::BndryFunc(nullfill));
-  desc_lst.setComponent(EM_XY_Type, BY_LOCAL, "magyEdge", bc_EM[BY_LOCAL],
-                        StateDescriptor::BndryFunc(nullfill));
-  desc_lst.setComponent(EM_XY_Type, BZ_LOCAL, "magzEdge", bc_EM[BZ_LOCAL],
-                        StateDescriptor::BndryFunc(nullfill));
-  desc_lst.setComponent(EM_XY_Type, EX_LOCAL, "elecxEdge", bc_EM[EX_LOCAL],
-                        StateDescriptor::BndryFunc(nullfill));
-  desc_lst.setComponent(EM_XY_Type, EY_LOCAL, "elecyEdge", bc_EM[EY_LOCAL],
-                        StateDescriptor::BndryFunc(nullfill));
-  desc_lst.setComponent(EM_XY_Type, EZ_LOCAL, "eleczEdge", bc_EM[EZ_LOCAL],
-                        StateDescriptor::BndryFunc(nullfill));
-#endif
+//   desc_lst.setComponent(EM_XY_Type, BX_LOCAL, "magxEdge", bc_EM[BX_LOCAL],
+//                         StateDescriptor::BndryFunc(nullfill));
+//   desc_lst.setComponent(EM_XY_Type, BY_LOCAL, "magyEdge", bc_EM[BY_LOCAL],
+//                         StateDescriptor::BndryFunc(nullfill));
+//   desc_lst.setComponent(EM_XY_Type, BZ_LOCAL, "magzEdge", bc_EM[BZ_LOCAL],
+//                         StateDescriptor::BndryFunc(nullfill));
+//   desc_lst.setComponent(EM_XY_Type, EX_LOCAL, "elecxEdge", bc_EM[EX_LOCAL],
+//                         StateDescriptor::BndryFunc(nullfill));
+//   desc_lst.setComponent(EM_XY_Type, EY_LOCAL, "elecyEdge", bc_EM[EY_LOCAL],
+//                         StateDescriptor::BndryFunc(nullfill));
+//   desc_lst.setComponent(EM_XY_Type, EZ_LOCAL, "eleczEdge", bc_EM[EZ_LOCAL],
+//                         StateDescriptor::BndryFunc(nullfill));
+// #endif
 }
 
 //
@@ -751,13 +751,13 @@ CAMReXmp::advance (Real time,
 
   MultiFab SNew(grids, dmap, NUM_STATE, NUM_GROW);
   FillPatch(*this, SNew, NUM_GROW, time+dt, Phi_Type, 0, NUM_STATE);
-#if (AMREX_SPACEDIM >= 2)  
-  Array<MultiFab,AMREX_SPACEDIM> S_EMNew;
-  S_EMNew[0].define(convert(grids,IntVect{AMREX_D_DECL(1,0,0)}), dmap, 6, NUM_GROW);
-  FillPatch(*this, S_EMNew[0], NUM_GROW, time+dt, EM_X_Type, 0, 6);
-  S_EMNew[1].define(convert(grids,IntVect{AMREX_D_DECL(0,1,0)}), dmap, 6, NUM_GROW);
-  FillPatch(*this, S_EMNew[1], NUM_GROW, time+dt, EM_Y_Type, 0, 6);  
-#endif
+// #if (AMREX_SPACEDIM >= 2)  
+//   Array<MultiFab,AMREX_SPACEDIM> S_EMNew;
+//   S_EMNew[0].define(convert(grids,IntVect{AMREX_D_DECL(1,0,0)}), dmap, 6, NUM_GROW);
+//   FillPatch(*this, S_EMNew[0], NUM_GROW, time+dt, EM_X_Type, 0, 6);
+//   S_EMNew[1].define(convert(grids,IntVect{AMREX_D_DECL(0,1,0)}), dmap, 6, NUM_GROW);
+//   FillPatch(*this, S_EMNew[1], NUM_GROW, time+dt, EM_Y_Type, 0, 6);  
+// #endif
   
   ParmParse pp;
   Real stop_time;

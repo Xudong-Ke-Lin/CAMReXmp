@@ -25,11 +25,12 @@
 
 enum StateType { Phi_Type = 0,
 		 EM_X_Type = 1, EM_Y_Type = 2, EM_XY_Type = 3,
-#if (AMREX_SPACEDIM >= 2)
-		 NUM_STATE_TYPE };
-#else
-NUM_STATE_TYPE = 1};
-#endif
+		 NUM_STATE_TYPE = 1 };
+// #if (AMREX_SPACEDIM >= 2)
+// 		 NUM_STATE_TYPE };
+// #else
+// NUM_STATE_TYPE = 1};
+// #endif
 
 enum StateVariable {
 		    RHO_I = 0, MOMX_I = 1, MOMY_I = 2, MOMZ_I = 3, ENER_I = 4,

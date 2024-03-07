@@ -25,19 +25,19 @@ CAMReXmp::initData ()
   MultiFab& S_new = get_new_data(Phi_Type);
   Real cur_time   = state[Phi_Type].curTime();
 
-#if (AMREX_SPACEDIM >= 2)  
-  // Set up a multifab that will contain the electromagnetic fields
-  MultiFab& S_EM_X = get_new_data(EM_X_Type);
-  MultiFab& S_EM_Y = get_new_data(EM_Y_Type);
-  MultiFab& S_EM_XY = get_new_data(EM_XY_Type);
+// #if (AMREX_SPACEDIM >= 2)  
+//   // Set up a multifab that will contain the electromagnetic fields
+//   MultiFab& S_EM_X = get_new_data(EM_X_Type);
+//   MultiFab& S_EM_Y = get_new_data(EM_Y_Type);
+//   MultiFab& S_EM_XY = get_new_data(EM_XY_Type);
   
-  BoxArray ba = S_new.boxArray();
-  const DistributionMapping& dm = S_new.DistributionMap();
+//   BoxArray ba = S_new.boxArray();
+//   const DistributionMapping& dm = S_new.DistributionMap();
   
-  S_EM_X.define(convert(ba,IntVect{AMREX_D_DECL(1,0,0)}), dm, 6, 2);
-  S_EM_Y.define(convert(ba,IntVect{AMREX_D_DECL(0,1,0)}), dm, 6, 2);
-  S_EM_XY.define(convert(ba,IntVect{AMREX_D_DECL(1,1,0)}), dm, 6, 2);
-#endif
+//   S_EM_X.define(convert(ba,IntVect{AMREX_D_DECL(1,0,0)}), dm, 6, 2);
+//   S_EM_Y.define(convert(ba,IntVect{AMREX_D_DECL(0,1,0)}), dm, 6, 2);
+//   S_EM_XY.define(convert(ba,IntVect{AMREX_D_DECL(1,1,0)}), dm, 6, 2);
+// #endif
   
   // amrex::Print works like std::cout, but in parallel only prints from the root processor
   if (verbose) {
@@ -75,1008 +75,1008 @@ CAMReXmp::initData ()
   */
   Real rho, v_x, v_y, v_z, p, B_x, B_y, B_z;
 
-#if (AMREX_SPACEDIM >= 2)     
-  // Set values for the x-components of the EM fields at the x-faces
-  for (MFIter mfi(S_EM_X); mfi.isValid(); ++mfi)
-  {
-    Box bx = mfi.tilebox();
-    const Dim3 lo = lbound(bx);
-    const Dim3 hi = ubound(bx);
+// #if (AMREX_SPACEDIM >= 2)     
+//   // Set values for the x-components of the EM fields at the x-faces
+//   for (MFIter mfi(S_EM_X); mfi.isValid(); ++mfi)
+//   {
+//     Box bx = mfi.tilebox();
+//     const Dim3 lo = lbound(bx);
+//     const Dim3 hi = ubound(bx);
 
-    const auto& arr = S_EM_X.array(mfi);
+//     const auto& arr = S_EM_X.array(mfi);
     
-    for(int k = lo.z; k <= hi.z; k++)
-    {
-      const Real z = probLoZ + (double(k)+0.5) * dZ;
-      for(int j = lo.y; j <= hi.y; j++)
-      {
-	const Real y = probLoY + (double(j)+0.5) * dY;
-	for(int i = lo.x; i <= hi.x; i++)
-	{
-	  // only x-face has no 0.5 shift
-	  const Real x = probLoX + (double(i)) * dX;
+//     for(int k = lo.z; k <= hi.z; k++)
+//     {
+//       const Real z = probLoZ + (double(k)+0.5) * dZ;
+//       for(int j = lo.y; j <= hi.y; j++)
+//       {
+// 	const Real y = probLoY + (double(j)+0.5) * dY;
+// 	for(int i = lo.x; i <= hi.x; i++)
+// 	{
+// 	  // only x-face has no 0.5 shift
+// 	  const Real x = probLoX + (double(i)) * dX;
 	
-	  if (test=="BrioWu"){
-	    Real B_x_L = 0.75, B_y_L = 1.0, B_z_L = 0.0;
-	    Real B_x_R = 0.75, B_y_R = -1.0, B_z_R = 0.0;
+// 	  if (test=="BrioWu"){
+// 	    Real B_x_L = 0.75, B_y_L = 1.0, B_z_L = 0.0;
+// 	    Real B_x_R = 0.75, B_y_R = -1.0, B_z_R = 0.0;
 	    
-	    if (x<=(geom.ProbLo()[0]+geom.ProbHi()[0])/2.0){
-	      B_x = B_x_L, B_y = B_y_L, B_z = B_z_L;
-	    } else{
-	      B_x = B_x_R, B_y = B_y_R, B_z = B_z_R;
-	    }
-	    /*if (y<=(geom.ProbLo()[1]+geom.ProbHi()[1])/2.0){
-	      B_x = B_y_L, B_y = B_x_L, B_z = B_z_L;
-	    } else{
-	      B_x = B_y_R, B_y = B_x_R, B_z = B_z_R;
-	      }*/
+// 	    if (x<=(geom.ProbLo()[0]+geom.ProbHi()[0])/2.0){
+// 	      B_x = B_x_L, B_y = B_y_L, B_z = B_z_L;
+// 	    } else{
+// 	      B_x = B_x_R, B_y = B_y_R, B_z = B_z_R;
+// 	    }
+// 	    /*if (y<=(geom.ProbLo()[1]+geom.ProbHi()[1])/2.0){
+// 	      B_x = B_y_L, B_y = B_x_L, B_z = B_z_L;
+// 	    } else{
+// 	      B_x = B_y_R, B_y = B_x_R, B_z = B_z_R;
+// 	      }*/
 
-	    arr(i,j,k,BX_LOCAL) = B_x;	    
-	    arr(i,j,k,BY_LOCAL) = B_y;
-	    arr(i,j,k,BZ_LOCAL) = 0.0;
-	    arr(i,j,k,EX_LOCAL) = 0.0;
-	    arr(i,j,k,EY_LOCAL) = 0.0;
-	    arr(i,j,k,EZ_LOCAL) = 0.0;	    
+// 	    arr(i,j,k,BX_LOCAL) = B_x;	    
+// 	    arr(i,j,k,BY_LOCAL) = B_y;
+// 	    arr(i,j,k,BZ_LOCAL) = 0.0;
+// 	    arr(i,j,k,EX_LOCAL) = 0.0;
+// 	    arr(i,j,k,EY_LOCAL) = 0.0;
+// 	    arr(i,j,k,EZ_LOCAL) = 0.0;	    
 	    
-	  } else if (test=="BrioWu2DCart"){
-	    Real theta = std::atan(std::abs(y/x));
-	    // second quadrant
-	    if (x<=0.0 && y>=0.0)
-	      theta = M_PI-theta;
-	    // third quadrant
-	    else if (x<=0.0 && y<=0.0)
-	      theta = M_PI+theta;
-	    // fourth quadrant
-	    else if (x>=0.0 && y<=0.0)
-	      theta = 2*M_PI-theta;
+// 	  } else if (test=="BrioWu2DCart"){
+// 	    Real theta = std::atan(std::abs(y/x));
+// 	    // second quadrant
+// 	    if (x<=0.0 && y>=0.0)
+// 	      theta = M_PI-theta;
+// 	    // third quadrant
+// 	    else if (x<=0.0 && y<=0.0)
+// 	      theta = M_PI+theta;
+// 	    // fourth quadrant
+// 	    else if (x>=0.0 && y<=0.0)
+// 	      theta = 2*M_PI-theta;
 
-	    Real rCyl = std::sqrt(x*x+y*y);	    
-	    // parameters
-	    Real xi0 = 2.40482555769577;
-	    Real omega = xi0/(0.1*2.0*M_PI);
+// 	    Real rCyl = std::sqrt(x*x+y*y);	    
+// 	    // parameters
+// 	    Real xi0 = 2.40482555769577;
+// 	    Real omega = xi0/(0.1*2.0*M_PI);
 
-	    // function
-	    auto B_theta = std::cyl_bessel_j(1,omega*rCyl);	    
+// 	    // function
+// 	    auto B_theta = std::cyl_bessel_j(1,omega*rCyl);	    
 	    
-	    B_x = -B_theta*std::sin(theta);
-	    B_y = B_theta*std::cos(theta);
-	    B_z = 0.0;
+// 	    B_x = -B_theta*std::sin(theta);
+// 	    B_y = B_theta*std::cos(theta);
+// 	    B_z = 0.0;
 
-	    arr(i,j,k,BX_LOCAL) = B_x;
-	    arr(i,j,k,BY_LOCAL) = B_y;
-	    arr(i,j,k,BZ_LOCAL) = B_z;
-	    arr(i,j,k,EX_LOCAL) = 0.0;
-	    arr(i,j,k,EY_LOCAL) = 0.0;	    
-	    arr(i,j,k,EZ_LOCAL) = 0.0;	   
+// 	    arr(i,j,k,BX_LOCAL) = B_x;
+// 	    arr(i,j,k,BY_LOCAL) = B_y;
+// 	    arr(i,j,k,BZ_LOCAL) = B_z;
+// 	    arr(i,j,k,EX_LOCAL) = 0.0;
+// 	    arr(i,j,k,EY_LOCAL) = 0.0;	    
+// 	    arr(i,j,k,EZ_LOCAL) = 0.0;	   
 
-	  } else if (test=="BrioWu1DCyl"){
+// 	  } else if (test=="BrioWu1DCyl"){
 
-	    // cylindrical coordinates
-	    const Real rCyl = x;
+// 	    // cylindrical coordinates
+// 	    const Real rCyl = x;
 
-	    // parameters
-	    Real xi0 = 2.40482555769577;
-	    Real omega = xi0/(0.1*2.0*M_PI);
+// 	    // parameters
+// 	    Real xi0 = 2.40482555769577;
+// 	    Real omega = xi0/(0.1*2.0*M_PI);
 
-	    // function
-	    auto B_theta = std::cyl_bessel_j(1,omega*rCyl);	    
+// 	    // function
+// 	    auto B_theta = std::cyl_bessel_j(1,omega*rCyl);	    
 
-	    arr(i,j,k,BX_LOCAL) = 0.0;
-	    arr(i,j,k,BY_LOCAL) = 0.0;
-	    arr(i,j,k,BZ_LOCAL) = B_theta;
-	    arr(i,j,k,EX_LOCAL) = 0.0;
-	    arr(i,j,k,EY_LOCAL) = 0.0;	    
-	    arr(i,j,k,EZ_LOCAL) = 0.0;	   
+// 	    arr(i,j,k,BX_LOCAL) = 0.0;
+// 	    arr(i,j,k,BY_LOCAL) = 0.0;
+// 	    arr(i,j,k,BZ_LOCAL) = B_theta;
+// 	    arr(i,j,k,EX_LOCAL) = 0.0;
+// 	    arr(i,j,k,EY_LOCAL) = 0.0;	    
+// 	    arr(i,j,k,EZ_LOCAL) = 0.0;	   
 
-	  } else if (test=="OT" || test=="OTideal"){
-	    v_x = -std::sin(y);
-	    v_y = std::sin(x);
-	    v_z = 0.0;	    
-	    B_x = -std::sin(y);
-	    B_y = std::sin(2.0*x);
-	    B_z = 0.0;
-	    Vector<Real> vcrossB = cross_product({v_x,v_y,v_z},{B_x,B_y,B_z});
+// 	  } else if (test=="OT" || test=="OTideal"){
+// 	    v_x = -std::sin(y);
+// 	    v_y = std::sin(x);
+// 	    v_z = 0.0;	    
+// 	    B_x = -std::sin(y);
+// 	    B_y = std::sin(2.0*x);
+// 	    B_z = 0.0;
+// 	    Vector<Real> vcrossB = cross_product({v_x,v_y,v_z},{B_x,B_y,B_z});
 	    
-	    arr(i,j,k,BX_LOCAL) = B_x;
-	    arr(i,j,k,BY_LOCAL) = B_y;
-	    arr(i,j,k,BZ_LOCAL) = B_z;
-	    arr(i,j,k,EX_LOCAL) = -vcrossB[0];
-	    arr(i,j,k,EY_LOCAL) = -vcrossB[1];
-	    arr(i,j,k,EZ_LOCAL) = -vcrossB[2];
+// 	    arr(i,j,k,BX_LOCAL) = B_x;
+// 	    arr(i,j,k,BY_LOCAL) = B_y;
+// 	    arr(i,j,k,BZ_LOCAL) = B_z;
+// 	    arr(i,j,k,EX_LOCAL) = -vcrossB[0];
+// 	    arr(i,j,k,EY_LOCAL) = -vcrossB[1];
+// 	    arr(i,j,k,EZ_LOCAL) = -vcrossB[2];
 
-	  } else if (test=="Harris_sheet"){
-	    Real Lx = geom.ProbHi()[0]-geom.ProbLo()[0], Ly = geom.ProbHi()[1]-geom.ProbLo()[1];
-	    Real lambda = 0.5, B0 = 1.0, B1 = 0.1;
-	    B_x = B0*std::tanh(y/lambda) - B1*(M_PI/Ly)*std::cos(2*M_PI*x/Lx)*std::sin(M_PI*y/Ly);
-	    B_y = B1*(2*M_PI/Lx)*std::cos(M_PI*y/Ly)*std::sin(2*M_PI*x/Lx);
+// 	  } else if (test=="Harris_sheet"){
+// 	    Real Lx = geom.ProbHi()[0]-geom.ProbLo()[0], Ly = geom.ProbHi()[1]-geom.ProbLo()[1];
+// 	    Real lambda = 0.5, B0 = 1.0, B1 = 0.1;
+// 	    B_x = B0*std::tanh(y/lambda) - B1*(M_PI/Ly)*std::cos(2*M_PI*x/Lx)*std::sin(M_PI*y/Ly);
+// 	    B_y = B1*(2*M_PI/Lx)*std::cos(M_PI*y/Ly)*std::sin(2*M_PI*x/Lx);
 
-	    arr(i,j,k,BX_LOCAL) = B_x;
-	    arr(i,j,k,BY_LOCAL) = B_y;
-	    arr(i,j,k,BZ_LOCAL) = 0.0;
-	    arr(i,j,k,EX_LOCAL) = 0.0;
-	    arr(i,j,k,EY_LOCAL) = 0.0;
-	    arr(i,j,k,EZ_LOCAL) = 0.0;
+// 	    arr(i,j,k,BX_LOCAL) = B_x;
+// 	    arr(i,j,k,BY_LOCAL) = B_y;
+// 	    arr(i,j,k,BZ_LOCAL) = 0.0;
+// 	    arr(i,j,k,EX_LOCAL) = 0.0;
+// 	    arr(i,j,k,EY_LOCAL) = 0.0;
+// 	    arr(i,j,k,EZ_LOCAL) = 0.0;
 	    
-	  } else if (test=="Harris_sheet_full"){
-	    Real Lx = geom.ProbHi()[0]-geom.ProbLo()[0], Ly = geom.ProbHi()[1]-geom.ProbLo()[1];
-	    Real lambda = 0.5, B0 = 1.0, B1 = 0.1;
-	    if (y>=0.0)
-	      B_x = B0*std::tanh((y-Ly/4)/lambda) - 2.0*B1*(M_PI/Ly)*std::cos(2*M_PI*x/Lx)*std::sin(M_PI*(y-0.25*Ly)/(Ly/2.0));
-	    else
-	      B_x = - B0*std::tanh((y+Ly/4)/lambda) - 2.0*B1*(M_PI/Ly)*std::cos(2*M_PI*x/Lx)*std::sin(M_PI*(y-0.25*Ly)/(Ly/2.0));
-	    B_y = B1*(2*M_PI/Lx)*std::cos(M_PI*(y-0.25*Ly)/(Ly/2.0))*std::sin(2*M_PI*x/Lx);
+// 	  } else if (test=="Harris_sheet_full"){
+// 	    Real Lx = geom.ProbHi()[0]-geom.ProbLo()[0], Ly = geom.ProbHi()[1]-geom.ProbLo()[1];
+// 	    Real lambda = 0.5, B0 = 1.0, B1 = 0.1;
+// 	    if (y>=0.0)
+// 	      B_x = B0*std::tanh((y-Ly/4)/lambda) - 2.0*B1*(M_PI/Ly)*std::cos(2*M_PI*x/Lx)*std::sin(M_PI*(y-0.25*Ly)/(Ly/2.0));
+// 	    else
+// 	      B_x = - B0*std::tanh((y+Ly/4)/lambda) - 2.0*B1*(M_PI/Ly)*std::cos(2*M_PI*x/Lx)*std::sin(M_PI*(y-0.25*Ly)/(Ly/2.0));
+// 	    B_y = B1*(2*M_PI/Lx)*std::cos(M_PI*(y-0.25*Ly)/(Ly/2.0))*std::sin(2*M_PI*x/Lx);
 
-	    arr(i,j,k,BX_LOCAL) = B_x;
-	    arr(i,j,k,BY_LOCAL) = B_y;
-	    arr(i,j,k,BZ_LOCAL) = 0.0;
-	    arr(i,j,k,EX_LOCAL) = 0.0;
-	    arr(i,j,k,EY_LOCAL) = 0.0;
-	    arr(i,j,k,EZ_LOCAL) = 0.0;
+// 	    arr(i,j,k,BX_LOCAL) = B_x;
+// 	    arr(i,j,k,BY_LOCAL) = B_y;
+// 	    arr(i,j,k,BZ_LOCAL) = 0.0;
+// 	    arr(i,j,k,EX_LOCAL) = 0.0;
+// 	    arr(i,j,k,EY_LOCAL) = 0.0;
+// 	    arr(i,j,k,EZ_LOCAL) = 0.0;
 	    
-	  } else if (test=="blast"){
-	    Real B0 = 100.0/std::sqrt(4.0*M_PI);
+// 	  } else if (test=="blast"){
+// 	    Real B0 = 100.0/std::sqrt(4.0*M_PI);
 	    
-	    arr(i,j,k,BX_LOCAL) = B0;
-	    arr(i,j,k,BY_LOCAL) = 0.0;
-	    arr(i,j,k,BZ_LOCAL) = 0.0;
-	    arr(i,j,k,EX_LOCAL) = 0.0;
-	    arr(i,j,k,EY_LOCAL) = 0.0;
-	    arr(i,j,k,EZ_LOCAL) = 0.0;
+// 	    arr(i,j,k,BX_LOCAL) = B0;
+// 	    arr(i,j,k,BY_LOCAL) = 0.0;
+// 	    arr(i,j,k,BZ_LOCAL) = 0.0;
+// 	    arr(i,j,k,EX_LOCAL) = 0.0;
+// 	    arr(i,j,k,EY_LOCAL) = 0.0;
+// 	    arr(i,j,k,EZ_LOCAL) = 0.0;
 	    
-	  } else if (test=="zpinch1d"){
+// 	  } else if (test=="zpinch1d"){
 
-	    // cylindrical coordinates
-	    Real rCyl = x;
+// 	    // cylindrical coordinates
+// 	    Real rCyl = x;
 	    
-	    Real Rp = 1.0/8.0, J0 = 1.0/10.0;
+// 	    Real Rp = 1.0/8.0, J0 = 1.0/10.0;
 	      
-	    Real B_theta_in = J0*(0.5*rCyl-16.0*rCyl*rCyl*rCyl), B_theta_out=J0*(0.5*Rp-16.0*Rp*Rp*Rp)*Rp/rCyl;
-	    if (rCyl<Rp){
-	      B_z = -B_theta_in;
-	    } else{
-	      B_z = -B_theta_out;
-	    }
+// 	    Real B_theta_in = J0*(0.5*rCyl-16.0*rCyl*rCyl*rCyl), B_theta_out=J0*(0.5*Rp-16.0*Rp*Rp*Rp)*Rp/rCyl;
+// 	    if (rCyl<Rp){
+// 	      B_z = -B_theta_in;
+// 	    } else{
+// 	      B_z = -B_theta_out;
+// 	    }
 
-	    arr(i,j,k,BX_LOCAL) = 0.0;
-	    arr(i,j,k,BY_LOCAL) = 0.0;
-	    // minus sign since in cylindrical coordinates
-	    arr(i,j,k,BZ_LOCAL) = B_z;
-	    arr(i,j,k,EX_LOCAL) = 0.0;
-	    arr(i,j,k,EY_LOCAL) = 0.0;
-	    arr(i,j,k,EZ_LOCAL) = 0.0;
+// 	    arr(i,j,k,BX_LOCAL) = 0.0;
+// 	    arr(i,j,k,BY_LOCAL) = 0.0;
+// 	    // minus sign since in cylindrical coordinates
+// 	    arr(i,j,k,BZ_LOCAL) = B_z;
+// 	    arr(i,j,k,EX_LOCAL) = 0.0;
+// 	    arr(i,j,k,EY_LOCAL) = 0.0;
+// 	    arr(i,j,k,EZ_LOCAL) = 0.0;
 
-	  } else if (test=="zpinch2d"){
+// 	  } else if (test=="zpinch2d"){
 
-	    // cylindrical coordinates
-	    Real rCyl = x;
-	    Real zCyl = y;
+// 	    // cylindrical coordinates
+// 	    Real rCyl = x;
+// 	    Real zCyl = y;
 	    
-	    Real Rp = 1.0/4.0, J0 = 1.0, epsilon = 1.0/100.0, K = 1.0;
-	    /*Real epsilon0 = lambda_d*lambda_d;
-	      Real mu0 = 1.0/(c*c*epsilon0);*/
-	    Real mu0 = 1.0;
+// 	    Real Rp = 1.0/4.0, J0 = 1.0, epsilon = 1.0/100.0, K = 1.0;
+// 	    /*Real epsilon0 = lambda_d*lambda_d;
+// 	      Real mu0 = 1.0/(c*c*epsilon0);*/
+// 	    Real mu0 = 1.0;
 
-	    Real B_phi_in = 0.5*rCyl*mu0*J0*(1.0 + epsilon*std::sin(2*M_PI*K*zCyl)), B_phi_out = 0.5*(Rp*Rp/rCyl)*mu0*J0*(1.0 + epsilon*std::sin(2*M_PI*K*zCyl)); 
+// 	    Real B_phi_in = 0.5*rCyl*mu0*J0*(1.0 + epsilon*std::sin(2*M_PI*K*zCyl)), B_phi_out = 0.5*(Rp*Rp/rCyl)*mu0*J0*(1.0 + epsilon*std::sin(2*M_PI*K*zCyl)); 
 	    
-	    if (rCyl<Rp){
-	      // minus sign since in cylindrical coordinates
-	      B_z = -B_phi_in;
-	    } else{
-	      B_z = -B_phi_out;
-	    }
+// 	    if (rCyl<Rp){
+// 	      // minus sign since in cylindrical coordinates
+// 	      B_z = -B_phi_in;
+// 	    } else{
+// 	      B_z = -B_phi_out;
+// 	    }
 
-	    arr(i,j,k,BX_LOCAL) = 0.0;
-	    arr(i,j,k,BY_LOCAL) = 0.0;
-	    arr(i,j,k,BZ_LOCAL) = B_z;
-	    arr(i,j,k,EX_LOCAL) = 0.0;
-	    arr(i,j,k,EY_LOCAL) = 0.0;
-	    arr(i,j,k,EZ_LOCAL) = 0.0;
+// 	    arr(i,j,k,BX_LOCAL) = 0.0;
+// 	    arr(i,j,k,BY_LOCAL) = 0.0;
+// 	    arr(i,j,k,BZ_LOCAL) = B_z;
+// 	    arr(i,j,k,EX_LOCAL) = 0.0;
+// 	    arr(i,j,k,EY_LOCAL) = 0.0;
+// 	    arr(i,j,k,EZ_LOCAL) = 0.0;
 	    
-	  } else if (test=="zpinch2dTrue"){
+// 	  } else if (test=="zpinch2dTrue"){
 
-	    // cylindrical coordinates
-	    Real rCyl = x;
-	    Real zCyl = y;
+// 	    // cylindrical coordinates
+// 	    Real rCyl = x;
+// 	    Real zCyl = y;
 
-	    // parameters
-	    Real epsilon0 = 1.0, mu0 = 1.0, n0 = 1.0, P0 = 1.5625*0.01, beta = 1.0/10.0, alpha = 100.0;
-	    Real m_i = 1.0;
-	    Real q_i = r_i*m_i;
-	    // perturbation
-	    Real epsilon = 1.0/100.0, K = 1.0;
+// 	    // parameters
+// 	    Real epsilon0 = 1.0, mu0 = 1.0, n0 = 1.0, P0 = 1.5625*0.01, beta = 1.0/10.0, alpha = 100.0;
+// 	    Real m_i = 1.0;
+// 	    Real q_i = r_i*m_i;
+// 	    // perturbation
+// 	    Real epsilon = 1.0/100.0, K = 1.0;
 
-	    Real oneR2A = 1.0 + rCyl*rCyl*alpha;
-	    Real oneBR2AB = 1.0 + beta + rCyl*rCyl*alpha*beta;
+// 	    Real oneR2A = 1.0 + rCyl*rCyl*alpha;
+// 	    Real oneBR2AB = 1.0 + beta + rCyl*rCyl*alpha*beta;
 	    
-	    Real C1 = -2.0 + rCyl*rCyl*alpha*(-2.0+(P0*alpha*epsilon0)/(n0*n0*q_i*q_i*std::pow(oneBR2AB,2)));
-	    Real C2 = std::sqrt(P0*((rCyl*rCyl*alpha*C1)/std::pow(oneR2A,2)+2.0*std::log(oneR2A))/(rCyl*rCyl*alpha*mu0));
+// 	    Real C1 = -2.0 + rCyl*rCyl*alpha*(-2.0+(P0*alpha*epsilon0)/(n0*n0*q_i*q_i*std::pow(oneBR2AB,2)));
+// 	    Real C2 = std::sqrt(P0*((rCyl*rCyl*alpha*C1)/std::pow(oneR2A,2)+2.0*std::log(oneR2A))/(rCyl*rCyl*alpha*mu0));
 
-	    Real Btheta = -C2*(1.0 + epsilon*std::sin(2*M_PI*K*zCyl));
-	    Real Er = -(P0*rCyl*alpha)/(q_i*std::pow(oneR2A,2)*(n0/oneR2A+n0*beta));
-	    //Er *= (1.0 + epsilon*std::sin(2*M_PI*K*zCyl));
+// 	    Real Btheta = -C2*(1.0 + epsilon*std::sin(2*M_PI*K*zCyl));
+// 	    Real Er = -(P0*rCyl*alpha)/(q_i*std::pow(oneR2A,2)*(n0/oneR2A+n0*beta));
+// 	    //Er *= (1.0 + epsilon*std::sin(2*M_PI*K*zCyl));
 	    
-	    arr(i,j,k,BX_LOCAL) = 0.0;
-	    arr(i,j,k,BY_LOCAL) = 0.0;
-	    // minus sign since in cylindrical coordinates
-	    arr(i,j,k,BZ_LOCAL) = -Btheta;
-	    arr(i,j,k,EX_LOCAL) = Er;
-	    arr(i,j,k,EY_LOCAL) = 0.0;
-	    arr(i,j,k,EZ_LOCAL) = 0.0;
+// 	    arr(i,j,k,BX_LOCAL) = 0.0;
+// 	    arr(i,j,k,BY_LOCAL) = 0.0;
+// 	    // minus sign since in cylindrical coordinates
+// 	    arr(i,j,k,BZ_LOCAL) = -Btheta;
+// 	    arr(i,j,k,EX_LOCAL) = Er;
+// 	    arr(i,j,k,EY_LOCAL) = 0.0;
+// 	    arr(i,j,k,EZ_LOCAL) = 0.0;
 
-	  } else if (test=="convergence"){
+// 	  } else if (test=="convergence"){
 
-	    arr(i,j,k,BX_LOCAL) = 0.0;
-	    arr(i,j,k,BY_LOCAL) = 0.0;
-	    arr(i,j,k,BZ_LOCAL) = 0.0;
-	    arr(i,j,k,EX_LOCAL) = 0.0;
-	    arr(i,j,k,EY_LOCAL) = 0.0;
-	    arr(i,j,k,EZ_LOCAL) = -std::sin(2*M_PI*x);
+// 	    arr(i,j,k,BX_LOCAL) = 0.0;
+// 	    arr(i,j,k,BY_LOCAL) = 0.0;
+// 	    arr(i,j,k,BZ_LOCAL) = 0.0;
+// 	    arr(i,j,k,EX_LOCAL) = 0.0;
+// 	    arr(i,j,k,EY_LOCAL) = 0.0;
+// 	    arr(i,j,k,EZ_LOCAL) = -std::sin(2*M_PI*x);
 
-	  } else if (test=="convergence2D"){
+// 	  } else if (test=="convergence2D"){
 
-	    arr(i,j,k,BX_LOCAL) = 0.0;
-	    arr(i,j,k,BY_LOCAL) = 0.0;
-	    arr(i,j,k,BZ_LOCAL) = 0.0;
-	    arr(i,j,k,EX_LOCAL) = -c*std::cos(2.0*M_PI*(x+y))/std::sqrt(2.0);
-	    arr(i,j,k,EY_LOCAL) = 0.0;
-	    arr(i,j,k,EZ_LOCAL) = 0.0;
+// 	    arr(i,j,k,BX_LOCAL) = 0.0;
+// 	    arr(i,j,k,BY_LOCAL) = 0.0;
+// 	    arr(i,j,k,BZ_LOCAL) = 0.0;
+// 	    arr(i,j,k,EX_LOCAL) = -c*std::cos(2.0*M_PI*(x+y))/std::sqrt(2.0);
+// 	    arr(i,j,k,EY_LOCAL) = 0.0;
+// 	    arr(i,j,k,EZ_LOCAL) = 0.0;
 
-	  } else if (test=="EMwave"){
+// 	  } else if (test=="EMwave"){
 
-	    arr(i,j,k,BX_LOCAL) = 0.0;
-	    arr(i,j,k,BY_LOCAL) = 0.0;
-	    arr(i,j,k,BZ_LOCAL) = 0.0;	   
-	    arr(i,j,k,EX_LOCAL) = -c*std::cos(2.0*M_PI*(x+y))/std::sqrt(2.0);
-	    arr(i,j,k,EY_LOCAL) = c*std::cos(2.0*M_PI*(x+y))/std::sqrt(2.0);
-	    arr(i,j,k,EZ_LOCAL) = 0.0;
+// 	    arr(i,j,k,BX_LOCAL) = 0.0;
+// 	    arr(i,j,k,BY_LOCAL) = 0.0;
+// 	    arr(i,j,k,BZ_LOCAL) = 0.0;	   
+// 	    arr(i,j,k,EX_LOCAL) = -c*std::cos(2.0*M_PI*(x+y))/std::sqrt(2.0);
+// 	    arr(i,j,k,EY_LOCAL) = c*std::cos(2.0*M_PI*(x+y))/std::sqrt(2.0);
+// 	    arr(i,j,k,EZ_LOCAL) = 0.0;
 
-	  } else if (test=="EMwave1d"){
+// 	  } else if (test=="EMwave1d"){
 
-	    arr(i,j,k,BX_LOCAL) = 0.0;
-	    arr(i,j,k,BY_LOCAL) = 0.0;
-	    arr(i,j,k,BZ_LOCAL) = 0.0;	   
-	    arr(i,j,k,EX_LOCAL) = 0.0;
-	    arr(i,j,k,EY_LOCAL) = c*std::cos(2.0*M_PI*(x));
-	    arr(i,j,k,EZ_LOCAL) = 0.0;
+// 	    arr(i,j,k,BX_LOCAL) = 0.0;
+// 	    arr(i,j,k,BY_LOCAL) = 0.0;
+// 	    arr(i,j,k,BZ_LOCAL) = 0.0;	   
+// 	    arr(i,j,k,EX_LOCAL) = 0.0;
+// 	    arr(i,j,k,EY_LOCAL) = c*std::cos(2.0*M_PI*(x));
+// 	    arr(i,j,k,EZ_LOCAL) = 0.0;
 
-	  } else if (test=="EMwaveTM"){
+// 	  } else if (test=="EMwaveTM"){
 
-	    using namespace std::complex_literals;
+// 	    using namespace std::complex_literals;
 	    
-	    // cylindrical coordinates
-	    const Real rCyl = x;
-	    const Real zCyl = y;
+// 	    // cylindrical coordinates
+// 	    const Real rCyl = x;
+// 	    const Real zCyl = y;
 
-	    // parameters
-	    Real xi0 = 2.40482555769577;
-	    Real kr = xi0;
-	    Real kz = M_PI;
-	    Real omega = std::sqrt(kr*kr + kz*kz);
+// 	    // parameters
+// 	    Real xi0 = 2.40482555769577;
+// 	    Real kr = xi0;
+// 	    Real kz = M_PI;
+// 	    Real omega = std::sqrt(kr*kr + kz*kz);
 
-	    // function
-	    auto Bessel0ExpFunc = std::cyl_bessel_j(0,kr*rCyl)*std::exp(1i*kz*zCyl);
-	    auto Bessel1ExpFunc = std::cyl_bessel_j(1,kr*rCyl)*std::exp(1i*kz*zCyl);
+// 	    // function
+// 	    auto Bessel0ExpFunc = std::cyl_bessel_j(0,kr*rCyl)*std::exp(1i*kz*zCyl);
+// 	    auto Bessel1ExpFunc = std::cyl_bessel_j(1,kr*rCyl)*std::exp(1i*kz*zCyl);
 	    
-	    arr(i,j,k,BX_LOCAL) = 0.0;
-	    arr(i,j,k,BY_LOCAL) = 0.0;
-	    // negative sign for theta components in cyl. coord.
-	    arr(i,j,k,BZ_LOCAL) = -std::real(-1i*omega*kr/(omega*omega-kz*kz)*Bessel1ExpFunc);
-	    arr(i,j,k,EX_LOCAL) = std::real(-1i*kz*kr/(omega*omega-kz*kz)*Bessel1ExpFunc);
-	    arr(i,j,k,EY_LOCAL) = std::real(Bessel0ExpFunc);
-	    arr(i,j,k,EZ_LOCAL) = 0.0;
+// 	    arr(i,j,k,BX_LOCAL) = 0.0;
+// 	    arr(i,j,k,BY_LOCAL) = 0.0;
+// 	    // negative sign for theta components in cyl. coord.
+// 	    arr(i,j,k,BZ_LOCAL) = -std::real(-1i*omega*kr/(omega*omega-kz*kz)*Bessel1ExpFunc);
+// 	    arr(i,j,k,EX_LOCAL) = std::real(-1i*kz*kr/(omega*omega-kz*kz)*Bessel1ExpFunc);
+// 	    arr(i,j,k,EY_LOCAL) = std::real(Bessel0ExpFunc);
+// 	    arr(i,j,k,EZ_LOCAL) = 0.0;
 	    
-	  } else if (test=="EMwaveTE1d"){
+// 	  } else if (test=="EMwaveTE1d"){
 
-	    using namespace std::complex_literals;
+// 	    using namespace std::complex_literals;
 	    
-	    // cylindrical coordinates
-	    const Real rCyl = x;
-	    Real L = 2.0*M_PI; //geom.ProbHi()[0]-geom.ProbLo()[0];
-	    // parameters
-	    Real z1 = 2.40482555769577;
-	    Real omega = z1/L;
+// 	    // cylindrical coordinates
+// 	    const Real rCyl = x;
+// 	    Real L = 2.0*M_PI; //geom.ProbHi()[0]-geom.ProbLo()[0];
+// 	    // parameters
+// 	    Real z1 = 2.40482555769577;
+// 	    Real omega = z1/L;
 	    
-	    // function
-	    auto Bessel0SinFunc = std::cyl_bessel_j(0,omega*rCyl)*std::sin(omega*0.0);
-	    auto Bessel1CosFunc = std::cyl_bessel_j(1,omega*rCyl)*std::cos(omega*0.0);
+// 	    // function
+// 	    auto Bessel0SinFunc = std::cyl_bessel_j(0,omega*rCyl)*std::sin(omega*0.0);
+// 	    auto Bessel1CosFunc = std::cyl_bessel_j(1,omega*rCyl)*std::cos(omega*0.0);
 	    
-	    arr(i,j,k,BX_LOCAL) = 0.0;
-	    arr(i,j,k,BY_LOCAL) = -Bessel0SinFunc;	    
-	    arr(i,j,k,BZ_LOCAL) = 0.0;
-	    arr(i,j,k,EX_LOCAL) = 0.0;
-	    arr(i,j,k,EY_LOCAL) = 0.0;
-	    // negative sign for theta components in cyl. coord.
-	    arr(i,j,k,EZ_LOCAL) = -Bessel1CosFunc;
+// 	    arr(i,j,k,BX_LOCAL) = 0.0;
+// 	    arr(i,j,k,BY_LOCAL) = -Bessel0SinFunc;	    
+// 	    arr(i,j,k,BZ_LOCAL) = 0.0;
+// 	    arr(i,j,k,EX_LOCAL) = 0.0;
+// 	    arr(i,j,k,EY_LOCAL) = 0.0;
+// 	    // negative sign for theta components in cyl. coord.
+// 	    arr(i,j,k,EZ_LOCAL) = -Bessel1CosFunc;
 	    
-	  } else if (test=="gaussianEM"){
+// 	  } else if (test=="gaussianEM"){
 
-	    Real lambda = 1.5, chi = 1.5, a = -2.5, b = -2.5;
-	    Real COS = std::cos(2.0*M_PI*(x+y)/lambda);
-	    Real SIN = std::sin(2.0*M_PI*(x+y)/lambda);
-	    Real FACTOR = ((x-a)*(x-a)+(y-b)*(y-b))/(chi*chi);
-	    Real EXP = std::exp(-FACTOR);
-	    Real epsilon = 5.0 - 4.0*std::tanh((std::sqrt(x*x+y*y)-0.75)/0.08);
+// 	    Real lambda = 1.5, chi = 1.5, a = -2.5, b = -2.5;
+// 	    Real COS = std::cos(2.0*M_PI*(x+y)/lambda);
+// 	    Real SIN = std::sin(2.0*M_PI*(x+y)/lambda);
+// 	    Real FACTOR = ((x-a)*(x-a)+(y-b)*(y-b))/(chi*chi);
+// 	    Real EXP = std::exp(-FACTOR);
+// 	    Real epsilon = 5.0 - 4.0*std::tanh((std::sqrt(x*x+y*y)-0.75)/0.08);
 
-	    arr(i,j,k,BX_LOCAL) = 0.0;
-	    arr(i,j,k,BY_LOCAL) = 0.0;
-	    arr(i,j,k,BZ_LOCAL) = 0.0;
-	    arr(i,j,k,EX_LOCAL) = -COS*EXP + lambda*SIN*EXP*(y-b)/(chi*chi*M_PI);
-	    arr(i,j,k,EX_LOCAL) *= c/(epsilon*std::sqrt(2.0));
-	    arr(i,j,k,EY_LOCAL) = 0.0;
-	    arr(i,j,k,EZ_LOCAL) = 0.0;
-	  } 
-	}
-      }
-    }
-  }
-  // Set values for the y-components of the EM fields at the y-faces
-  for (MFIter mfi(S_EM_Y); mfi.isValid(); ++mfi)
-  {
-    Box bx = mfi.tilebox();
-    const Dim3 lo = lbound(bx);
-    const Dim3 hi = ubound(bx);
+// 	    arr(i,j,k,BX_LOCAL) = 0.0;
+// 	    arr(i,j,k,BY_LOCAL) = 0.0;
+// 	    arr(i,j,k,BZ_LOCAL) = 0.0;
+// 	    arr(i,j,k,EX_LOCAL) = -COS*EXP + lambda*SIN*EXP*(y-b)/(chi*chi*M_PI);
+// 	    arr(i,j,k,EX_LOCAL) *= c/(epsilon*std::sqrt(2.0));
+// 	    arr(i,j,k,EY_LOCAL) = 0.0;
+// 	    arr(i,j,k,EZ_LOCAL) = 0.0;
+// 	  } 
+// 	}
+//       }
+//     }
+//   }
+//   // Set values for the y-components of the EM fields at the y-faces
+//   for (MFIter mfi(S_EM_Y); mfi.isValid(); ++mfi)
+//   {
+//     Box bx = mfi.tilebox();
+//     const Dim3 lo = lbound(bx);
+//     const Dim3 hi = ubound(bx);
 
-    const auto& arr = S_EM_Y.array(mfi);
+//     const auto& arr = S_EM_Y.array(mfi);
     
-    for(int k = lo.z; k <= hi.z; k++)
-    {
-      const Real z = probLoZ + (double(k)+0.5) * dZ;
-      for(int j = lo.y; j <= hi.y; j++)
-      {
-  	// only y-face has no 0.5 shift
-  	const Real y = probLoY + (double(j)) * dY;
-  	for(int i = lo.x; i <= hi.x; i++)
-  	{
-  	  const Real x = probLoX + (double(i)+0.5) * dX;
+//     for(int k = lo.z; k <= hi.z; k++)
+//     {
+//       const Real z = probLoZ + (double(k)+0.5) * dZ;
+//       for(int j = lo.y; j <= hi.y; j++)
+//       {
+//   	// only y-face has no 0.5 shift
+//   	const Real y = probLoY + (double(j)) * dY;
+//   	for(int i = lo.x; i <= hi.x; i++)
+//   	{
+//   	  const Real x = probLoX + (double(i)+0.5) * dX;
 
-  	  if (test=="BrioWu"){
-  	    Real B_x_L = 0.75, B_y_L = 1.0, B_z_L = 0.0;
-  	    Real B_x_R = 0.75, B_y_R = -1.0, B_z_R = 0.0;
+//   	  if (test=="BrioWu"){
+//   	    Real B_x_L = 0.75, B_y_L = 1.0, B_z_L = 0.0;
+//   	    Real B_x_R = 0.75, B_y_R = -1.0, B_z_R = 0.0;
 	    
-  	    if (x<=(geom.ProbLo()[0]+geom.ProbHi()[0])/2.0){
-  	      B_x = B_x_L, B_y = B_y_L, B_z = B_z_L;
-  	    } else{
-  	      B_x = B_x_R, B_y = B_y_R, B_z = B_z_R;
-	    }
-  	    /*if (y<=(geom.ProbLo()[1]+geom.ProbHi()[1])/2.0){
-  	      B_x = B_y_L, B_y = B_x_L, B_z = B_z_L;
-  	    } else{
-  	      B_x = B_y_R, B_y = B_x_R, B_z = B_z_R;
-	      }*/
+//   	    if (x<=(geom.ProbLo()[0]+geom.ProbHi()[0])/2.0){
+//   	      B_x = B_x_L, B_y = B_y_L, B_z = B_z_L;
+//   	    } else{
+//   	      B_x = B_x_R, B_y = B_y_R, B_z = B_z_R;
+// 	    }
+//   	    /*if (y<=(geom.ProbLo()[1]+geom.ProbHi()[1])/2.0){
+//   	      B_x = B_y_L, B_y = B_x_L, B_z = B_z_L;
+//   	    } else{
+//   	      B_x = B_y_R, B_y = B_x_R, B_z = B_z_R;
+// 	      }*/
 	    
-  	    arr(i,j,k,BX_LOCAL) = B_x;
-  	    arr(i,j,k,BY_LOCAL) = B_y;
-  	    arr(i,j,k,BZ_LOCAL) = 0.0;
-  	    arr(i,j,k,EX_LOCAL) = 0.0;
-  	    arr(i,j,k,EY_LOCAL) = 0.0;
-  	    arr(i,j,k,EZ_LOCAL) = 0.0;	    
+//   	    arr(i,j,k,BX_LOCAL) = B_x;
+//   	    arr(i,j,k,BY_LOCAL) = B_y;
+//   	    arr(i,j,k,BZ_LOCAL) = 0.0;
+//   	    arr(i,j,k,EX_LOCAL) = 0.0;
+//   	    arr(i,j,k,EY_LOCAL) = 0.0;
+//   	    arr(i,j,k,EZ_LOCAL) = 0.0;	    
 	    
-	  } else if (test=="BrioWu2DCart"){	
-	    Real theta = std::atan(std::abs(y/x));
-	    // second quadrant
-	    if (x<=0.0 && y>=0.0)
-	      theta = M_PI-theta;
-	    // third quadrant
-	    else if (x<=0.0 && y<=0.0)
-	      theta = M_PI+theta;
-	    // fourth quadrant
-	    else if (x>=0.0 && y<=0.0)
-	      theta = 2*M_PI-theta;
+// 	  } else if (test=="BrioWu2DCart"){	
+// 	    Real theta = std::atan(std::abs(y/x));
+// 	    // second quadrant
+// 	    if (x<=0.0 && y>=0.0)
+// 	      theta = M_PI-theta;
+// 	    // third quadrant
+// 	    else if (x<=0.0 && y<=0.0)
+// 	      theta = M_PI+theta;
+// 	    // fourth quadrant
+// 	    else if (x>=0.0 && y<=0.0)
+// 	      theta = 2*M_PI-theta;
 
-	    Real rCyl = std::sqrt(x*x+y*y);
-	    // parameters
-	    Real xi0 = 2.40482555769577;
-	    Real omega = xi0/(0.1*2.0*M_PI);
+// 	    Real rCyl = std::sqrt(x*x+y*y);
+// 	    // parameters
+// 	    Real xi0 = 2.40482555769577;
+// 	    Real omega = xi0/(0.1*2.0*M_PI);
 
-	    // function
-	    auto B_theta = std::cyl_bessel_j(1,omega*rCyl);	    
+// 	    // function
+// 	    auto B_theta = std::cyl_bessel_j(1,omega*rCyl);	    
 	    
-	    B_x = -B_theta*std::sin(theta);
-	    B_y = B_theta*std::cos(theta);
-	    B_z = 0.0;
+// 	    B_x = -B_theta*std::sin(theta);
+// 	    B_y = B_theta*std::cos(theta);
+// 	    B_z = 0.0;
 
-	    arr(i,j,k,BX_LOCAL) = B_x;
-	    arr(i,j,k,BY_LOCAL) = B_y;
-	    arr(i,j,k,BZ_LOCAL) = B_z;
-	    arr(i,j,k,EX_LOCAL) = 0.0;
-	    arr(i,j,k,EY_LOCAL) = 0.0;	    
-	    arr(i,j,k,EZ_LOCAL) = 0.0;	   
+// 	    arr(i,j,k,BX_LOCAL) = B_x;
+// 	    arr(i,j,k,BY_LOCAL) = B_y;
+// 	    arr(i,j,k,BZ_LOCAL) = B_z;
+// 	    arr(i,j,k,EX_LOCAL) = 0.0;
+// 	    arr(i,j,k,EY_LOCAL) = 0.0;	    
+// 	    arr(i,j,k,EZ_LOCAL) = 0.0;	   
 
-	  } else if (test=="BrioWu1DCyl"){
+// 	  } else if (test=="BrioWu1DCyl"){
 
-	    // cylindrical coordinates
-	    const Real rCyl = x;
+// 	    // cylindrical coordinates
+// 	    const Real rCyl = x;
 
-	    // parameters
-	    Real xi0 = 2.40482555769577;
-	    Real omega = xi0/(0.1*2.0*M_PI);
+// 	    // parameters
+// 	    Real xi0 = 2.40482555769577;
+// 	    Real omega = xi0/(0.1*2.0*M_PI);
 
-	    // function
-	    auto B_theta = std::cyl_bessel_j(1,omega*rCyl);	    
+// 	    // function
+// 	    auto B_theta = std::cyl_bessel_j(1,omega*rCyl);	    
 
-	    arr(i,j,k,BX_LOCAL) = 0.0;
-	    arr(i,j,k,BY_LOCAL) = 0.0;
-	    arr(i,j,k,BZ_LOCAL) = B_theta;
-	    arr(i,j,k,EX_LOCAL) = 0.0;
-	    arr(i,j,k,EY_LOCAL) = 0.0;	    
-	    arr(i,j,k,EZ_LOCAL) = 0.0;	   
+// 	    arr(i,j,k,BX_LOCAL) = 0.0;
+// 	    arr(i,j,k,BY_LOCAL) = 0.0;
+// 	    arr(i,j,k,BZ_LOCAL) = B_theta;
+// 	    arr(i,j,k,EX_LOCAL) = 0.0;
+// 	    arr(i,j,k,EY_LOCAL) = 0.0;	    
+// 	    arr(i,j,k,EZ_LOCAL) = 0.0;	   
 
-  	  } else if (test=="OT" || test=="OTideal"){
-  	    v_x = -std::sin(y);
-  	    v_y = std::sin(x);
-  	    v_z = 0.0;	    
-  	    B_x = -std::sin(y);
-  	    B_y = std::sin(2.0*x);
-  	    B_z = 0.0;
-  	    Vector<Real> vcrossB = cross_product({v_x,v_y,v_z},{B_x,B_y,B_z});	    
+//   	  } else if (test=="OT" || test=="OTideal"){
+//   	    v_x = -std::sin(y);
+//   	    v_y = std::sin(x);
+//   	    v_z = 0.0;	    
+//   	    B_x = -std::sin(y);
+//   	    B_y = std::sin(2.0*x);
+//   	    B_z = 0.0;
+//   	    Vector<Real> vcrossB = cross_product({v_x,v_y,v_z},{B_x,B_y,B_z});	    
 
-	    arr(i,j,k,BX_LOCAL) = B_x;
-	    arr(i,j,k,BY_LOCAL) = B_y;
-	    arr(i,j,k,BZ_LOCAL) = B_z;
-	    arr(i,j,k,EX_LOCAL) = -vcrossB[0];
-	    arr(i,j,k,EY_LOCAL) = -vcrossB[1];
-	    arr(i,j,k,EZ_LOCAL) = -vcrossB[2];
+// 	    arr(i,j,k,BX_LOCAL) = B_x;
+// 	    arr(i,j,k,BY_LOCAL) = B_y;
+// 	    arr(i,j,k,BZ_LOCAL) = B_z;
+// 	    arr(i,j,k,EX_LOCAL) = -vcrossB[0];
+// 	    arr(i,j,k,EY_LOCAL) = -vcrossB[1];
+// 	    arr(i,j,k,EZ_LOCAL) = -vcrossB[2];
 	    	    
-  	  } else if (test=="Harris_sheet"){
-  	    Real Lx = geom.ProbHi()[0]-geom.ProbLo()[0], Ly = geom.ProbHi()[1]-geom.ProbLo()[1];
-  	    Real lambda = 0.5, B0 = 1.0, B1 = 0.1;
-  	    B_x = B0*std::tanh(y/lambda) - B1*(M_PI/Ly)*std::cos(2*M_PI*x/Lx)*std::sin(M_PI*y/Ly);
-	    B_y = B1*(2*M_PI/Lx)*std::cos(M_PI*y/Ly)*std::sin(2*M_PI*x/Lx);	    
+//   	  } else if (test=="Harris_sheet"){
+//   	    Real Lx = geom.ProbHi()[0]-geom.ProbLo()[0], Ly = geom.ProbHi()[1]-geom.ProbLo()[1];
+//   	    Real lambda = 0.5, B0 = 1.0, B1 = 0.1;
+//   	    B_x = B0*std::tanh(y/lambda) - B1*(M_PI/Ly)*std::cos(2*M_PI*x/Lx)*std::sin(M_PI*y/Ly);
+// 	    B_y = B1*(2*M_PI/Lx)*std::cos(M_PI*y/Ly)*std::sin(2*M_PI*x/Lx);	    
 
-  	    arr(i,j,k,BX_LOCAL) = B_x;
-  	    arr(i,j,k,BY_LOCAL) = B_y;
-  	    arr(i,j,k,BZ_LOCAL) = 0.0;
-  	    arr(i,j,k,EX_LOCAL) = 0.0;
-  	    arr(i,j,k,EY_LOCAL) = 0.0;
-  	    arr(i,j,k,EZ_LOCAL) = 0.0;
+//   	    arr(i,j,k,BX_LOCAL) = B_x;
+//   	    arr(i,j,k,BY_LOCAL) = B_y;
+//   	    arr(i,j,k,BZ_LOCAL) = 0.0;
+//   	    arr(i,j,k,EX_LOCAL) = 0.0;
+//   	    arr(i,j,k,EY_LOCAL) = 0.0;
+//   	    arr(i,j,k,EZ_LOCAL) = 0.0;
 	    
-  	  } else if (test=="Harris_sheet_full"){
-  	    Real Lx = geom.ProbHi()[0]-geom.ProbLo()[0], Ly = geom.ProbHi()[1]-geom.ProbLo()[1];
-  	    Real lambda = 0.5, B0 = 1.0, B1 = 0.1;
-	    if (y>=0.0)
-	      B_x = B0*std::tanh((y-Ly/4)/lambda) - 2.0*B1*(M_PI/Ly)*std::cos(2*M_PI*x/Lx)*std::sin(M_PI*(y-0.25*Ly)/(Ly/2.0));
-	    else
-	      B_x = - B0*std::tanh((y+Ly/4)/lambda) - 2.0*B1*(M_PI/Ly)*std::cos(2*M_PI*x/Lx)*std::sin(M_PI*(y-0.25*Ly)/(Ly/2.0));
-	    B_y = B1*(2*M_PI/Lx)*std::cos(M_PI*(y-0.25*Ly)/(Ly/2.0))*std::sin(2*M_PI*x/Lx);
+//   	  } else if (test=="Harris_sheet_full"){
+//   	    Real Lx = geom.ProbHi()[0]-geom.ProbLo()[0], Ly = geom.ProbHi()[1]-geom.ProbLo()[1];
+//   	    Real lambda = 0.5, B0 = 1.0, B1 = 0.1;
+// 	    if (y>=0.0)
+// 	      B_x = B0*std::tanh((y-Ly/4)/lambda) - 2.0*B1*(M_PI/Ly)*std::cos(2*M_PI*x/Lx)*std::sin(M_PI*(y-0.25*Ly)/(Ly/2.0));
+// 	    else
+// 	      B_x = - B0*std::tanh((y+Ly/4)/lambda) - 2.0*B1*(M_PI/Ly)*std::cos(2*M_PI*x/Lx)*std::sin(M_PI*(y-0.25*Ly)/(Ly/2.0));
+// 	    B_y = B1*(2*M_PI/Lx)*std::cos(M_PI*(y-0.25*Ly)/(Ly/2.0))*std::sin(2*M_PI*x/Lx);
 
-  	    arr(i,j,k,BX_LOCAL) = B_x;
-  	    arr(i,j,k,BY_LOCAL) = B_y;
-  	    arr(i,j,k,BZ_LOCAL) = 0.0;
-  	    arr(i,j,k,EX_LOCAL) = 0.0;
-  	    arr(i,j,k,EY_LOCAL) = 0.0;
-  	    arr(i,j,k,EZ_LOCAL) = 0.0;
+//   	    arr(i,j,k,BX_LOCAL) = B_x;
+//   	    arr(i,j,k,BY_LOCAL) = B_y;
+//   	    arr(i,j,k,BZ_LOCAL) = 0.0;
+//   	    arr(i,j,k,EX_LOCAL) = 0.0;
+//   	    arr(i,j,k,EY_LOCAL) = 0.0;
+//   	    arr(i,j,k,EZ_LOCAL) = 0.0;
 	    
-  	  } else if (test=="blast"){
+//   	  } else if (test=="blast"){
 	    
-	    arr(i,j,k,BX_LOCAL) = 0.0;
-	    arr(i,j,k,BY_LOCAL) = 0.0;
-	    arr(i,j,k,BZ_LOCAL) = 0.0;
-	    arr(i,j,k,EX_LOCAL) = 0.0;
-	    arr(i,j,k,EY_LOCAL) = 0.0;
-	    arr(i,j,k,EZ_LOCAL) = 0.0;
+// 	    arr(i,j,k,BX_LOCAL) = 0.0;
+// 	    arr(i,j,k,BY_LOCAL) = 0.0;
+// 	    arr(i,j,k,BZ_LOCAL) = 0.0;
+// 	    arr(i,j,k,EX_LOCAL) = 0.0;
+// 	    arr(i,j,k,EY_LOCAL) = 0.0;
+// 	    arr(i,j,k,EZ_LOCAL) = 0.0;
 	    
-	  } else if (test=="zpinch1d"){
+// 	  } else if (test=="zpinch1d"){
 
-	    // cylindrical coordinates
-	    Real rCyl = x;
+// 	    // cylindrical coordinates
+// 	    Real rCyl = x;
 	    
-	    Real Rp = 1.0/8.0, J0 = 1.0/10.0;
+// 	    Real Rp = 1.0/8.0, J0 = 1.0/10.0;
 	      
-	    Real B_theta_in = J0*(0.5*rCyl-16.0*rCyl*rCyl*rCyl), B_theta_out=J0*(0.5*Rp-16.0*Rp*Rp*Rp)*Rp/rCyl;
-	    if (rCyl<Rp){
-	      B_z = -B_theta_in;
-	    } else{
-	      B_z = -B_theta_out;
-	    }
+// 	    Real B_theta_in = J0*(0.5*rCyl-16.0*rCyl*rCyl*rCyl), B_theta_out=J0*(0.5*Rp-16.0*Rp*Rp*Rp)*Rp/rCyl;
+// 	    if (rCyl<Rp){
+// 	      B_z = -B_theta_in;
+// 	    } else{
+// 	      B_z = -B_theta_out;
+// 	    }
 
-	    arr(i,j,k,BX_LOCAL) = 0.0;
-	    arr(i,j,k,BY_LOCAL) = 0.0;
-	    // minus sign since in cylindrical coordinates
-	    arr(i,j,k,BZ_LOCAL) = B_z;
-	    arr(i,j,k,EX_LOCAL) = 0.0;
-	    arr(i,j,k,EY_LOCAL) = 0.0;
-	    arr(i,j,k,EZ_LOCAL) = 0.0;
+// 	    arr(i,j,k,BX_LOCAL) = 0.0;
+// 	    arr(i,j,k,BY_LOCAL) = 0.0;
+// 	    // minus sign since in cylindrical coordinates
+// 	    arr(i,j,k,BZ_LOCAL) = B_z;
+// 	    arr(i,j,k,EX_LOCAL) = 0.0;
+// 	    arr(i,j,k,EY_LOCAL) = 0.0;
+// 	    arr(i,j,k,EZ_LOCAL) = 0.0;
 
-	  } else if (test=="zpinch2d"){
+// 	  } else if (test=="zpinch2d"){
 
-	    // cylindrical coordinates
-	    Real rCyl = x;
-	    Real zCyl = y;
+// 	    // cylindrical coordinates
+// 	    Real rCyl = x;
+// 	    Real zCyl = y;
 	    
-	    Real Rp = 1.0/4.0, J0 = 1.0, epsilon = 1.0/100.0, K = 1.0;
-	    /*Real epsilon0 = lambda_d*lambda_d;
-	      Real mu0 = 1.0/(c*c*epsilon0);*/
-	    Real mu0 = 1.0;
+// 	    Real Rp = 1.0/4.0, J0 = 1.0, epsilon = 1.0/100.0, K = 1.0;
+// 	    /*Real epsilon0 = lambda_d*lambda_d;
+// 	      Real mu0 = 1.0/(c*c*epsilon0);*/
+// 	    Real mu0 = 1.0;
 
-	    Real B_phi_in = 0.5*rCyl*mu0*J0*(1.0 + epsilon*std::sin(2*M_PI*K*zCyl)), B_phi_out = 0.5*(Rp*Rp/rCyl)*mu0*J0*(1.0 + epsilon*std::sin(2*M_PI*K*zCyl)); 
+// 	    Real B_phi_in = 0.5*rCyl*mu0*J0*(1.0 + epsilon*std::sin(2*M_PI*K*zCyl)), B_phi_out = 0.5*(Rp*Rp/rCyl)*mu0*J0*(1.0 + epsilon*std::sin(2*M_PI*K*zCyl)); 
 	    
-	    if (rCyl<Rp){
-	      // minus sign since in cylindrical coordinates
-	      B_z = -B_phi_in;
-	    } else{
-	      B_z = -B_phi_out;
-	    }
+// 	    if (rCyl<Rp){
+// 	      // minus sign since in cylindrical coordinates
+// 	      B_z = -B_phi_in;
+// 	    } else{
+// 	      B_z = -B_phi_out;
+// 	    }
 
-	    arr(i,j,k,BX_LOCAL) = 0.0;
-	    arr(i,j,k,BY_LOCAL) = 0.0;
-	    arr(i,j,k,BZ_LOCAL) = B_z;
-	    arr(i,j,k,EX_LOCAL) = 0.0;
-	    arr(i,j,k,EY_LOCAL) = 0.0;
-	    arr(i,j,k,EZ_LOCAL) = 0.0;
+// 	    arr(i,j,k,BX_LOCAL) = 0.0;
+// 	    arr(i,j,k,BY_LOCAL) = 0.0;
+// 	    arr(i,j,k,BZ_LOCAL) = B_z;
+// 	    arr(i,j,k,EX_LOCAL) = 0.0;
+// 	    arr(i,j,k,EY_LOCAL) = 0.0;
+// 	    arr(i,j,k,EZ_LOCAL) = 0.0;
 	    
-	  } else if (test=="zpinch2dTrue"){
+// 	  } else if (test=="zpinch2dTrue"){
 
-	    // cylindrical coordinates
-	    Real rCyl = x;
-	    Real zCyl = y;
+// 	    // cylindrical coordinates
+// 	    Real rCyl = x;
+// 	    Real zCyl = y;
 
-	    // parameters
-	    Real epsilon0 = 1.0, mu0 = 1.0, n0 = 1.0, P0 = 1.5625*0.01, beta = 1.0/10.0, alpha = 100.0;
-	    Real m_i = 1.0;
-	    Real q_i = r_i*m_i;
-	    // perturbation
-	    Real epsilon = 1.0/100.0, K = 1.0;
+// 	    // parameters
+// 	    Real epsilon0 = 1.0, mu0 = 1.0, n0 = 1.0, P0 = 1.5625*0.01, beta = 1.0/10.0, alpha = 100.0;
+// 	    Real m_i = 1.0;
+// 	    Real q_i = r_i*m_i;
+// 	    // perturbation
+// 	    Real epsilon = 1.0/100.0, K = 1.0;
 
-	    Real oneR2A = 1.0 + rCyl*rCyl*alpha;
-	    Real oneBR2AB = 1.0 + beta + rCyl*rCyl*alpha*beta;
+// 	    Real oneR2A = 1.0 + rCyl*rCyl*alpha;
+// 	    Real oneBR2AB = 1.0 + beta + rCyl*rCyl*alpha*beta;
 	    
-	    Real C1 = -2.0 + rCyl*rCyl*alpha*(-2.0+(P0*alpha*epsilon0)/(n0*n0*q_i*q_i*std::pow(oneBR2AB,2)));
-	    Real C2 = std::sqrt(P0*((rCyl*rCyl*alpha*C1)/std::pow(oneR2A,2)+2.0*std::log(oneR2A))/(rCyl*rCyl*alpha*mu0));
+// 	    Real C1 = -2.0 + rCyl*rCyl*alpha*(-2.0+(P0*alpha*epsilon0)/(n0*n0*q_i*q_i*std::pow(oneBR2AB,2)));
+// 	    Real C2 = std::sqrt(P0*((rCyl*rCyl*alpha*C1)/std::pow(oneR2A,2)+2.0*std::log(oneR2A))/(rCyl*rCyl*alpha*mu0));
 
-	    Real Btheta = -C2*(1.0 + epsilon*std::sin(2*M_PI*K*zCyl));
-	    Real Er = -(P0*rCyl*alpha)/(q_i*std::pow(oneR2A,2)*(n0/oneR2A+n0*beta));
-	    //Er *= (1.0 + epsilon*std::sin(2*M_PI*K*zCyl));
+// 	    Real Btheta = -C2*(1.0 + epsilon*std::sin(2*M_PI*K*zCyl));
+// 	    Real Er = -(P0*rCyl*alpha)/(q_i*std::pow(oneR2A,2)*(n0/oneR2A+n0*beta));
+// 	    //Er *= (1.0 + epsilon*std::sin(2*M_PI*K*zCyl));
 	    
-	    arr(i,j,k,BX_LOCAL) = 0.0;
-	    arr(i,j,k,BY_LOCAL) = 0.0;
-	    // minus sign since in cylindrical coordinates
-	    arr(i,j,k,BZ_LOCAL) = -Btheta;
-	    arr(i,j,k,EX_LOCAL) = Er;
-	    arr(i,j,k,EY_LOCAL) = 0.0;
-	    arr(i,j,k,EZ_LOCAL) = 0.0;
+// 	    arr(i,j,k,BX_LOCAL) = 0.0;
+// 	    arr(i,j,k,BY_LOCAL) = 0.0;
+// 	    // minus sign since in cylindrical coordinates
+// 	    arr(i,j,k,BZ_LOCAL) = -Btheta;
+// 	    arr(i,j,k,EX_LOCAL) = Er;
+// 	    arr(i,j,k,EY_LOCAL) = 0.0;
+// 	    arr(i,j,k,EZ_LOCAL) = 0.0;
 
-	  } else if (test=="convergence"){
+// 	  } else if (test=="convergence"){
 
-	    arr(i,j,k,BX_LOCAL) = 0.0;
-	    arr(i,j,k,BY_LOCAL) = std::sin(2*M_PI*x);
-	    arr(i,j,k,BZ_LOCAL) = 0.0;
-	    arr(i,j,k,EX_LOCAL) = 0.0;
-	    arr(i,j,k,EY_LOCAL) = 0.0;
-	    arr(i,j,k,EZ_LOCAL) = -std::sin(2*M_PI*x);
+// 	    arr(i,j,k,BX_LOCAL) = 0.0;
+// 	    arr(i,j,k,BY_LOCAL) = std::sin(2*M_PI*x);
+// 	    arr(i,j,k,BZ_LOCAL) = 0.0;
+// 	    arr(i,j,k,EX_LOCAL) = 0.0;
+// 	    arr(i,j,k,EY_LOCAL) = 0.0;
+// 	    arr(i,j,k,EZ_LOCAL) = -std::sin(2*M_PI*x);
 
-	  } else if (test=="convergence2D"){
+// 	  } else if (test=="convergence2D"){
 
-	    arr(i,j,k,BX_LOCAL) = 0.0;
-	    arr(i,j,k,BY_LOCAL) = 0.0;
-	    arr(i,j,k,BZ_LOCAL) = 0.0;
-	    arr(i,j,k,EX_LOCAL) = 0.0;
-	    arr(i,j,k,EY_LOCAL) = c*std::cos(2.0*M_PI*(x+y))/std::sqrt(2.0);
-	    arr(i,j,k,EZ_LOCAL) = 0.0;
+// 	    arr(i,j,k,BX_LOCAL) = 0.0;
+// 	    arr(i,j,k,BY_LOCAL) = 0.0;
+// 	    arr(i,j,k,BZ_LOCAL) = 0.0;
+// 	    arr(i,j,k,EX_LOCAL) = 0.0;
+// 	    arr(i,j,k,EY_LOCAL) = c*std::cos(2.0*M_PI*(x+y))/std::sqrt(2.0);
+// 	    arr(i,j,k,EZ_LOCAL) = 0.0;
 
-	  } else if (test=="EMwave"){
+// 	  } else if (test=="EMwave"){
 
-	    arr(i,j,k,BX_LOCAL) = 0.0;
-	    arr(i,j,k,BY_LOCAL) = 0.0;
-	    arr(i,j,k,BZ_LOCAL) = 0.0;
-	    arr(i,j,k,EX_LOCAL) = -c*std::cos(2.0*M_PI*(x+y))/std::sqrt(2.0);
-	    arr(i,j,k,EY_LOCAL) = c*std::cos(2.0*M_PI*(x+y))/std::sqrt(2.0);
-	    arr(i,j,k,EZ_LOCAL) = 0.0;
+// 	    arr(i,j,k,BX_LOCAL) = 0.0;
+// 	    arr(i,j,k,BY_LOCAL) = 0.0;
+// 	    arr(i,j,k,BZ_LOCAL) = 0.0;
+// 	    arr(i,j,k,EX_LOCAL) = -c*std::cos(2.0*M_PI*(x+y))/std::sqrt(2.0);
+// 	    arr(i,j,k,EY_LOCAL) = c*std::cos(2.0*M_PI*(x+y))/std::sqrt(2.0);
+// 	    arr(i,j,k,EZ_LOCAL) = 0.0;
 
-	  } else if (test=="EMwave1d"){
+// 	  } else if (test=="EMwave1d"){
 
-	    arr(i,j,k,BX_LOCAL) = 0.0;
-	    arr(i,j,k,BY_LOCAL) = 0.0;
-	    arr(i,j,k,BZ_LOCAL) = 0.0;
-	    arr(i,j,k,EX_LOCAL) = 0.0;
-	    arr(i,j,k,EY_LOCAL) = c*std::cos(2.0*M_PI*(x));
-	    arr(i,j,k,EZ_LOCAL) = 0.0;
+// 	    arr(i,j,k,BX_LOCAL) = 0.0;
+// 	    arr(i,j,k,BY_LOCAL) = 0.0;
+// 	    arr(i,j,k,BZ_LOCAL) = 0.0;
+// 	    arr(i,j,k,EX_LOCAL) = 0.0;
+// 	    arr(i,j,k,EY_LOCAL) = c*std::cos(2.0*M_PI*(x));
+// 	    arr(i,j,k,EZ_LOCAL) = 0.0;
 
-	  } else if (test=="EMwaveTM"){
+// 	  } else if (test=="EMwaveTM"){
 
-	    using namespace std::complex_literals;
+// 	    using namespace std::complex_literals;
 	    
-	    // cylindrical coordinates
-	    const Real rCyl = x;
-	    const Real zCyl = y;
+// 	    // cylindrical coordinates
+// 	    const Real rCyl = x;
+// 	    const Real zCyl = y;
 
-	    // parameters
-	    Real xi0 = 2.40482555769577;
-	    Real kr = xi0;
-	    Real kz = M_PI;
-	    Real omega = std::sqrt(kr*kr + kz*kz);
+// 	    // parameters
+// 	    Real xi0 = 2.40482555769577;
+// 	    Real kr = xi0;
+// 	    Real kz = M_PI;
+// 	    Real omega = std::sqrt(kr*kr + kz*kz);
 
-	    // function
-	    auto Bessel0ExpFunc = std::cyl_bessel_j(0,kr*rCyl)*std::exp(1i*kz*zCyl);
-	    auto Bessel1ExpFunc = std::cyl_bessel_j(1,kr*rCyl)*std::exp(1i*kz*zCyl);
+// 	    // function
+// 	    auto Bessel0ExpFunc = std::cyl_bessel_j(0,kr*rCyl)*std::exp(1i*kz*zCyl);
+// 	    auto Bessel1ExpFunc = std::cyl_bessel_j(1,kr*rCyl)*std::exp(1i*kz*zCyl);
 	    
-	    arr(i,j,k,BX_LOCAL) = 0.0;
-	    arr(i,j,k,BY_LOCAL) = 0.0;
-	    // negative sign for theta components in cyl. coord.
-	    arr(i,j,k,BZ_LOCAL) = -std::real(-1i*omega*kr/(omega*omega-kz*kz)*Bessel1ExpFunc);
-	    arr(i,j,k,EX_LOCAL) = std::real(-1i*kz*kr/(omega*omega-kz*kz)*Bessel1ExpFunc);
-	    arr(i,j,k,EY_LOCAL) = std::real(Bessel0ExpFunc);
-	    arr(i,j,k,EZ_LOCAL) = 0.0;
+// 	    arr(i,j,k,BX_LOCAL) = 0.0;
+// 	    arr(i,j,k,BY_LOCAL) = 0.0;
+// 	    // negative sign for theta components in cyl. coord.
+// 	    arr(i,j,k,BZ_LOCAL) = -std::real(-1i*omega*kr/(omega*omega-kz*kz)*Bessel1ExpFunc);
+// 	    arr(i,j,k,EX_LOCAL) = std::real(-1i*kz*kr/(omega*omega-kz*kz)*Bessel1ExpFunc);
+// 	    arr(i,j,k,EY_LOCAL) = std::real(Bessel0ExpFunc);
+// 	    arr(i,j,k,EZ_LOCAL) = 0.0;
 	    
-	  } else if (test=="EMwaveTE1d"){
+// 	  } else if (test=="EMwaveTE1d"){
 
-	    using namespace std::complex_literals;
+// 	    using namespace std::complex_literals;
 	    
-	    // cylindrical coordinates
-	    const Real rCyl = x;
-	    Real L = 2.0*M_PI; //geom.ProbHi()[0]-geom.ProbLo()[0];
-	    // parameters
-	    Real z1 = 2.40482555769577;
-	    Real omega = z1/L;
+// 	    // cylindrical coordinates
+// 	    const Real rCyl = x;
+// 	    Real L = 2.0*M_PI; //geom.ProbHi()[0]-geom.ProbLo()[0];
+// 	    // parameters
+// 	    Real z1 = 2.40482555769577;
+// 	    Real omega = z1/L;
 	    
-	    // function
-	    auto Bessel0SinFunc = std::cyl_bessel_j(0,omega*rCyl)*std::sin(omega*0.0);
-	    auto Bessel1CosFunc = std::cyl_bessel_j(1,omega*rCyl)*std::cos(omega*0.0);
+// 	    // function
+// 	    auto Bessel0SinFunc = std::cyl_bessel_j(0,omega*rCyl)*std::sin(omega*0.0);
+// 	    auto Bessel1CosFunc = std::cyl_bessel_j(1,omega*rCyl)*std::cos(omega*0.0);
 	    
-	    arr(i,j,k,BX_LOCAL) = 0.0;
-	    arr(i,j,k,BY_LOCAL) = -Bessel0SinFunc;	    
-	    arr(i,j,k,BZ_LOCAL) = 0.0;
-	    arr(i,j,k,EX_LOCAL) = 0.0;
-	    arr(i,j,k,EY_LOCAL) = 0.0;
-	    // negative sign for theta components in cyl. coord.
-	    arr(i,j,k,EZ_LOCAL) = -Bessel1CosFunc;
+// 	    arr(i,j,k,BX_LOCAL) = 0.0;
+// 	    arr(i,j,k,BY_LOCAL) = -Bessel0SinFunc;	    
+// 	    arr(i,j,k,BZ_LOCAL) = 0.0;
+// 	    arr(i,j,k,EX_LOCAL) = 0.0;
+// 	    arr(i,j,k,EY_LOCAL) = 0.0;
+// 	    // negative sign for theta components in cyl. coord.
+// 	    arr(i,j,k,EZ_LOCAL) = -Bessel1CosFunc;
 	    
-	  } else if (test=="gaussianEM"){
+// 	  } else if (test=="gaussianEM"){
 
-	    Real lambda = 1.5, chi = 1.5, a = -2.5, b = -2.5;
-	    Real COS = std::cos(2.0*M_PI*(x+y)/lambda);
-	    Real SIN = std::sin(2.0*M_PI*(x+y)/lambda);
-	    Real FACTOR = ((x-a)*(x-a)+(y-b)*(y-b))/(chi*chi);
-	    Real EXP = std::exp(-FACTOR);
-	    Real epsilon = 5.0 - 4.0*std::tanh((std::sqrt(x*x+y*y)-0.75)/0.08);
+// 	    Real lambda = 1.5, chi = 1.5, a = -2.5, b = -2.5;
+// 	    Real COS = std::cos(2.0*M_PI*(x+y)/lambda);
+// 	    Real SIN = std::sin(2.0*M_PI*(x+y)/lambda);
+// 	    Real FACTOR = ((x-a)*(x-a)+(y-b)*(y-b))/(chi*chi);
+// 	    Real EXP = std::exp(-FACTOR);
+// 	    Real epsilon = 5.0 - 4.0*std::tanh((std::sqrt(x*x+y*y)-0.75)/0.08);
 
-	    arr(i,j,k,BX_LOCAL) = 0.0;
-	    arr(i,j,k,BY_LOCAL) = 0.0;
-	    arr(i,j,k,BZ_LOCAL) = 0.0;
-	    arr(i,j,k,EX_LOCAL) = 0.0;
-	    arr(i,j,k,EY_LOCAL) = COS*EXP - lambda*SIN*EXP*(x-a)/(chi*chi*M_PI);
-	    arr(i,j,k,EY_LOCAL) *= c/(epsilon*std::sqrt(2.0));
-	    arr(i,j,k,EZ_LOCAL) = 0.0;
+// 	    arr(i,j,k,BX_LOCAL) = 0.0;
+// 	    arr(i,j,k,BY_LOCAL) = 0.0;
+// 	    arr(i,j,k,BZ_LOCAL) = 0.0;
+// 	    arr(i,j,k,EX_LOCAL) = 0.0;
+// 	    arr(i,j,k,EY_LOCAL) = COS*EXP - lambda*SIN*EXP*(x-a)/(chi*chi*M_PI);
+// 	    arr(i,j,k,EY_LOCAL) *= c/(epsilon*std::sqrt(2.0));
+// 	    arr(i,j,k,EZ_LOCAL) = 0.0;
 
-	  } 
-  	}
-      }
-    }
-  }  
-  for (MFIter mfi(S_EM_XY); mfi.isValid(); ++mfi)
-  {
-    Box bx = mfi.tilebox();
-    const Dim3 lo = lbound(bx);
-    const Dim3 hi = ubound(bx);
+// 	  } 
+//   	}
+//       }
+//     }
+//   }  
+//   for (MFIter mfi(S_EM_XY); mfi.isValid(); ++mfi)
+//   {
+//     Box bx = mfi.tilebox();
+//     const Dim3 lo = lbound(bx);
+//     const Dim3 hi = ubound(bx);
 
-    const auto& arr = S_EM_XY.array(mfi);
+//     const auto& arr = S_EM_XY.array(mfi);
     
-    for(int k = lo.z; k <= hi.z; k++)
-    {
-      const Real z = probLoZ + (double(k)+0.5) * dZ;
-      for(int j = lo.y; j <= hi.y; j++)
-      {
-	const Real y = probLoY + (double(j)) * dY;
-	for(int i = lo.x; i <= hi.x; i++)
-	{
-	  // only x-face has no 0.5 shift
-	  const Real x = probLoX + (double(i)) * dX;
+//     for(int k = lo.z; k <= hi.z; k++)
+//     {
+//       const Real z = probLoZ + (double(k)+0.5) * dZ;
+//       for(int j = lo.y; j <= hi.y; j++)
+//       {
+// 	const Real y = probLoY + (double(j)) * dY;
+// 	for(int i = lo.x; i <= hi.x; i++)
+// 	{
+// 	  // only x-face has no 0.5 shift
+// 	  const Real x = probLoX + (double(i)) * dX;
 	
-	  if (test=="BrioWu"){
-	    Real B_x_L = 0.75, B_y_L = 1.0, B_z_L = 0.0;
-	    Real B_x_R = 0.75, B_y_R = -1.0, B_z_R = 0.0;
+// 	  if (test=="BrioWu"){
+// 	    Real B_x_L = 0.75, B_y_L = 1.0, B_z_L = 0.0;
+// 	    Real B_x_R = 0.75, B_y_R = -1.0, B_z_R = 0.0;
 	    
-	    if (x<=(geom.ProbLo()[0]+geom.ProbHi()[0])/2.0){
-	      B_x = B_x_L, B_y = B_y_L, B_z = B_z_L;
-	    } else{
-	      B_x = B_x_R, B_y = B_y_R, B_z = B_z_R;
-	    }
-	    /*if (y<=(geom.ProbLo()[1]+geom.ProbHi()[1])/2.0){
-	      B_x = B_y_L, B_y = B_x_L, B_z = B_z_L;
-	    } else{
-	      B_x = B_y_R, B_y = B_x_R, B_z = B_z_R;
-	      }*/
+// 	    if (x<=(geom.ProbLo()[0]+geom.ProbHi()[0])/2.0){
+// 	      B_x = B_x_L, B_y = B_y_L, B_z = B_z_L;
+// 	    } else{
+// 	      B_x = B_x_R, B_y = B_y_R, B_z = B_z_R;
+// 	    }
+// 	    /*if (y<=(geom.ProbLo()[1]+geom.ProbHi()[1])/2.0){
+// 	      B_x = B_y_L, B_y = B_x_L, B_z = B_z_L;
+// 	    } else{
+// 	      B_x = B_y_R, B_y = B_x_R, B_z = B_z_R;
+// 	      }*/
 
-	    arr(i,j,k,BX_LOCAL) = B_x;	    
-	    arr(i,j,k,BY_LOCAL) = B_y;
-	    arr(i,j,k,BZ_LOCAL) = B_z;
-	    arr(i,j,k,EX_LOCAL) = 0.0;
-	    arr(i,j,k,EY_LOCAL) = 0.0;
-	    arr(i,j,k,EZ_LOCAL) = 0.0;	    
+// 	    arr(i,j,k,BX_LOCAL) = B_x;	    
+// 	    arr(i,j,k,BY_LOCAL) = B_y;
+// 	    arr(i,j,k,BZ_LOCAL) = B_z;
+// 	    arr(i,j,k,EX_LOCAL) = 0.0;
+// 	    arr(i,j,k,EY_LOCAL) = 0.0;
+// 	    arr(i,j,k,EZ_LOCAL) = 0.0;	    
 	    
-	  } else if (test=="BrioWu2DCart"){
-	    Real theta = std::atan(std::abs(y/x));
-	    // second quadrant
-	    if (x<=0.0 && y>=0.0)
-	      theta = M_PI-theta;
-	    // third quadrant
-	    else if (x<=0.0 && y<=0.0)
-	      theta = M_PI+theta;
-	    // fourth quadrant
-	    else if (x>=0.0 && y<=0.0)
-	      theta = 2*M_PI-theta;
+// 	  } else if (test=="BrioWu2DCart"){
+// 	    Real theta = std::atan(std::abs(y/x));
+// 	    // second quadrant
+// 	    if (x<=0.0 && y>=0.0)
+// 	      theta = M_PI-theta;
+// 	    // third quadrant
+// 	    else if (x<=0.0 && y<=0.0)
+// 	      theta = M_PI+theta;
+// 	    // fourth quadrant
+// 	    else if (x>=0.0 && y<=0.0)
+// 	      theta = 2*M_PI-theta;
 
-	    Real rCyl = std::sqrt(x*x+y*y);
-	    // parameters
-	    Real xi0 = 2.40482555769577;
-	    Real omega = xi0/(0.1*2.0*M_PI);
+// 	    Real rCyl = std::sqrt(x*x+y*y);
+// 	    // parameters
+// 	    Real xi0 = 2.40482555769577;
+// 	    Real omega = xi0/(0.1*2.0*M_PI);
 
-	    // function
-	    auto B_theta = std::cyl_bessel_j(1,omega*rCyl);	    
+// 	    // function
+// 	    auto B_theta = std::cyl_bessel_j(1,omega*rCyl);	    
 	    
-	    B_x = -B_theta*std::sin(theta);
-	    B_y = B_theta*std::cos(theta);
-	    B_z = 0.0;
+// 	    B_x = -B_theta*std::sin(theta);
+// 	    B_y = B_theta*std::cos(theta);
+// 	    B_z = 0.0;
 
-	    arr(i,j,k,BX_LOCAL) = B_x;
-	    arr(i,j,k,BY_LOCAL) = B_y;
-	    arr(i,j,k,BZ_LOCAL) = B_z;
-	    arr(i,j,k,EX_LOCAL) = 0.0;
-	    arr(i,j,k,EY_LOCAL) = 0.0;	    
-	    arr(i,j,k,EZ_LOCAL) = 0.0;	   
+// 	    arr(i,j,k,BX_LOCAL) = B_x;
+// 	    arr(i,j,k,BY_LOCAL) = B_y;
+// 	    arr(i,j,k,BZ_LOCAL) = B_z;
+// 	    arr(i,j,k,EX_LOCAL) = 0.0;
+// 	    arr(i,j,k,EY_LOCAL) = 0.0;	    
+// 	    arr(i,j,k,EZ_LOCAL) = 0.0;	   
 
-	  } else if (test=="BrioWu1DCyl"){
+// 	  } else if (test=="BrioWu1DCyl"){
 
-	    // cylindrical coordinates
-	    const Real rCyl = x;
+// 	    // cylindrical coordinates
+// 	    const Real rCyl = x;
 
-	    // parameters
-	    Real xi0 = 2.40482555769577;
-	    Real omega = xi0/(0.1*2.0*M_PI);
+// 	    // parameters
+// 	    Real xi0 = 2.40482555769577;
+// 	    Real omega = xi0/(0.1*2.0*M_PI);
 
-	    // function
-	    auto B_theta = std::cyl_bessel_j(1,omega*rCyl);	    
+// 	    // function
+// 	    auto B_theta = std::cyl_bessel_j(1,omega*rCyl);	    
 
-	    arr(i,j,k,BX_LOCAL) = 0.0;
-	    arr(i,j,k,BY_LOCAL) = 0.0;
-	    arr(i,j,k,BZ_LOCAL) = B_theta;
-	    arr(i,j,k,EX_LOCAL) = 0.0;
-	    arr(i,j,k,EY_LOCAL) = 0.0;	    
-	    arr(i,j,k,EZ_LOCAL) = 0.0;	   
+// 	    arr(i,j,k,BX_LOCAL) = 0.0;
+// 	    arr(i,j,k,BY_LOCAL) = 0.0;
+// 	    arr(i,j,k,BZ_LOCAL) = B_theta;
+// 	    arr(i,j,k,EX_LOCAL) = 0.0;
+// 	    arr(i,j,k,EY_LOCAL) = 0.0;	    
+// 	    arr(i,j,k,EZ_LOCAL) = 0.0;	   
 
-	  } else if (test=="OT" || test=="OTideal"){
-	    v_x = -std::sin(y);
-	    v_y = std::sin(x);
-	    v_z = 0.0;	    
-	    B_x = -std::sin(y);
-	    B_y = std::sin(2.0*x);
-	    B_z = 0.0;
-	    Vector<Real> vcrossB = cross_product({v_x,v_y,v_z},{B_x,B_y,B_z});	    
+// 	  } else if (test=="OT" || test=="OTideal"){
+// 	    v_x = -std::sin(y);
+// 	    v_y = std::sin(x);
+// 	    v_z = 0.0;	    
+// 	    B_x = -std::sin(y);
+// 	    B_y = std::sin(2.0*x);
+// 	    B_z = 0.0;
+// 	    Vector<Real> vcrossB = cross_product({v_x,v_y,v_z},{B_x,B_y,B_z});	    
 	    
-	    arr(i,j,k,BX_LOCAL) = B_x;
-	    arr(i,j,k,BY_LOCAL) = B_y;
-	    arr(i,j,k,BZ_LOCAL) = B_z;
-	    arr(i,j,k,EX_LOCAL) = -vcrossB[0];
-	    arr(i,j,k,EY_LOCAL) = -vcrossB[1];
-	    arr(i,j,k,EZ_LOCAL) = -vcrossB[2];
+// 	    arr(i,j,k,BX_LOCAL) = B_x;
+// 	    arr(i,j,k,BY_LOCAL) = B_y;
+// 	    arr(i,j,k,BZ_LOCAL) = B_z;
+// 	    arr(i,j,k,EX_LOCAL) = -vcrossB[0];
+// 	    arr(i,j,k,EY_LOCAL) = -vcrossB[1];
+// 	    arr(i,j,k,EZ_LOCAL) = -vcrossB[2];
 
-	  } else if (test=="Harris_sheet"){
-	    Real Lx = geom.ProbHi()[0]-geom.ProbLo()[0], Ly = geom.ProbHi()[1]-geom.ProbLo()[1];
-	    Real lambda = 0.5, B0 = 1.0, B1 = 0.1;
-	    B_x = B0*std::tanh(y/lambda) - B1*(M_PI/Ly)*std::cos(2*M_PI*x/Lx)*std::sin(M_PI*y/Ly);
-	    B_y = B1*(2*M_PI/Lx)*std::cos(M_PI*y/Ly)*std::sin(2*M_PI*x/Lx);
-	    B_z = 0.0;
+// 	  } else if (test=="Harris_sheet"){
+// 	    Real Lx = geom.ProbHi()[0]-geom.ProbLo()[0], Ly = geom.ProbHi()[1]-geom.ProbLo()[1];
+// 	    Real lambda = 0.5, B0 = 1.0, B1 = 0.1;
+// 	    B_x = B0*std::tanh(y/lambda) - B1*(M_PI/Ly)*std::cos(2*M_PI*x/Lx)*std::sin(M_PI*y/Ly);
+// 	    B_y = B1*(2*M_PI/Lx)*std::cos(M_PI*y/Ly)*std::sin(2*M_PI*x/Lx);
+// 	    B_z = 0.0;
 	    
-	    arr(i,j,k,BX_LOCAL) = B_x;
-	    arr(i,j,k,BY_LOCAL) = B_y;
-	    arr(i,j,k,BZ_LOCAL) = B_z;
-	    arr(i,j,k,EX_LOCAL) = 0.0;
-	    arr(i,j,k,EY_LOCAL) = 0.0;
-	    arr(i,j,k,EZ_LOCAL) = 0.0;
+// 	    arr(i,j,k,BX_LOCAL) = B_x;
+// 	    arr(i,j,k,BY_LOCAL) = B_y;
+// 	    arr(i,j,k,BZ_LOCAL) = B_z;
+// 	    arr(i,j,k,EX_LOCAL) = 0.0;
+// 	    arr(i,j,k,EY_LOCAL) = 0.0;
+// 	    arr(i,j,k,EZ_LOCAL) = 0.0;
 	    
-	  } else if (test=="Harris_sheet_full"){
-	    Real Lx = geom.ProbHi()[0]-geom.ProbLo()[0], Ly = geom.ProbHi()[1]-geom.ProbLo()[1];
-	    Real lambda = 0.5, B0 = 1.0, B1 = 0.1;
-	    if (y>=0.0)
-	      B_x = B0*std::tanh((y-Ly/4)/lambda) - 2.0*B1*(M_PI/Ly)*std::cos(2*M_PI*x/Lx)*std::sin(M_PI*(y-0.25*Ly)/(Ly/2.0));
-	    else
-	      B_x = - B0*std::tanh((y+Ly/4)/lambda) - 2.0*B1*(M_PI/Ly)*std::cos(2*M_PI*x/Lx)*std::sin(M_PI*(y-0.25*Ly)/(Ly/2.0));
-	    B_y = B1*(2*M_PI/Lx)*std::cos(M_PI*(y-0.25*Ly)/(Ly/2.0))*std::sin(2*M_PI*x/Lx);
-	    B_z = 0.0;
+// 	  } else if (test=="Harris_sheet_full"){
+// 	    Real Lx = geom.ProbHi()[0]-geom.ProbLo()[0], Ly = geom.ProbHi()[1]-geom.ProbLo()[1];
+// 	    Real lambda = 0.5, B0 = 1.0, B1 = 0.1;
+// 	    if (y>=0.0)
+// 	      B_x = B0*std::tanh((y-Ly/4)/lambda) - 2.0*B1*(M_PI/Ly)*std::cos(2*M_PI*x/Lx)*std::sin(M_PI*(y-0.25*Ly)/(Ly/2.0));
+// 	    else
+// 	      B_x = - B0*std::tanh((y+Ly/4)/lambda) - 2.0*B1*(M_PI/Ly)*std::cos(2*M_PI*x/Lx)*std::sin(M_PI*(y-0.25*Ly)/(Ly/2.0));
+// 	    B_y = B1*(2*M_PI/Lx)*std::cos(M_PI*(y-0.25*Ly)/(Ly/2.0))*std::sin(2*M_PI*x/Lx);
+// 	    B_z = 0.0;
 	    
-	    arr(i,j,k,BX_LOCAL) = B_x;
-	    arr(i,j,k,BY_LOCAL) = B_y;
-	    arr(i,j,k,BZ_LOCAL) = B_z;
-	    arr(i,j,k,EX_LOCAL) = 0.0;
-	    arr(i,j,k,EY_LOCAL) = 0.0;
-	    arr(i,j,k,EZ_LOCAL) = 0.0;
+// 	    arr(i,j,k,BX_LOCAL) = B_x;
+// 	    arr(i,j,k,BY_LOCAL) = B_y;
+// 	    arr(i,j,k,BZ_LOCAL) = B_z;
+// 	    arr(i,j,k,EX_LOCAL) = 0.0;
+// 	    arr(i,j,k,EY_LOCAL) = 0.0;
+// 	    arr(i,j,k,EZ_LOCAL) = 0.0;
 	    
-	  } else if (test=="blast"){
-	    Real B0 = 100.0/std::sqrt(4.0*M_PI);
+// 	  } else if (test=="blast"){
+// 	    Real B0 = 100.0/std::sqrt(4.0*M_PI);
 	    
-	    arr(i,j,k,BX_LOCAL) = B0;
-	    arr(i,j,k,BY_LOCAL) = 0.0;
-	    arr(i,j,k,BZ_LOCAL) = 0.0;
-	    arr(i,j,k,EX_LOCAL) = 0.0;
-	    arr(i,j,k,EY_LOCAL) = 0.0;
-	    arr(i,j,k,EZ_LOCAL) = 0.0;
+// 	    arr(i,j,k,BX_LOCAL) = B0;
+// 	    arr(i,j,k,BY_LOCAL) = 0.0;
+// 	    arr(i,j,k,BZ_LOCAL) = 0.0;
+// 	    arr(i,j,k,EX_LOCAL) = 0.0;
+// 	    arr(i,j,k,EY_LOCAL) = 0.0;
+// 	    arr(i,j,k,EZ_LOCAL) = 0.0;
 	    
-	  } else if (test=="zpinch1d"){
+// 	  } else if (test=="zpinch1d"){
 
-	    // cylindrical coordinates
-	    Real rCyl = x;
+// 	    // cylindrical coordinates
+// 	    Real rCyl = x;
 	    
-	    Real Rp = 1.0/8.0, J0 = 1.0/10.0;
+// 	    Real Rp = 1.0/8.0, J0 = 1.0/10.0;
 	      
-	    Real B_theta_in = J0*(0.5*rCyl-16.0*rCyl*rCyl*rCyl), B_theta_out=J0*(0.5*Rp-16.0*Rp*Rp*Rp)*Rp/rCyl;
-	    if (rCyl<Rp){
-	      B_z = -B_theta_in;
-	    } else{
-	      B_z = -B_theta_out;
-	    }
+// 	    Real B_theta_in = J0*(0.5*rCyl-16.0*rCyl*rCyl*rCyl), B_theta_out=J0*(0.5*Rp-16.0*Rp*Rp*Rp)*Rp/rCyl;
+// 	    if (rCyl<Rp){
+// 	      B_z = -B_theta_in;
+// 	    } else{
+// 	      B_z = -B_theta_out;
+// 	    }
 
-	    arr(i,j,k,BX_LOCAL) = 0.0;
-	    arr(i,j,k,BY_LOCAL) = 0.0;
-	    // minus sign since in cylindrical coordinates
-	    arr(i,j,k,BZ_LOCAL) = B_z;
-	    arr(i,j,k,EX_LOCAL) = 0.0;
-	    arr(i,j,k,EY_LOCAL) = 0.0;
-	    arr(i,j,k,EZ_LOCAL) = 0.0;
+// 	    arr(i,j,k,BX_LOCAL) = 0.0;
+// 	    arr(i,j,k,BY_LOCAL) = 0.0;
+// 	    // minus sign since in cylindrical coordinates
+// 	    arr(i,j,k,BZ_LOCAL) = B_z;
+// 	    arr(i,j,k,EX_LOCAL) = 0.0;
+// 	    arr(i,j,k,EY_LOCAL) = 0.0;
+// 	    arr(i,j,k,EZ_LOCAL) = 0.0;
 
-	  } else if (test=="zpinch2d"){
+// 	  } else if (test=="zpinch2d"){
 
-	    // cylindrical coordinates
-	    Real rCyl = x;
-	    Real zCyl = y;
+// 	    // cylindrical coordinates
+// 	    Real rCyl = x;
+// 	    Real zCyl = y;
 	    
-	    Real Rp = 1.0/4.0, J0 = 1.0, epsilon = 1.0/100.0, K = 1.0;
-	    /*Real epsilon0 = lambda_d*lambda_d;
-	      Real mu0 = 1.0/(c*c*epsilon0);*/
-	    Real mu0 = 1.0;
+// 	    Real Rp = 1.0/4.0, J0 = 1.0, epsilon = 1.0/100.0, K = 1.0;
+// 	    /*Real epsilon0 = lambda_d*lambda_d;
+// 	      Real mu0 = 1.0/(c*c*epsilon0);*/
+// 	    Real mu0 = 1.0;
 
-	    Real B_phi_in = 0.5*rCyl*mu0*J0*(1.0 + epsilon*std::sin(2*M_PI*K*zCyl)), B_phi_out = 0.5*(Rp*Rp/rCyl)*mu0*J0*(1.0 + epsilon*std::sin(2*M_PI*K*zCyl)); 
+// 	    Real B_phi_in = 0.5*rCyl*mu0*J0*(1.0 + epsilon*std::sin(2*M_PI*K*zCyl)), B_phi_out = 0.5*(Rp*Rp/rCyl)*mu0*J0*(1.0 + epsilon*std::sin(2*M_PI*K*zCyl)); 
 	    
-	    if (rCyl<Rp){
-	      // minus sign since in cylindrical coordinates
-	      B_z = -B_phi_in;
-	    } else{
-	      B_z = -B_phi_out;
-	    }
+// 	    if (rCyl<Rp){
+// 	      // minus sign since in cylindrical coordinates
+// 	      B_z = -B_phi_in;
+// 	    } else{
+// 	      B_z = -B_phi_out;
+// 	    }
 
-	    arr(i,j,k,BX_LOCAL) = 0.0;
-	    arr(i,j,k,BY_LOCAL) = 0.0;
-	    arr(i,j,k,BZ_LOCAL) = B_z;
-	    arr(i,j,k,EX_LOCAL) = 0.0;
-	    arr(i,j,k,EY_LOCAL) = 0.0;
-	    arr(i,j,k,EZ_LOCAL) = 0.0;
+// 	    arr(i,j,k,BX_LOCAL) = 0.0;
+// 	    arr(i,j,k,BY_LOCAL) = 0.0;
+// 	    arr(i,j,k,BZ_LOCAL) = B_z;
+// 	    arr(i,j,k,EX_LOCAL) = 0.0;
+// 	    arr(i,j,k,EY_LOCAL) = 0.0;
+// 	    arr(i,j,k,EZ_LOCAL) = 0.0;
 	    
-	  } else if (test=="zpinch2dTrue"){
+// 	  } else if (test=="zpinch2dTrue"){
 
-	    // cylindrical coordinates
-	    Real rCyl = x;
-	    Real zCyl = y;
+// 	    // cylindrical coordinates
+// 	    Real rCyl = x;
+// 	    Real zCyl = y;
 
-	    // parameters
-	    Real epsilon0 = 1.0, mu0 = 1.0, n0 = 1.0, P0 = 1.5625*0.01, beta = 1.0/10.0, alpha = 100.0;
-	    Real m_i = 1.0;
-	    Real q_i = r_i*m_i;
-	    // perturbation
-	    Real epsilon = 1.0/100.0, K = 1.0;
+// 	    // parameters
+// 	    Real epsilon0 = 1.0, mu0 = 1.0, n0 = 1.0, P0 = 1.5625*0.01, beta = 1.0/10.0, alpha = 100.0;
+// 	    Real m_i = 1.0;
+// 	    Real q_i = r_i*m_i;
+// 	    // perturbation
+// 	    Real epsilon = 1.0/100.0, K = 1.0;
 
-	    Real oneR2A = 1.0 + rCyl*rCyl*alpha;
-	    Real oneBR2AB = 1.0 + beta + rCyl*rCyl*alpha*beta;
+// 	    Real oneR2A = 1.0 + rCyl*rCyl*alpha;
+// 	    Real oneBR2AB = 1.0 + beta + rCyl*rCyl*alpha*beta;
 	    
-	    Real C1 = -2.0 + rCyl*rCyl*alpha*(-2.0+(P0*alpha*epsilon0)/(n0*n0*q_i*q_i*std::pow(oneBR2AB,2)));
-	    Real C2 = std::sqrt(P0*((rCyl*rCyl*alpha*C1)/std::pow(oneR2A,2)+2.0*std::log(oneR2A))/(rCyl*rCyl*alpha*mu0));
+// 	    Real C1 = -2.0 + rCyl*rCyl*alpha*(-2.0+(P0*alpha*epsilon0)/(n0*n0*q_i*q_i*std::pow(oneBR2AB,2)));
+// 	    Real C2 = std::sqrt(P0*((rCyl*rCyl*alpha*C1)/std::pow(oneR2A,2)+2.0*std::log(oneR2A))/(rCyl*rCyl*alpha*mu0));
 
-	    Real Btheta = -C2*(1.0 + epsilon*std::sin(2*M_PI*K*zCyl));
-	    Real Er = -(P0*rCyl*alpha)/(q_i*std::pow(oneR2A,2)*(n0/oneR2A+n0*beta));
-	    //Er *= (1.0 + epsilon*std::sin(2*M_PI*K*zCyl));
+// 	    Real Btheta = -C2*(1.0 + epsilon*std::sin(2*M_PI*K*zCyl));
+// 	    Real Er = -(P0*rCyl*alpha)/(q_i*std::pow(oneR2A,2)*(n0/oneR2A+n0*beta));
+// 	    //Er *= (1.0 + epsilon*std::sin(2*M_PI*K*zCyl));
 	    
-	    arr(i,j,k,BX_LOCAL) = 0.0;
-	    arr(i,j,k,BY_LOCAL) = 0.0;
-	    // minus sign since in cylindrical coordinates
-	    arr(i,j,k,BZ_LOCAL) = -Btheta;
-	    arr(i,j,k,EX_LOCAL) = Er;
-	    arr(i,j,k,EY_LOCAL) = 0.0;
-	    arr(i,j,k,EZ_LOCAL) = 0.0;
+// 	    arr(i,j,k,BX_LOCAL) = 0.0;
+// 	    arr(i,j,k,BY_LOCAL) = 0.0;
+// 	    // minus sign since in cylindrical coordinates
+// 	    arr(i,j,k,BZ_LOCAL) = -Btheta;
+// 	    arr(i,j,k,EX_LOCAL) = Er;
+// 	    arr(i,j,k,EY_LOCAL) = 0.0;
+// 	    arr(i,j,k,EZ_LOCAL) = 0.0;
 
-	  } else if (test=="convergence"){
+// 	  } else if (test=="convergence"){
 
-	    arr(i,j,k,BX_LOCAL) = 0.0;
-	    arr(i,j,k,BY_LOCAL) = 0.0;
-	    arr(i,j,k,BZ_LOCAL) = 0.0;
-	    arr(i,j,k,EX_LOCAL) = 0.0;
-	    arr(i,j,k,EY_LOCAL) = 0.0;
-	    arr(i,j,k,EZ_LOCAL) = -std::sin(2*M_PI*x);
+// 	    arr(i,j,k,BX_LOCAL) = 0.0;
+// 	    arr(i,j,k,BY_LOCAL) = 0.0;
+// 	    arr(i,j,k,BZ_LOCAL) = 0.0;
+// 	    arr(i,j,k,EX_LOCAL) = 0.0;
+// 	    arr(i,j,k,EY_LOCAL) = 0.0;
+// 	    arr(i,j,k,EZ_LOCAL) = -std::sin(2*M_PI*x);
 
-	  } else if (test=="convergence2D"){
+// 	  } else if (test=="convergence2D"){
 
-	    arr(i,j,k,BX_LOCAL) = 0.0;
-	    arr(i,j,k,BY_LOCAL) = 0.0;
-	    arr(i,j,k,BZ_LOCAL) = 0.0;
-	    arr(i,j,k,EX_LOCAL) = -c*std::cos(2.0*M_PI*(x+y))/std::sqrt(2.0);
-	    arr(i,j,k,EY_LOCAL) = 0.0;
-	    arr(i,j,k,EZ_LOCAL) = 0.0;
+// 	    arr(i,j,k,BX_LOCAL) = 0.0;
+// 	    arr(i,j,k,BY_LOCAL) = 0.0;
+// 	    arr(i,j,k,BZ_LOCAL) = 0.0;
+// 	    arr(i,j,k,EX_LOCAL) = -c*std::cos(2.0*M_PI*(x+y))/std::sqrt(2.0);
+// 	    arr(i,j,k,EY_LOCAL) = 0.0;
+// 	    arr(i,j,k,EZ_LOCAL) = 0.0;
 
-	  } else if (test=="EMwave"){
+// 	  } else if (test=="EMwave"){
 
-	    arr(i,j,k,BX_LOCAL) = 0.0;
-	    arr(i,j,k,BY_LOCAL) = 0.0;
-	    arr(i,j,k,BZ_LOCAL) = std::cos(2.0*M_PI*(x+y));
-	    arr(i,j,k,EX_LOCAL) = -c*std::cos(2.0*M_PI*(x+y))/std::sqrt(2.0);
-	    arr(i,j,k,EY_LOCAL) = c*std::cos(2.0*M_PI*(x+y))/std::sqrt(2.0);
-	    arr(i,j,k,EZ_LOCAL) = 0.0;
+// 	    arr(i,j,k,BX_LOCAL) = 0.0;
+// 	    arr(i,j,k,BY_LOCAL) = 0.0;
+// 	    arr(i,j,k,BZ_LOCAL) = std::cos(2.0*M_PI*(x+y));
+// 	    arr(i,j,k,EX_LOCAL) = -c*std::cos(2.0*M_PI*(x+y))/std::sqrt(2.0);
+// 	    arr(i,j,k,EY_LOCAL) = c*std::cos(2.0*M_PI*(x+y))/std::sqrt(2.0);
+// 	    arr(i,j,k,EZ_LOCAL) = 0.0;
 
-	  } else if (test=="EMwave1d"){
+// 	  } else if (test=="EMwave1d"){
 
-	    arr(i,j,k,BX_LOCAL) = 0.0;
-	    arr(i,j,k,BY_LOCAL) = 0.0;
-	    arr(i,j,k,BZ_LOCAL) = std::cos(2.0*M_PI*(x));
-	    arr(i,j,k,EX_LOCAL) = 0.0;
-	    arr(i,j,k,EY_LOCAL) = c*std::cos(2.0*M_PI*(x));
-	    arr(i,j,k,EZ_LOCAL) = 0.0;
+// 	    arr(i,j,k,BX_LOCAL) = 0.0;
+// 	    arr(i,j,k,BY_LOCAL) = 0.0;
+// 	    arr(i,j,k,BZ_LOCAL) = std::cos(2.0*M_PI*(x));
+// 	    arr(i,j,k,EX_LOCAL) = 0.0;
+// 	    arr(i,j,k,EY_LOCAL) = c*std::cos(2.0*M_PI*(x));
+// 	    arr(i,j,k,EZ_LOCAL) = 0.0;
 
-	  } else if (test=="EMwaveTM"){
+// 	  } else if (test=="EMwaveTM"){
 
-	    using namespace std::complex_literals;
+// 	    using namespace std::complex_literals;
 	    
-	    // cylindrical coordinates
-	    const Real rCyl = x;
-	    const Real zCyl = y;
+// 	    // cylindrical coordinates
+// 	    const Real rCyl = x;
+// 	    const Real zCyl = y;
 
-	    // parameters
-	    Real xi0 = 2.40482555769577;
-	    Real kr = xi0;
-	    Real kz = M_PI;
-	    Real omega = std::sqrt(kr*kr + kz*kz);
+// 	    // parameters
+// 	    Real xi0 = 2.40482555769577;
+// 	    Real kr = xi0;
+// 	    Real kz = M_PI;
+// 	    Real omega = std::sqrt(kr*kr + kz*kz);
 
-	    // function
-	    auto Bessel0ExpFunc = std::cyl_bessel_j(0,kr*rCyl)*std::exp(1i*kz*zCyl);
-	    auto Bessel1ExpFunc = std::cyl_bessel_j(1,kr*rCyl)*std::exp(1i*kz*zCyl);
+// 	    // function
+// 	    auto Bessel0ExpFunc = std::cyl_bessel_j(0,kr*rCyl)*std::exp(1i*kz*zCyl);
+// 	    auto Bessel1ExpFunc = std::cyl_bessel_j(1,kr*rCyl)*std::exp(1i*kz*zCyl);
 	    
-	    arr(i,j,k,BX_LOCAL) = 0.0;
-	    arr(i,j,k,BY_LOCAL) = 0.0;
-	    // negative sign for theta components in cyl. coord.
-	    arr(i,j,k,BZ_LOCAL) = -std::real(-1i*omega*kr/(omega*omega-kz*kz)*Bessel1ExpFunc);
-	    arr(i,j,k,EX_LOCAL) = std::real(-1i*kz*kr/(omega*omega-kz*kz)*Bessel1ExpFunc);
-	    arr(i,j,k,EY_LOCAL) = std::real(Bessel0ExpFunc);
-	    arr(i,j,k,EZ_LOCAL) = 0.0;
+// 	    arr(i,j,k,BX_LOCAL) = 0.0;
+// 	    arr(i,j,k,BY_LOCAL) = 0.0;
+// 	    // negative sign for theta components in cyl. coord.
+// 	    arr(i,j,k,BZ_LOCAL) = -std::real(-1i*omega*kr/(omega*omega-kz*kz)*Bessel1ExpFunc);
+// 	    arr(i,j,k,EX_LOCAL) = std::real(-1i*kz*kr/(omega*omega-kz*kz)*Bessel1ExpFunc);
+// 	    arr(i,j,k,EY_LOCAL) = std::real(Bessel0ExpFunc);
+// 	    arr(i,j,k,EZ_LOCAL) = 0.0;
 	    
-	  } else if (test=="EMwaveTE1d"){
+// 	  } else if (test=="EMwaveTE1d"){
 
-	    using namespace std::complex_literals;
+// 	    using namespace std::complex_literals;
 	    
-	    // cylindrical coordinates
-	    const Real rCyl = x;
-	    Real L = 2.0*M_PI; //geom.ProbHi()[0]-geom.ProbLo()[0];
-	    // parameters
-	    Real z1 = 2.40482555769577;
-	    Real omega = z1/L;
+// 	    // cylindrical coordinates
+// 	    const Real rCyl = x;
+// 	    Real L = 2.0*M_PI; //geom.ProbHi()[0]-geom.ProbLo()[0];
+// 	    // parameters
+// 	    Real z1 = 2.40482555769577;
+// 	    Real omega = z1/L;
 	    
-	    // function
-	    auto Bessel0SinFunc = std::cyl_bessel_j(0,omega*rCyl)*std::sin(omega*0.0);
-	    auto Bessel1CosFunc = std::cyl_bessel_j(1,omega*rCyl)*std::cos(omega*0.0);
+// 	    // function
+// 	    auto Bessel0SinFunc = std::cyl_bessel_j(0,omega*rCyl)*std::sin(omega*0.0);
+// 	    auto Bessel1CosFunc = std::cyl_bessel_j(1,omega*rCyl)*std::cos(omega*0.0);
 	    
-	    arr(i,j,k,BX_LOCAL) = 0.0;
-	    arr(i,j,k,BY_LOCAL) = -Bessel0SinFunc;	    
-	    arr(i,j,k,BZ_LOCAL) = 0.0;
-	    arr(i,j,k,EX_LOCAL) = 0.0;
-	    arr(i,j,k,EY_LOCAL) = 0.0;
-	    // negative sign for theta components in cyl. coord.
-	    arr(i,j,k,EZ_LOCAL) = -Bessel1CosFunc;
+// 	    arr(i,j,k,BX_LOCAL) = 0.0;
+// 	    arr(i,j,k,BY_LOCAL) = -Bessel0SinFunc;	    
+// 	    arr(i,j,k,BZ_LOCAL) = 0.0;
+// 	    arr(i,j,k,EX_LOCAL) = 0.0;
+// 	    arr(i,j,k,EY_LOCAL) = 0.0;
+// 	    // negative sign for theta components in cyl. coord.
+// 	    arr(i,j,k,EZ_LOCAL) = -Bessel1CosFunc;
 	    
-	  } else if (test=="gaussianEM"){
+// 	  } else if (test=="gaussianEM"){
 
-	    Real lambda = 1.5, chi = 1.5, a = -2.5, b = -2.5;
-	    Real COS = std::cos(2.0*M_PI*(x+y)/lambda);
-	    Real SIN = std::sin(2.0*M_PI*(x+y)/lambda);
-	    Real FACTOR = ((x-a)*(x-a)+(y-b)*(y-b))/(chi*chi);
-	    Real EXP = std::exp(-FACTOR);
-	    Real epsilon = 5.0 - 4.0*std::tanh((std::sqrt(x*x+y*y)-0.75)/0.08);
+// 	    Real lambda = 1.5, chi = 1.5, a = -2.5, b = -2.5;
+// 	    Real COS = std::cos(2.0*M_PI*(x+y)/lambda);
+// 	    Real SIN = std::sin(2.0*M_PI*(x+y)/lambda);
+// 	    Real FACTOR = ((x-a)*(x-a)+(y-b)*(y-b))/(chi*chi);
+// 	    Real EXP = std::exp(-FACTOR);
+// 	    Real epsilon = 5.0 - 4.0*std::tanh((std::sqrt(x*x+y*y)-0.75)/0.08);
 
-	    arr(i,j,k,BX_LOCAL) = 0.0;
-	    arr(i,j,k,BY_LOCAL) = 0.0;
-	    arr(i,j,k,BZ_LOCAL) = 0.0;
-	    arr(i,j,k,EX_LOCAL) = -COS*EXP + lambda*SIN*EXP*(y-b)/(chi*chi*M_PI);
-	    arr(i,j,k,EX_LOCAL) *= c/(epsilon*std::sqrt(2.0));
-	    arr(i,j,k,EY_LOCAL) = 0.0;
-	    arr(i,j,k,EZ_LOCAL) = 0.0;
-	  } 
-	}
-      }
-    }
-  }
-#endif  
+// 	    arr(i,j,k,BX_LOCAL) = 0.0;
+// 	    arr(i,j,k,BY_LOCAL) = 0.0;
+// 	    arr(i,j,k,BZ_LOCAL) = 0.0;
+// 	    arr(i,j,k,EX_LOCAL) = -COS*EXP + lambda*SIN*EXP*(y-b)/(chi*chi*M_PI);
+// 	    arr(i,j,k,EX_LOCAL) *= c/(epsilon*std::sqrt(2.0));
+// 	    arr(i,j,k,EY_LOCAL) = 0.0;
+// 	    arr(i,j,k,EZ_LOCAL) = 0.0;
+// 	  } 
+// 	}
+//       }
+//     }
+//   }
+// #endif  
   // Set values for cell-centred fluid and EM fields
   for (MFIter mfi(S_new); mfi.isValid(); ++mfi)
   {
