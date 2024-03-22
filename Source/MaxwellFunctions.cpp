@@ -46,17 +46,17 @@ void CAMReXmp::setDomainBC (std::array<LinOpBCType,AMREX_SPACEDIM>& mlmg_lobc,
 	{
 	  int pbc = bcLocal.lo(idim);
 
-	  if (pbc == EXT_DIR)
+	  if (pbc == BCType::ext_dir)
 	    {
 	      mlmg_lobc[idim] = LinOpBCType::Dirichlet;
 	    }
-	  else if (pbc == FOEXTRAP      ||
-		   pbc == HOEXTRAP      || 
-		   pbc == REFLECT_EVEN)
+	  else if (pbc == BCType::foextrap      ||
+		   pbc == BCType::hoextrap      || 
+		   pbc == BCType::reflect_even)
 	    {
 	      mlmg_lobc[idim] = LinOpBCType::Neumann;
 	    }
-	  else if (pbc == REFLECT_ODD)
+	  else if (pbc == BCType::reflect_odd)
 	    {
 	      mlmg_lobc[idim] = LinOpBCType::reflect_odd;
 	    }
@@ -66,17 +66,17 @@ void CAMReXmp::setDomainBC (std::array<LinOpBCType,AMREX_SPACEDIM>& mlmg_lobc,
 	    }
 	  
 	  pbc = bcLocal.hi(idim);
-	  if (pbc == EXT_DIR)
+	  if (pbc == BCType::ext_dir)
 	    {
 	      mlmg_hibc[idim] = LinOpBCType::Dirichlet;
 	    }
-	  else if (pbc == FOEXTRAP      ||
-		   pbc == HOEXTRAP      || 
-		   pbc == REFLECT_EVEN)
+	  else if (pbc == BCType::foextrap      ||
+		   pbc == BCType::hoextrap      || 
+		   pbc == BCType::reflect_even)
 	    {
 	      mlmg_hibc[idim] = LinOpBCType::Neumann;
 	    }
-	  else if (pbc == REFLECT_ODD)
+	  else if (pbc == BCType::reflect_odd)
 	    {
 	      mlmg_hibc[idim] = LinOpBCType::reflect_odd;
 	    }
@@ -2948,15 +2948,15 @@ void CAMReXmp::Projection(const Real* dx, Real time)
 	}
       else
 	{
-	  if ((bc_EM[BX_LOCAL].lo(idim) == FOEXTRAP
-	       && bc_EM[BY_LOCAL].lo(idim) == FOEXTRAP
-	       && bc_EM[BZ_LOCAL].lo(idim) == FOEXTRAP) ||
-	      (bc_EM[BX_LOCAL].lo(idim) == HOEXTRAP
-	       && bc_EM[BY_LOCAL].lo(idim) == HOEXTRAP
-	       && bc_EM[BZ_LOCAL].lo(idim) == HOEXTRAP) ||
-	      (bc_EM[BX_LOCAL].lo(idim) == REFLECT_EVEN
-	       && bc_EM[BY_LOCAL].lo(idim) == REFLECT_EVEN
-	       && bc_EM[BZ_LOCAL].lo(idim) == REFLECT_EVEN))
+	  if ((bc_EM[BX_LOCAL].lo(idim) == BCType::foextrap
+	       && bc_EM[BY_LOCAL].lo(idim) == BCType::foextrap
+	       && bc_EM[BZ_LOCAL].lo(idim) == BCType::foextrap) ||
+	      (bc_EM[BX_LOCAL].lo(idim) == BCType::hoextrap
+	       && bc_EM[BY_LOCAL].lo(idim) == BCType::hoextrap
+	       && bc_EM[BZ_LOCAL].lo(idim) == BCType::hoextrap) ||
+	      (bc_EM[BX_LOCAL].lo(idim) == BCType::reflect_even
+	       && bc_EM[BY_LOCAL].lo(idim) == BCType::reflect_even
+	       && bc_EM[BZ_LOCAL].lo(idim) == BCType::reflect_even))
 	    mlmg_lobc[idim] = mlmg_hibc[idim] = LinOpBCType::Neumann;
 	  else
 	    mlmg_lobc[idim] = mlmg_hibc[idim] = LinOpBCType::Dirichlet;//reflect_odd;
@@ -3170,21 +3170,21 @@ std::function<bool(int,int,int,int,int)> markerFunction(const BCRec& bc, const B
 	 {
 	   //return true;
 	   // Dirichlet or reflective
-	   if ((bc.lo(0)==EXT_DIR || bc.hi(0)==EXT_DIR)
-	       || (bc.lo(0)==REFLECT_ODD && bc.hi(0)==REFLECT_ODD))
+	   if ((bc.lo(0)==BCType::ext_dir || bc.hi(0)==BCType::ext_dir)
+	       || (bc.lo(0)==BCType::reflect_odd && bc.hi(0)==BCType::reflect_odd))
 	     {
 	       if (i==nddom.smallEnd(0) || i==nddom.bigEnd(0))
 		 return false;
 	     }
-	   if ((bc.lo(1)==EXT_DIR || bc.hi(1)==EXT_DIR)
-	       || (bc.lo(1)==REFLECT_ODD && bc.hi(1)==REFLECT_ODD))
+	   if ((bc.lo(1)==BCType::ext_dir || bc.hi(1)==BCType::ext_dir)
+	       || (bc.lo(1)==BCType::reflect_odd && bc.hi(1)==BCType::reflect_odd))
 	     {
 	       if (j==nddom.smallEnd(1) || j==nddom.bigEnd(1))
 		 return false;
 	     }
 #if (AMREX_SPACEDIM > 2)
-	   if ((bc.lo(2)==EXT_DIR || bc.hi(2)==EXT_DIR)
-	       || (bc.lo(2)==REFLECT_ODD && bc.hi(2)==REFLECT_ODD))
+	   if ((bc.lo(2)==BCType::ext_dir || bc.hi(2)==BCType::ext_dir)
+	       || (bc.lo(2)==BCType::reflect_odd && bc.hi(2)==BCType::reflect_odd))
 	     {
 	       if (k==nddom.smallEnd(2) || k==nddom.bigEnd(2))
 		 return false;
@@ -3237,8 +3237,8 @@ std::function<void(int,int,int,int,int,Array4<HYPRE_Int const> const*,HYPRE_Int&
 	       }
 	     }
 	   // Dirichlet (and reflective)
-	   else if ((bc.lo(0)==EXT_DIR && bc.hi(0)==EXT_DIR)//)
-		    || (bc.lo(0)==REFLECT_ODD && bc.hi(0)==REFLECT_ODD))
+	   else if ((bc.lo(0)==BCType::ext_dir && bc.hi(0)==BCType::ext_dir)//)
+		    || (bc.lo(0)==BCType::reflect_odd && bc.hi(0)==BCType::reflect_odd))
 	     {
 	       if (i > nddom.smallEnd(0)+1) {
 		 cols[ncols] = gid[n](i-1,j,k);
@@ -3252,9 +3252,9 @@ std::function<void(int,int,int,int,int,Array4<HYPRE_Int const> const*,HYPRE_Int&
 	       }
 	     }
 	   // Neumann
-	   else if ((bc.lo(0)==FOEXTRAP && bc.hi(0)==FOEXTRAP)
-		    || (bc.lo(0)==HOEXTRAP && bc.hi(0)==HOEXTRAP)
-		    || (bc.lo(0)==REFLECT_EVEN && bc.hi(0)==REFLECT_EVEN))
+	   else if ((bc.lo(0)==BCType::foextrap && bc.hi(0)==BCType::foextrap)
+		    || (bc.lo(0)==BCType::hoextrap && bc.hi(0)==BCType::hoextrap)
+		    || (bc.lo(0)==BCType::reflect_even && bc.hi(0)==BCType::reflect_even))
 	     {
 	       if (i > nddom.smallEnd(0) && i !=nddom.bigEnd(0)) {
 		 cols[ncols] = gid[n](i-1,j,k);
@@ -3280,7 +3280,7 @@ std::function<void(int,int,int,int,int,Array4<HYPRE_Int const> const*,HYPRE_Int&
 	   // Reflective
 	   // Note that this is only when it is not nodal
 	   // when it is nodal, it is 0 at the boundaries
-	   // else if (bc.lo(0)==REFLECT_ODD && bc.hi(0)==REFLECT_ODD)
+	   // else if (bc.lo(0)==BCType::reflect_odd && bc.hi(0)==BCType::reflect_odd)
 	   //   {
 	   //     /*if (i > nddom.smallEnd(0)) {
 	   // 	 cols[ncols] = gid[n](i-1,j,k);
@@ -3346,8 +3346,8 @@ std::function<void(int,int,int,int,int,Array4<HYPRE_Int const> const*,HYPRE_Int&
 	       }
 	     }
 	   // Dirichlet
-	   else if ((bc.lo(1)==EXT_DIR && bc.hi(1)==EXT_DIR)//)
-		    || (bc.lo(1)==REFLECT_ODD && bc.hi(1)==REFLECT_ODD))
+	   else if ((bc.lo(1)==BCType::ext_dir && bc.hi(1)==BCType::ext_dir)//)
+		    || (bc.lo(1)==BCType::reflect_odd && bc.hi(1)==BCType::reflect_odd))
 	     {
 	       if (j > nddom.smallEnd(1)+1) {
 		 cols[ncols] = gid[n](i,j-1,k);
@@ -3361,9 +3361,9 @@ std::function<void(int,int,int,int,int,Array4<HYPRE_Int const> const*,HYPRE_Int&
 	       }
 	     }
 	   // Neumann
-	   else if ((bc.lo(1)==FOEXTRAP && bc.hi(1)==FOEXTRAP)
-		    || (bc.lo(1)==HOEXTRAP && bc.hi(1)==HOEXTRAP)
-		    || (bc.lo(1)==REFLECT_EVEN && bc.hi(1)==REFLECT_EVEN))
+	   else if ((bc.lo(1)==BCType::foextrap && bc.hi(1)==BCType::foextrap)
+		    || (bc.lo(1)==BCType::hoextrap && bc.hi(1)==BCType::hoextrap)
+		    || (bc.lo(1)==BCType::reflect_even && bc.hi(1)==BCType::reflect_even))
 	     {
 	       if (j > nddom.smallEnd(1) && j !=nddom.bigEnd(1)) {
 		 cols[ncols] = gid[n](i,j-1,k);
@@ -3389,7 +3389,7 @@ std::function<void(int,int,int,int,int,Array4<HYPRE_Int const> const*,HYPRE_Int&
 	   // Reflective
 	   // Note that this is only when it is not nodal
 	   // when it is nodal, it is 0 at the boundaries
-	   // else if (bc.lo(1)==REFLECT_ODD && bc.hi(1)==REFLECT_ODD)
+	   // else if (bc.lo(1)==BCType::reflect_odd && bc.hi(1)==BCType::reflect_odd)
 	   //   {
 	   //     /*if (j > nddom.smallEnd(1)) {
 	   // 	 cols[ncols] = gid[n](i,j-1,k);
@@ -3456,8 +3456,8 @@ std::function<void(int,int,int,int,int,Array4<HYPRE_Int const> const*,HYPRE_Int&
 	       }
 	     }
 	   // Dirichlet
-	   else if ((bc.lo(2)==EXT_DIR && bc.hi(2)==EXT_DIR)
-		    || (bc.lo(2)==REFLECT_ODD && bc.hi(2)==REFLECT_ODD))
+	   else if ((bc.lo(2)==BCType::ext_dir && bc.hi(2)==BCType::ext_dir)
+		    || (bc.lo(2)==BCType::reflect_odd && bc.hi(2)==BCType::reflect_odd))
 	     {
 	       if (k > nddom.smallEnd(2)+1) {
 		 cols[ncols] = gid[n](i,j,k-1);
@@ -3471,9 +3471,9 @@ std::function<void(int,int,int,int,int,Array4<HYPRE_Int const> const*,HYPRE_Int&
 	       }
 	     }
 	   // Neumann
-	   else if ((bc.lo(2)==FOEXTRAP && bc.hi(2)==FOEXTRAP)
-		    || (bc.lo(2)==HOEXTRAP && bc.hi(2)==HOEXTRAP)
-		    || (bc.lo(2)==REFLECT_EVEN && bc.hi(2)==REFLECT_EVEN))
+	   else if ((bc.lo(2)==BCType::foextrap && bc.hi(2)==BCType::foextrap)
+		    || (bc.lo(2)==BCType::hoextrap && bc.hi(2)==BCType::hoextrap)
+		    || (bc.lo(2)==BCType::reflect_even && bc.hi(2)==BCType::reflect_even))
 	     {
 	       if (k > nddom.smallEnd(2) && k !=nddom.bigEnd(2)) {
 		 cols[ncols] = gid[n](i,j,k-1);
@@ -3499,7 +3499,7 @@ std::function<void(int,int,int,int,int,Array4<HYPRE_Int const> const*,HYPRE_Int&
 	   // Reflective
 	   // Note that this is only when it is not nodal
 	   // when it is nodal, it is 0 at the boundaries
-	   /*else if (bc.lo(2)==REFLECT_ODD && bc.hi(2)==REFLECT_ODD)
+	   /*else if (bc.lo(2)==BCType::reflect_odd && bc.hi(2)==BCType::reflect_odd)
 	     {
 	       if (k > nddom.smallEnd(2)) {
 		 cols[ncols] = gid[n](i,j,k-1);
@@ -3548,7 +3548,7 @@ void CAMReXmp::implicitYeeMaxwellSolver(Array<MultiFab,AMREX_SPACEDIM>& S_EM_des
 
   HYPRE_Real fac0 = HYPRE_Real(-2.)*(AMREX_D_TERM(fac[0],+fac[1],+fac[2]));
 
-   if (bc_EM[BX_LOCAL].lo(1)==REFLECT_ODD || bc_EM[BY_LOCAL].lo(0)==REFLECT_ODD)
+   if (bc_EM[BX_LOCAL].lo(1)==BCType::reflect_odd || bc_EM[BY_LOCAL].lo(0)==BCType::reflect_odd)
      amrex::Abort("Currently does not support fillerFunction reflec_odd for Bx in y-direction or By in x-direction");
 
    //functor that returns whether the variable n at (i,j,k) in Box boxno (local index) is valid
@@ -5871,7 +5871,7 @@ void CAMReXmp::MaxwellSolverFDTDCN(const Real* dx, Real dt, Real time)
 
   HYPRE_Real fac0 = HYPRE_Real(-2.)*(AMREX_D_TERM(fac[0],+fac[1],+fac[2]));
 
-   if (bc_EM[BX_LOCAL].lo(1)==REFLECT_ODD || bc_EM[BY_LOCAL].lo(0)==REFLECT_ODD)
+   if (bc_EM[BX_LOCAL].lo(1)==BCType::reflect_odd || bc_EM[BY_LOCAL].lo(0)==BCType::reflect_odd)
      amrex::Abort("Currently does not support fillerFunction reflec_odd for Bx in y-direction or By in x-direction");
 
    //functor that returns whether the variable n at (i,j,k) in Box boxno (local index) is valid
@@ -6249,7 +6249,7 @@ void CAMReXmp::MaxwellSolverFDTDCNAMReX(const Real* dx, Real dt, Real time)
 
   HYPRE_Real fac0 = HYPRE_Real(-2.)*(AMREX_D_TERM(fac[0],+fac[1],+fac[2]));
 
-   if (bc_EM[BX_LOCAL].lo(1)==REFLECT_ODD || bc_EM[BY_LOCAL].lo(0)==REFLECT_ODD)
+   if (bc_EM[BX_LOCAL].lo(1)==BCType::reflect_odd || bc_EM[BY_LOCAL].lo(0)==BCType::reflect_odd)
      amrex::Abort("Currently does not support fillerFunction reflec_odd for Bx in y-direction or By in x-direction");
 
    //functor that returns whether the variable n at (i,j,k) in Box boxno (local index) is valid
