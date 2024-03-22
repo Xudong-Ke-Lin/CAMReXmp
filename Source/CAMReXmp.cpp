@@ -213,7 +213,7 @@ CAMReXmp::variableSetUp ()
 	      bc[n].setHi(idim, BCType::foextrap);
 	    }
 	}
-      // Euler problem in 1D
+      // Brio-Wu cylindrical explosion in 1D with cylindrical boundary conditions
     } else if (test=="BrioWu1DCyl")
     {
 
@@ -335,44 +335,6 @@ CAMReXmp::variableSetUp ()
       bc[EY].setHi(0, BCType::reflect_odd);	  
       bc[EZ].setHi(0, BCType::reflect_odd);	  
             
-    } else if (test=="EMwaveTE1d")
-    {
-
-      // left use geometric boundaries
-      // reflective even for most variables      
-      for (int n = 0; n < NUM_STATE; ++n)
-	{
-	  bc[n].setLo(0, BCType::reflect_even);
-	}
-      // reflective odd for vectors in radial and azimuthal direction
-      // these are x and z respectively
-      bc[BX].setLo(0, BCType::reflect_odd);
-      bc[BZ].setLo(0, BCType::reflect_odd);
-      bc[EX].setLo(0, BCType::reflect_odd);	  
-      bc[EZ].setLo(0, BCType::reflect_odd);	  
-      
-      // right use conducting wall
-      // foextrap for most variables      
-      for (int n = 0; n < NUM_STATE; ++n)
-	{
-	  bc[n].setHi(0, BCType::foextrap);
-	}
-      // reflective odd for normal magnetic field and tangencials electric fields
-      // these are Br (Bx) and, Ez (Ey) and Etheta (Ez) respectively
-      bc[BX].setHi(0, BCType::reflect_odd);
-      bc[EY].setHi(0, BCType::reflect_odd);	  
-      bc[EZ].setHi(0, BCType::reflect_odd);	  
-            
-    } else if (test=="gaussianEM")
-    {
-      for (int idim = 0; idim < amrex::SpaceDim; ++idim)
-	{
-	  for (int n = 0; n < NUM_STATE; ++n)
-	    {
-	      bc[n].setLo(idim, BCType::foextrap);
-	      bc[n].setHi(idim, BCType::foextrap);
-	    }
-	}      
     } else if (test=="OT" || test=="OTideal")
     {
       for (int i = 0; i < amrex::SpaceDim; ++i)
@@ -383,6 +345,16 @@ CAMReXmp::variableSetUp ()
 	      bc[n].setHi(i, BCType::int_dir);
 	    }
 	}
+    } else if (test=="blast")
+    {
+      for (int idim = 0; idim < amrex::SpaceDim; ++idim)
+	{
+	  for (int n = 0; n < NUM_STATE; ++n)
+	    {
+	      bc[n].setLo(idim, BCType::foextrap);
+	      bc[n].setHi(idim, BCType::foextrap);
+	    }
+	}      
     } else if (test=="Harris_sheet_full")
     {
       for (int i = 0; i < amrex::SpaceDim; ++i)
@@ -448,16 +420,6 @@ CAMReXmp::variableSetUp ()
       bc[DIVE].setLo(1, BCType::reflect_odd);
       bc[DIVE].setHi(1, BCType::reflect_odd);
 
-    } else if (test=="blast")
-    {
-      for (int idim = 0; idim < amrex::SpaceDim; ++idim)
-	{
-	  for (int n = 0; n < NUM_STATE; ++n)
-	    {
-	      bc[n].setLo(idim, BCType::foextrap);
-	      bc[n].setHi(idim, BCType::foextrap);
-	    }
-	}      
     } else if (test=="zpinch1d" || test=="zpinch2d" || test=="zpinch2dTrue")
     {
 
@@ -509,6 +471,104 @@ CAMReXmp::variableSetUp ()
 	      bc[n].setHi(i, BCType::int_dir);
 	    }
 	}
+    } else if (test=="tiltingCyl")
+    {
+      // x direction
+      bc[RHO_I].setLo(0, BCType::foextrap);      
+      bc[RHO_E].setLo(0, BCType::foextrap);      
+
+      bc[MOMX_I].setLo(0, BCType::reflect_odd);
+      bc[MOMY_I].setLo(0, BCType::foextrap);      
+      bc[MOMZ_I].setLo(0, BCType::foextrap);
+      bc[MOMX_E].setLo(0, BCType::reflect_odd);
+      bc[MOMY_E].setLo(0, BCType::foextrap);      
+      bc[MOMZ_E].setLo(0, BCType::foextrap);
+
+      bc[ENER_I].setLo(0, BCType::foextrap);
+      bc[ENER_E].setLo(0, BCType::foextrap);
+            
+      bc[BX].setLo(0, BCType::reflect_odd);
+      bc[BY].setLo(0, BCType::foextrap);
+      bc[BZ].setLo(0, BCType::foextrap);
+
+      bc[EX].setLo(0, BCType::foextrap);
+      bc[EY].setLo(0, BCType::reflect_odd);
+      bc[EZ].setLo(0, BCType::reflect_odd);
+
+      bc[RHO_I].setHi(0, BCType::foextrap);
+      bc[RHO_E].setHi(0, BCType::foextrap);
+
+      bc[MOMX_I].setHi(0, BCType::reflect_odd);
+      bc[MOMY_I].setHi(0, BCType::foextrap);      
+      bc[MOMZ_I].setHi(0, BCType::foextrap);
+      bc[MOMX_E].setHi(0, BCType::reflect_odd);
+      bc[MOMY_E].setHi(0, BCType::foextrap);      
+      bc[MOMZ_E].setHi(0, BCType::foextrap);
+
+      bc[ENER_I].setHi(0, BCType::foextrap);
+      bc[ENER_E].setHi(0, BCType::foextrap);
+
+      bc[BX].setHi(0, BCType::reflect_odd);
+      bc[BY].setHi(0, BCType::foextrap);
+      bc[BZ].setHi(0, BCType::foextrap);
+
+      bc[EX].setHi(0, BCType::foextrap);      
+      bc[EY].setHi(0, BCType::reflect_odd);
+      bc[EZ].setHi(0, BCType::reflect_odd);
+
+      bc[DIVB].setLo(0, BCType::foextrap);
+      bc[DIVB].setHi(0, BCType::foextrap);
+      bc[DIVE].setLo(0, BCType::reflect_odd);
+      bc[DIVE].setHi(0, BCType::reflect_odd);
+
+      // y-direction
+      bc[RHO_I].setLo(1, BCType::foextrap);      
+      bc[RHO_E].setLo(1, BCType::foextrap);      
+
+      bc[MOMX_I].setLo(1, BCType::foextrap);
+      bc[MOMY_I].setLo(1, BCType::reflect_odd);
+      bc[MOMZ_I].setLo(1, BCType::foextrap);
+      bc[MOMX_E].setLo(1, BCType::foextrap);
+      bc[MOMY_E].setLo(1, BCType::reflect_odd);
+      bc[MOMZ_E].setLo(1, BCType::foextrap);
+
+      bc[ENER_I].setLo(1, BCType::foextrap);
+      bc[ENER_E].setLo(1, BCType::foextrap);
+      
+      bc[BX].setLo(1, BCType::foextrap);
+      bc[BY].setLo(1, BCType::reflect_odd);
+      bc[BZ].setLo(1, BCType::foextrap);
+      
+      bc[EX].setLo(1, BCType::reflect_odd);
+      bc[EY].setLo(1, BCType::foextrap);
+      bc[EZ].setLo(1, BCType::reflect_odd);
+
+      bc[RHO_I].setHi(1, BCType::foextrap);
+      bc[RHO_E].setHi(1, BCType::foextrap);
+
+      bc[MOMX_I].setHi(1, BCType::foextrap);
+      bc[MOMY_I].setHi(1, BCType::reflect_odd);
+      bc[MOMZ_I].setHi(1, BCType::foextrap);
+      bc[MOMX_E].setHi(1, BCType::foextrap);
+      bc[MOMY_E].setHi(1, BCType::reflect_odd);
+      bc[MOMZ_E].setHi(1, BCType::foextrap);
+
+      bc[ENER_I].setHi(1, BCType::foextrap);
+      bc[ENER_E].setHi(1, BCType::foextrap);
+      
+      bc[BX].setHi(1, BCType::foextrap);
+      bc[BY].setHi(1, BCType::reflect_odd);
+      bc[BZ].setHi(1, BCType::foextrap);
+      
+      bc[EX].setHi(1, BCType::reflect_odd);
+      bc[EY].setHi(1, BCType::foextrap);
+      bc[EZ].setHi(1, BCType::reflect_odd);
+
+      bc[DIVB].setLo(1, BCType::foextrap);
+      bc[DIVB].setHi(1, BCType::foextrap);
+      bc[DIVE].setLo(1, BCType::reflect_odd);
+      bc[DIVE].setHi(1, BCType::reflect_odd);
+
     } else
     {
       amrex::Abort("Please enter valid test in inputs file");
