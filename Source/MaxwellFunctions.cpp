@@ -2927,13 +2927,13 @@ void CAMReXmp::Projection(const Real* dx, Real time)
   MultiFab S_input(grids, dmap, NUM_STATE, NUM_GROW);
   FillPatch(*this, S_input, NUM_GROW, time, Phi_Type, 0, NUM_STATE);
 
-  Array<MultiFab,AMREX_SPACEDIM> S_EM_input;
-  S_EM_input[0].define(convert(grids,IntVect{AMREX_D_DECL(1,0,0)}), dmap, 6, NUM_GROW);
-  FillPatch(*this, S_EM_input[0], NUM_GROW, time, EM_X_Type, 0, 6);
-#if (AMREX_SPACEDIM >= 2) 
-  S_EM_input[1].define(convert(grids,IntVect{AMREX_D_DECL(0,1,0)}), dmap, 6, NUM_GROW);
-  FillPatch(*this, S_EM_input[1], NUM_GROW, time, EM_Y_Type, 0, 6);
-#endif
+//   Array<MultiFab,AMREX_SPACEDIM> S_EM_input;
+//   S_EM_input[0].define(convert(grids,IntVect{AMREX_D_DECL(1,0,0)}), dmap, 6, NUM_GROW);
+//   FillPatch(*this, S_EM_input[0], NUM_GROW, time, EM_X_Type, 0, 6);
+// #if (AMREX_SPACEDIM >= 2) 
+//   S_EM_input[1].define(convert(grids,IntVect{AMREX_D_DECL(0,1,0)}), dmap, 6, NUM_GROW);
+//   FillPatch(*this, S_EM_input[1], NUM_GROW, time, EM_Y_Type, 0, 6);
+// #endif
 
   std::array<LinOpBCType, AMREX_SPACEDIM> mlmg_lobc;// = {LinOpBCType::Periodic, LinOpBCType::Periodic};
   std::array<LinOpBCType, AMREX_SPACEDIM> mlmg_hibc;// = {LinOpBCType::Periodic, LinOpBCType::Periodic};
