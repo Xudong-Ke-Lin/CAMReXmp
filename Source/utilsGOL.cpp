@@ -35,6 +35,28 @@ Real get_pressure_totalGOL(const Vector<Real>& u_i)
 
   return (Gamma-1.0)*(E - 0.5*rho*v2 - 0.5*m_e/(q_i*q_i*n_e)*J2);
 }
+Real get_energy_totalGOL(const Vector<Real>& w_i)
+{
+  // define conserved variables
+  Real rho = w_i[0];
+  Real v_x = w_i[1];
+  Real v_y = w_i[2];
+  Real v_z = w_i[3];
+  Real p = w_i[ENER_I];
+  Real J_x = w_i[MOMX_E];
+  Real J_y = w_i[MOMX_E];
+  Real J_z = w_i[MOMX_E];
+  
+  // quasineutrality n_i=n_e, rho_e=rho_i*(m_e/m_i) and m_i=1
+  Real n_e = rho;
+  Real m_e = 1.0/m;
+  Real q_i = r_i;
+
+  Real v2 = get_magnitude_squared(v_x,v_y,v_z);
+  Real J2 = get_magnitude_squared(J_x,J_y,J_z);
+
+  return p/(Gamma-1.0) + 0.5*rho*v2 + 0.5*m_e/(q_i*q_i*n_e)*J2;
+}
 Real get_speedGOL(Vector<Real> u_i){
   // speed of sound for ideal gas
   Real rho = u_i[0];

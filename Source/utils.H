@@ -174,6 +174,7 @@ void WENOcharacteristic(const Array4<Real>& arr, const Array4<Real>& slopes,
 // 2 fluid plasma with generalized Ohm's law functions
 ////////////////////////////////////////////////////////////
 Real get_pressure_totalGOL(const Vector<Real>& u_i);
+Real get_energy_totalGOL(const Vector<Real>& w_i);
 Real get_speedGOL(Vector<Real> u_i);
 Vector<Real> get_electron_var(const Vector<Real>& u_i);
 Vector<Real> fluidGOLFlux(const Vector<Real>& u_i, int d);
